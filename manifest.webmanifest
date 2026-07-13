@@ -1,0 +1,15 @@
+{
+  "name": "День — ежедневник",
+  "short_name": "День",
+  "description": "Личный ежедневник для спокойного планирования",
+  "lang": "ru",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f1f3f5",
+  "theme_color": "#214d78",
+  "icons": [
+    {"src":"assets/icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any"}
+  ]
+}
