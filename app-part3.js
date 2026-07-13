@@ -5,17 +5,18 @@ function resetVoiceButton() {
   button.setAttribute('aria-label', 'Добавить задачу голосом'); button.title = 'Голосовой ввод';
 }
 function voiceFallback(message) {
-  openDialog();
+  if (!$('#taskDialog').open) openDialog();
   setTimeout(() => { $('#taskTitle').focus(); toast(message || 'Нажмите значок микрофона на клавиатуре и продиктуйте задачу'); }, 120);
 }
 async function startVoiceInput() {
   if (activeRecognition) { activeRecognition.stop(); resetVoiceButton(); toast('Голосовой ввод остановлен'); return; }
+  openDialog(); $('#dialogTitle').textContent = 'Новая задача голосом'; $('#taskAutoCarry').checked = true;
   if (location.protocol === 'file:') {
     toast('Для микрофона откройте рабочую версию приложения', 'Открыть', () => { location.href = 'http://127.0.0.1:8080/?v=17'; });
     return;
   }
   const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!Recognition) { voiceFallback('В этом браузере используйте микрофон на экранной клавиатуре'); return; }
+  if (!Recognition) { $('#taskTitle').placeholder = 'Нажмите микрофон на клавиатуре и продиктуйте задачу'; voiceFallback('Форма открыта. Нажмите микрофон на клавиатуре iPhone и продиктуйте задачу'); return; }
   if (!isSecureContext) { toast('Микрофон работает только в установленном приложении или через HTTPS'); return; }
   try {
     if (navigator.mediaDevices?.getUserMedia) {
@@ -29,7 +30,11 @@ async function startVoiceInput() {
     recognition.onstart = () => toast('Слушаю… Продиктуйте задачу');
     recognition.onresult = e => {
       const text = [...e.results].map(result => result[0].transcript).join(' ').trim();
-      if (text) { $('#quickInput').value = text; addQuickTask(text); }
+      if (text) {
+        const parsed = parseQuickTask(text); $('#taskTitle').value = parsed.title; $('#taskDate').value = parsed.date;
+        $('#taskTimeMode').value = parsed.time ? 'exact' : 'anytime'; updateTimeMode(); if (parsed.time) $('#taskTime').value = parsed.time;
+        toast('Задача распознана. Проверьте и нажмите «Сохранить»'); $('#taskTitle').focus();
+      }
       else toast('Речь не распознана. Попробуйте ещё раз');
     };
     recognition.onerror = e => {
@@ -139,11 +144,11 @@ function refreshSyncUi() {
   const avatar = $('#profileButton');
   if (user) {
     setSyncStatus('connected', 'Личный аккаунт подключён', user.email || 'Облачная синхронизация активна');
-    avatar.textContent = (user.email || 'Я').slice(0, 1).toUpperCase(); avatar.title = user.email || 'Личный аккаунт';
+    $('#accountEntryButton').classList.add('connected'); $('#accountEntryText').textContent = 'Аккаунт ✓'; $('#accountEntryButton').title = user.email || 'Личный аккаунт'; avatar.title = user.email || 'Личный аккаунт';
   }
   else {
     setSyncStatus('', 'Не подключено', 'Каждый человек входит со своей почтой и видит только свои задачи.');
-    avatar.textContent = 'Я'; avatar.title = 'Войти в личный аккаунт';
+    $('#accountEntryButton').classList.remove('connected'); $('#accountEntryText').textContent = 'Войти'; $('#accountEntryButton').title = 'Войти или зарегистрироваться'; avatar.title = 'Личный профиль';
   }
 }
 function queueCloudSync() {
@@ -194,6 +199,7 @@ $('#reminderButton').addEventListener('click', () => { currentPlanningView = 'to
 $$('[data-planning-view]').forEach(button => button.addEventListener('click', () => { currentPlanningView = button.dataset.planningView; renderPlanningDialog(); })); $('#planForm').addEventListener('submit', addPeriodPlans);
 $('#planPeriodPrev').addEventListener('click', () => movePlanningPeriod(-1)); $('#planPeriodNext').addEventListener('click', () => movePlanningPeriod(1));
 $('#syncButton').addEventListener('click', () => { if ($('#profileDialog').open) $('#profileDialog').close(); refreshSyncUi(); $('#syncDialog').showModal(); }); $('#closeSync').addEventListener('click', () => $('#syncDialog').close());
+$('#accountEntryButton').addEventListener('click', () => { refreshSyncUi(); $('#syncDialog').showModal(); });
 $('#profileButton').addEventListener('click', openProfile); $('#closeProfile').addEventListener('click', () => $('#profileDialog').close()); $('#profileForm').addEventListener('submit', saveProfileForm);
 $('#chooseProfilePhoto').addEventListener('click', () => $('#profilePhotoInput').click()); $('#profilePhotoInput').addEventListener('change', e => prepareProfilePhoto(e.target.files[0]));
 $('#removeProfilePhoto').addEventListener('click', () => { pendingProfilePhoto = ''; $('#profilePhotoInput').value = ''; renderProfile(); });
@@ -203,6 +209,6 @@ $('#periodPrev').addEventListener('click', () => movePeriod(-1)); $('#periodNext
 $$('[data-view]').forEach(b => b.addEventListener('click', () => { if (b.dataset.view === 'settings') { toast('Все данные, фото и планы хранятся только на этом устройстве'); return; } currentView = b.dataset.view; if (currentView === 'today') selectedDate = todayKey; syncNav(); render(); }));
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; $('#installButton').hidden = false; });
 $('#installButton').addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('#installButton').hidden = true; });
-if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('sw.js?v=28'));
+if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('sw.js?v=29'));
 
 runAutoCarry(); save(); render(); refreshSyncUi(); renderProfile(); if (window.DaySync?.user()) performSync(false); checkReminders(); setInterval(checkReminders, 30000);
