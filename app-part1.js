@@ -195,4 +195,3 @@ function visibleTasks() {
   const priorityOrder = { high: 0, normal: 1, low: 2 };
   return result.sort((a, b) => (a.date + (a.time || '99:99')).localeCompare(b.date + (b.time || '99:99')) || (priorityOrder[a.priority] ?? 1) - (priorityOrder[b.priority] ?? 1));
 }
-
