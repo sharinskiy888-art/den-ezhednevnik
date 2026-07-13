@@ -127,10 +127,18 @@ function enableTaskGestures() {
 function parseQuickTask(text) {
   let title = text.trim(); let date = selectedDate < todayKey ? todayKey : selectedDate; let time = '';
   const base = fromKey(todayKey);
-  if (/\bзавтра\b/i.test(title)) { base.setDate(base.getDate() + 1); date = toKey(base); title = title.replace(/\bзавтра\b/ig, ''); }
+  if (/\bпослезавтра\b/i.test(title)) { base.setDate(base.getDate() + 2); date = toKey(base); title = title.replace(/\bпослезавтра\b/ig, ''); }
+  else if (/\bзавтра\b/i.test(title)) { base.setDate(base.getDate() + 1); date = toKey(base); title = title.replace(/\bзавтра\b/ig, ''); }
   else if (/\bсегодня\b/i.test(title)) { date = todayKey; title = title.replace(/\bсегодня\b/ig, ''); }
-  const timeMatch = title.match(/(?:\bв\s*)?([01]?\d|2[0-3])[:.]([0-5]\d)\b/i);
-  if (timeMatch) { time = `${pad(Number(timeMatch[1]))}:${timeMatch[2]}`; title = title.replace(timeMatch[0], ''); }
+  const months = { января: 0, февраля: 1, марта: 2, апреля: 3, мая: 4, июня: 5, июля: 6, августа: 7, сентября: 8, октября: 9, ноября: 10, декабря: 11 };
+  const dateMatch = title.match(/(?:\bна|\bдо)?\s*(\d{1,2})\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)(?:\s+(\d{4}))?/i);
+  if (dateMatch) {
+    let year = Number(dateMatch[3]) || base.getFullYear(); const month = months[dateMatch[2].toLocaleLowerCase('ru')];
+    if (!dateMatch[3] && new Date(year, month, Number(dateMatch[1])) < fromKey(todayKey)) year += 1;
+    date = toKey(new Date(year, month, Number(dateMatch[1]))); title = title.replace(dateMatch[0], '');
+  }
+  const timeMatch = title.match(/(?:\bв\s*)?([01]?\d|2[0-3])(?::|\.)([0-5]\d)\b|\bв\s+([01]?\d|2[0-3])\s*(?:час(?:а|ов)?)?\b/i);
+  if (timeMatch) { time = `${pad(Number(timeMatch[1] || timeMatch[3]))}:${timeMatch[2] || '00'}`; title = title.replace(timeMatch[0], ''); }
   return { title: title.replace(/\s{2,}/g, ' ').replace(/^[,.;\s]+|[,.;\s]+$/g, '') || text.trim(), date, time };
 }
 function addQuickTask(title) {
@@ -186,4 +194,3 @@ function renderPhotoPreview() {
     const task = tasks.find(t => t.id === $('#taskId').value); $('#photoMeta').textContent = task?.photoCapturedAt ? `Добавлено ${new Date(task.photoCapturedAt).toLocaleString('ru-RU')}` : 'Новое фото';
   } else { $('#photoPreviewImage').removeAttribute('src'); $('#photoMeta').textContent = ''; }
 }
-
