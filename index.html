@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#214d78">
+  <meta name="description" content="Простой ежедневник, который работает офлайн на телефоне и Windows.">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css?v=27">
+  <title>День — ежедневник</title>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Основная навигация">
+      <a class="brand" href="#" aria-label="День — главная">
+        <span class="brand-mark">Д</span>
+        <span>День</span>
+      </a>
+      <nav class="side-nav">
+        <button class="nav-item active" data-view="today"><span>●</span>Сегодня</button>
+        <button class="nav-item" data-view="upcoming"><span>→</span>Предстоящие</button>
+        <button class="nav-item" data-view="completed"><span>✓</span>Выполнено</button>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="progress-ring" id="progressRing"><span id="progressPercent">0%</span></div>
+        <div><strong>Прогресс дня</strong><small id="progressCaption">Начните с малого</small></div>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="topbar">
+        <div class="identity-header">
+          <button class="avatar" id="profileButton" aria-label="Открыть профиль" title="Личный профиль"><span id="profileInitial">Я</span><img id="profileAvatarImage" alt="" hidden></button>
+          <div>
+            <p class="eyebrow" id="dateEyebrow"></p>
+            <h1 id="pageTitle">Добрый день!</h1>
+            <p class="subtitle" id="pageSubtitle">Спокойный план — продуктивный день.</p>
+          </div>
+        </div>
+        <div class="top-actions">
+          <button class="icon-button reminder-button" id="reminderButton" title="Дела на сегодня" aria-label="Дела на сегодня">≡<span id="reminderBadge">0</span></button>
+          <button class="icon-button" id="installButton" title="Установить приложение" hidden>⇩</button>
+        </div>
+      </header>
+
+      <section class="period-bar" aria-label="Масштаб планирования">
+        <div class="period-switch" role="group" aria-label="Период">
+          <button class="period-button active" data-period="day">День</button>
+          <button class="period-button" data-period="week">Неделя</button>
+          <button class="period-button" data-period="month">Месяц</button>
+          <button class="period-button" data-period="year">Год</button>
+        </div>
+        <div class="period-nav">
+          <button id="periodPrev" aria-label="Предыдущий период">‹</button>
+          <button id="periodToday">Сегодня</button>
+          <button id="periodNext" aria-label="Следующий период">›</button>
+        </div>
+      </section>
+
+      <section class="week-strip" id="weekStrip" aria-label="Выбор даты"></section>
+
+      <section class="calendar-overview" id="calendarOverview" hidden></section>
+
+      <section class="overview" aria-label="Сводка">
+        <article class="focus-card">
+          <div>
+            <span class="card-label">Фокус дня</span>
+            <h2 id="focusTitle">Добавьте первую задачу</h2>
+            <p id="focusMeta">Выберите самое важное дело</p>
+          </div>
+          <div class="focus-illustration" aria-hidden="true">01</div>
+        </article>
+        <article class="stat-card">
+          <span class="stat-icon violet">✓</span>
+          <div><strong id="doneCount">0</strong><small>выполнено</small></div>
+        </article>
+        <article class="stat-card">
+          <span class="stat-icon coral">◷</span>
+          <div><strong id="plannedCount">0</strong><small>в плане</small></div>
+        </article>
+      </section>
+
+      <section class="tasks-section">
+        <form class="quick-capture" id="quickForm">
+          <div class="quick-icon">＋</div>
+          <button type="button" class="mobile-new-task" id="mobileNewTaskButton"><span>＋</span> Новая задача</button>
+          <textarea id="quickInput" rows="1" maxlength="1000" placeholder="Введите список дел — каждое с новой строки. Они будут переноситься до выполнения"></textarea>
+          <button type="button" class="voice-button" id="voiceButton" aria-label="Добавить задачу голосом" title="Голосовой ввод">🎙</button>
+          <button type="submit" class="quick-submit">Добавить</button>
+        </form>
+        <div class="task-tools">
+          <label class="search-field" aria-label="Поиск задач">
+            <span>⌕</span>
+            <input type="search" id="taskSearch" placeholder="Поиск по задачам и заметкам">
+          </label>
+        </div>
+        <button type="button" class="week-overview-link" id="weekOverviewButton">
+          <span><strong>Задачи на неделю</strong><small id="weekOverviewLabel">13–19 июля</small></span>
+          <b aria-hidden="true">›</b>
+        </button>
+        <div class="section-heading">
+          <div>
+            <h2 id="listTitle">Задачи на сегодня</h2>
+            <p id="taskSummary">Пока всё свободно</p>
+          </div>
+        </div>
+        <div class="task-list" id="taskList"></div>
+        <div class="empty-state" id="emptyState" hidden>
+          <div class="empty-icon">☕</div>
+          <h3>На этот день задач нет</h3>
+          <p>Оставьте время для себя или добавьте новое дело.</p>
+          <button class="text-button" id="emptyAddButton">+ Добавить задачу</button>
+        </div>
+      </section>
+    </main>
+
+    <button class="fab" id="addButton" aria-label="Добавить задачу"><span>+</span><b>Новая задача</b></button>
+
+    <nav class="bottom-nav" aria-label="Мобильная навигация">
+      <button class="mobile-nav active" data-view="today"><span>◉</span><small>Сегодня</small></button>
+      <button class="mobile-nav" data-view="upcoming"><span>▦</span><small>Планы</small></button>
+      <button class="mobile-add" id="mobileAddButton" aria-label="Добавить задачу">+</button>
+      <button class="mobile-nav" data-view="completed"><span>✓</span><small>Готово</small></button>
+      <button class="mobile-nav" data-view="settings"><span>•••</span><small>Ещё</small></button>
+    </nav>
+  </div>
+
+  <dialog id="taskDialog">
+    <form id="taskForm" method="dialog">
+      <div class="dialog-header">
+        <div><span class="card-label">План</span><h2 id="dialogTitle">Новая задача</h2></div>
+        <button type="button" class="close-button" id="closeDialog" aria-label="Закрыть">×</button>
+      </div>
+      <input type="hidden" id="taskId">
+      <label>Название<input id="taskTitle" maxlength="80" placeholder="Например, подготовить отчёт" required></label>
+      <div class="form-row">
+        <label>Дата<input type="date" id="taskDate" required></label>
+        <label>Когда выполнить
+          <select id="taskTimeMode">
+            <option value="anytime">Без времени — в течение дня</option>
+            <option value="exact">Указать точное время</option>
+          </select>
+          <input type="time" id="taskTime" hidden aria-label="Точное время задачи">
+        </label>
+      </div>
+      <p class="completion-help">Завершите дело галочкой в списке — название автоматически перечеркнётся.</p>
+      <label class="check-label"><input type="checkbox" id="taskAutoCarry"> Автоматически переносить на следующий день, пока задача не выполнена</label>
+      <label>Приоритет
+        <select id="taskPriority"><option value="normal">Обычный</option><option value="high">Высокий</option><option value="low">Низкий</option></select>
+      </label>
+      <label>Повторение
+        <select id="taskRepeat"><option value="none">Не повторять</option><option value="daily">Каждый день</option><option value="weekdays">По будням</option><option value="weekly">Каждую неделю</option><option value="monthly">Каждый месяц</option></select>
+      </label>
+      <label>Напомнить<input type="datetime-local" id="taskReminder"></label>
+      <label>Подзадачи<textarea id="taskSubtasks" rows="3" maxlength="600" placeholder="Каждый пункт с новой строки"></textarea></label>
+      <label>Заметка<textarea id="taskNote" rows="3" maxlength="240" placeholder="Необязательные детали"></textarea></label>
+      <label class="photo-field">Фотоотчёт
+        <input type="file" id="taskPhoto" accept="image/*" capture="environment">
+        <span class="photo-help">Сделайте снимок или выберите фото. После входа в облако фото синхронизируется между устройствами.</span>
+      </label>
+      <div class="photo-preview" id="photoPreview" hidden>
+        <img id="photoPreviewImage" alt="Прикреплённый фотоотчёт">
+        <button type="button" id="removePhoto">Удалить фото</button>
+        <small id="photoMeta"></small>
+      </div>
+      <label>Комментарий к фото<input id="taskProofNote" maxlength="160" placeholder="Например, помещение проверено, замечаний нет"></label>
+      <div class="dialog-actions">
+        <button type="button" class="danger-button" id="deleteTask" hidden>Удалить</button>
+        <button type="button" class="secondary-button" id="cancelDialog">Отмена</button>
+        <button type="submit" class="primary-button">Сохранить</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="reminderDialog" class="reminder-dialog">
+    <div class="reminder-panel">
+      <div class="dialog-header">
+        <div><span class="card-label">Личный обзор</span><h2>Дела и планы</h2></div>
+        <button type="button" class="close-button" id="closeReminders" aria-label="Закрыть">×</button>
+      </div>
+      <div class="planning-tabs" role="tablist" aria-label="Период планирования">
+        <button type="button" class="planning-tab active" data-planning-view="today">Сегодня</button>
+        <button type="button" class="planning-tab" data-planning-view="week">Неделя</button>
+        <button type="button" class="planning-tab" data-planning-view="month">Месяц</button>
+        <button type="button" class="planning-tab" data-planning-view="year">Год</button>
+      </div>
+      <section id="todayPlanningPanel">
+        <div class="mini-task-list" id="miniTaskList"></div>
+        <button class="primary-button notification-permission" id="enableNotifications">Включить уведомления</button>
+      </section>
+      <section id="longPlanningPanel" hidden>
+        <div class="plan-period-heading">
+          <strong id="planPeriodTitle">Планы на неделю</strong>
+          <div class="plan-period-nav"><button type="button" id="planPeriodPrev" aria-label="Предыдущий период">‹</button><small id="planPeriodLabel"></small><button type="button" id="planPeriodNext" aria-label="Следующий период">›</button></div>
+        </div>
+        <form id="planForm" class="plan-entry-form">
+          <textarea id="planInput" rows="2" maxlength="1000" required placeholder="Например: заниматься английским"></textarea>
+          <label class="plan-date-label"><span>Когда планируется <small>необязательно</small></span><input type="date" id="planDate"></label>
+          <small class="plan-form-hint">Один план виден в своей неделе, месяце и году. Можно написать несколько пунктов с новой строки.</small>
+          <button type="submit" class="primary-button">Добавить в список</button>
+        </form>
+        <div class="period-plan-list" id="periodPlanList"></div>
+      </section>
+    </div>
+  </dialog>
+
+  <dialog id="syncDialog" class="sync-dialog">
+    <div class="sync-panel">
+      <div class="dialog-header">
+        <div><span class="card-label">Облако</span><h2>Синхронизация</h2></div>
+        <button type="button" class="close-button" id="closeSync" aria-label="Закрыть">×</button>
+      </div>
+      <div class="sync-state" id="syncState">
+        <span class="sync-state-icon">☁</span>
+        <div><strong id="syncStateTitle">Не подключено</strong><small id="syncStateText">Войдите на каждом устройстве с одинаковым email.</small></div>
+      </div>
+      <form id="syncAuthForm">
+        <label>Email<input type="email" id="syncEmail" autocomplete="email" required placeholder="name@example.com"></label>
+        <label>Пароль<input type="password" id="syncPassword" autocomplete="current-password" minlength="8" required placeholder="Не менее 8 символов"></label>
+        <div class="sync-actions">
+          <button type="button" class="secondary-button" id="syncSignUp">Регистрация</button>
+          <button type="submit" class="primary-button">Войти</button>
+        </div>
+      </form>
+      <div class="sync-connected" id="syncConnected" hidden>
+        <button class="primary-button" id="syncNow">Синхронизировать сейчас</button>
+        <button class="secondary-button" id="syncLogout">Сменить пользователя</button>
+      </div>
+      <p class="sync-note">У каждого email свой отдельный ежедневник. На общем устройстве нажмите «Сменить пользователя», прежде чем другой человек войдёт в свой аккаунт.</p>
+    </div>
+  </dialog>
+
+  <dialog id="profileDialog" class="profile-dialog">
+    <div class="profile-panel">
+      <div class="dialog-header">
+        <div><span class="card-label">Личные данные</span><h2>Мой профиль</h2></div>
+        <button type="button" class="close-button" id="closeProfile" aria-label="Закрыть">×</button>
+      </div>
+      <form id="profileForm">
+        <div class="profile-photo-editor">
+          <button type="button" class="profile-photo-preview" id="chooseProfilePhoto" aria-label="Выбрать фотографию">
+            <span id="profilePreviewInitial">Я</span><img id="profilePreviewImage" alt="Фотография профиля" hidden>
+            <i aria-hidden="true">＋</i>
+          </button>
+          <div><strong>Фотография</strong><small>Будет показана в правом верхнем углу</small><button type="button" class="profile-photo-remove" id="removeProfilePhoto">Удалить фото</button></div>
+          <input type="file" id="profilePhotoInput" accept="image/*" hidden>
+        </div>
+        <label>Как к вам обращаться<input id="profileName" maxlength="40" placeholder="Например, Александр"></label>
+        <div class="profile-account-row"><span>Email аккаунта</span><strong id="profileEmail">Не выполнен вход</strong></div>
+        <p class="profile-note">На главном экране останутся только имя, фото, дата и количество дел — без лишних личных данных.</p>
+        <div class="profile-actions"><button type="button" class="secondary-button profile-sync-button sync-button" id="syncButton">Аккаунт и синхронизация<span id="syncDot"></span></button><button type="submit" class="primary-button">Сохранить</button></div>
+      </form>
+    </div>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastAction" hidden></button></div>
+  <script src="sync-config.js?v=27"></script>
+  <script src="sync.js?v=27"></script>
+  <script src="app.js?v=27"></script>
+</body>
+</html>
