@@ -1,60 +1,63 @@
+function renderPhotoPreview() {
+  const attachment = pendingAttachment || (pendingPhoto ? { name: 'Фотоотчёт.jpg', type: 'image/jpeg', data: pendingPhoto, size: 0 } : null);
+  $('#photoPreview').hidden = !attachment;
+  const imagePreview = $('#photoPreviewImage'); const fileIcon = $('#attachmentFileIcon');
+  if (attachment) {
+    const isImage = attachment.type?.startsWith('image/'); imagePreview.hidden = !isImage; fileIcon.hidden = isImage;
+    if (isImage) imagePreview.src = attachment.data; else imagePreview.removeAttribute('src');
+    $('#attachmentName').textContent = attachment.name || (isImage ? 'Фотография' : 'Документ');
+    const task = tasks.find(t => t.id === $('#taskId').value); const size = attachment.size ? ` · ${Math.max(1, Math.round(attachment.size / 1024))} КБ` : '';
+    $('#photoMeta').textContent = (task?.photoCapturedAt ? `Добавлено ${new Date(task.photoCapturedAt).toLocaleString('ru-RU')}` : 'Новое вложение') + size;
+    $('#attachmentOpen').href = attachment.data; $('#attachmentOpen').download = attachment.name || 'Вложение';
+  } else {
+    imagePreview.hidden = true; fileIcon.hidden = true; imagePreview.removeAttribute('src'); $('#attachmentName').textContent = ''; $('#photoMeta').textContent = ''; $('#attachmentOpen').removeAttribute('href');
+  }
+}
+
 function resetVoiceButton() {
   activeRecognition = null;
-  const button = $('#voiceButton');
-  button.classList.remove('listening'); button.textContent = '🎙';
-  button.setAttribute('aria-label', 'Добавить задачу голосом'); button.title = 'Голосовой ввод';
+  const button = activeVoiceButton || $('#voiceButton'); activeVoiceButton = null;
+  if (!button) return; button.classList.remove('listening'); button.textContent = '🎙'; button.title = 'Голосовой ввод';
 }
-function voiceFallback(message) {
-  if (!$('#taskDialog').open) openDialog();
-  setTimeout(() => { $('#taskTitle').focus(); toast(message || 'Нажмите значок микрофона на клавиатуре и продиктуйте задачу'); }, 120);
+function voiceFallback(targetId, message) {
+  const target = $('#' + targetId); setTimeout(() => { target?.focus(); toast(message || 'Нажмите микрофон на клавиатуре и продиктуйте текст'); }, 120);
 }
-async function startVoiceInput() {
+function applyVoiceText(targetId, text, parseTask) {
+  const target = $('#' + targetId); if (!target) return;
+  if (parseTask) {
+    const parsed = parseQuickTask(text); target.value = parsed.title; $('#taskDate').value = parsed.date;
+    $('#taskTimeMode').value = parsed.time ? 'exact' : 'anytime'; updateTimeMode(); if (parsed.time) $('#taskTime').value = parsed.time;
+  } else if (targetId === 'taskSubtasks') target.value = [target.value.trim(), text].filter(Boolean).join('\n');
+  else target.value = [target.value.trim(), text].filter(Boolean).join(target.value.trim() ? ' ' : '');
+  target.focus();
+}
+async function startVoiceForField(targetId, buttonId, options = {}) {
   if (activeRecognition) { activeRecognition.stop(); resetVoiceButton(); toast('Голосовой ввод остановлен'); return; }
-  openDialog(); $('#dialogTitle').textContent = 'Новая задача голосом'; $('#taskAutoCarry').checked = true;
-  if (location.protocol === 'file:') {
-    toast('Для микрофона откройте рабочую версию приложения', 'Открыть', () => { location.href = 'http://127.0.0.1:8080/?v=17'; });
-    return;
-  }
+  if (options.openTask) { openDialog(); $('#dialogTitle').textContent = 'Новая задача голосом'; $('#taskAutoCarry').checked = true; }
   const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!Recognition) { $('#taskTitle').placeholder = 'Нажмите микрофон на клавиатуре и продиктуйте задачу'; voiceFallback('Форма открыта. Нажмите микрофон на клавиатуре iPhone и продиктуйте задачу'); return; }
+  if (!Recognition) { voiceFallback(targetId, 'Нажмите микрофон на клавиатуре телефона и продиктуйте текст'); return; }
   if (!isSecureContext) { toast('Микрофон работает только в установленном приложении или через HTTPS'); return; }
   try {
-    if (navigator.mediaDevices?.getUserMedia) {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      stream.getTracks().forEach(track => track.stop());
-    }
-    const recognition = new Recognition(); activeRecognition = recognition;
+    if (navigator.mediaDevices?.getUserMedia) { const stream = await navigator.mediaDevices.getUserMedia({ audio: true }); stream.getTracks().forEach(track => track.stop()); }
+    const recognition = new Recognition(); activeRecognition = recognition; activeVoiceButton = $('#' + buttonId);
     recognition.lang = 'ru-RU'; recognition.interimResults = false; recognition.continuous = false; recognition.maxAlternatives = 1;
-    const button = $('#voiceButton'); button.classList.add('listening'); button.textContent = '●';
-    button.setAttribute('aria-label', 'Остановить голосовой ввод'); button.title = 'Слушаю… Нажмите, чтобы остановить';
-    recognition.onstart = () => toast('Слушаю… Продиктуйте задачу');
+    activeVoiceButton?.classList.add('listening'); if (activeVoiceButton) { activeVoiceButton.textContent = '●'; activeVoiceButton.title = 'Слушаю…'; }
+    recognition.onstart = () => toast(options.prompt || 'Слушаю… Говорите');
     recognition.onresult = e => {
       const text = [...e.results].map(result => result[0].transcript).join(' ').trim();
-      if (text) {
-        const parsed = parseQuickTask(text); $('#taskTitle').value = parsed.title; $('#taskDate').value = parsed.date;
-        $('#taskTimeMode').value = parsed.time ? 'exact' : 'anytime'; updateTimeMode(); if (parsed.time) $('#taskTime').value = parsed.time;
-        toast('Задача распознана. Проверьте и нажмите «Сохранить»'); $('#taskTitle').focus();
-      }
+      if (text) { applyVoiceText(targetId, text, !!options.parseTask); toast(options.success || 'Текст добавлен'); }
       else toast('Речь не распознана. Попробуйте ещё раз');
     };
     recognition.onerror = e => {
-      const messages = {
-        'not-allowed': 'Разрешите доступ к микрофону в настройках браузера',
-        'service-not-allowed': 'Браузер запретил службу распознавания речи',
-        'audio-capture': 'Микрофон не найден или занят другим приложением',
-        'no-speech': 'Речь не услышана. Нажмите микрофон и повторите',
-        network: 'Нет связи со службой распознавания речи'
-      };
+      const messages = { 'not-allowed': 'Разрешите доступ к микрофону в настройках браузера', 'service-not-allowed': 'Браузер запретил службу распознавания речи', 'audio-capture': 'Микрофон не найден или занят другим приложением', 'no-speech': 'Речь не услышана. Нажмите микрофон и повторите', network: 'Нет связи со службой распознавания речи' };
       toast(messages[e.error] || 'Не удалось распознать речь. Попробуйте ещё раз');
     };
-    recognition.onend = resetVoiceButton;
-    recognition.start();
+    recognition.onend = resetVoiceButton; recognition.start();
   } catch (error) {
-    resetVoiceButton();
-    if (error?.name === 'NotAllowedError' || error?.name === 'SecurityError') toast('Разрешите приложению доступ к микрофону');
-    else toast('Не удалось включить микрофон');
+    resetVoiceButton(); if (error?.name === 'NotAllowedError' || error?.name === 'SecurityError') toast('Разрешите приложению доступ к микрофону'); else toast('Не удалось включить микрофон');
   }
 }
+function startVoiceInput() { return startVoiceForField('taskTitle', 'voiceButton', { openTask: true, parseTask: true, prompt: 'Слушаю… Назовите задачу, дату и время', success: 'Задача распознана. Проверьте и сохраните' }); }
 
 function renderMiniTasks() {
   const today = tasks.filter(t => t.date === todayKey && !t.completed).sort((a, b) => (a.time || '99:99').localeCompare(b.time || '99:99'));
@@ -191,9 +194,14 @@ $('#quickInput').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.
 $('#taskSearch').addEventListener('input', e => { searchQuery = e.currentTarget.value.trim().toLocaleLowerCase('ru'); renderTasks(); renderStats(); });
 $('#weekOverviewButton').addEventListener('click', () => { currentView = 'today'; currentPeriod = 'week'; syncNav(); render(); });
 $('#voiceButton').addEventListener('click', startVoiceInput);
+$('#voiceTitleButton').addEventListener('click', () => startVoiceForField('taskTitle', 'voiceTitleButton', { parseTask: true, prompt: 'Слушаю название, дату и время', success: 'Название задачи добавлено' }));
+$('#voiceSubtasksButton').addEventListener('click', () => startVoiceForField('taskSubtasks', 'voiceSubtasksButton', { prompt: 'Продиктуйте одну подзадачу', success: 'Подзадача добавлена новой строкой' }));
+$('#voiceNoteButton').addEventListener('click', () => startVoiceForField('taskNote', 'voiceNoteButton', { prompt: 'Продиктуйте заметку', success: 'Заметка добавлена' }));
 $('#addButton').addEventListener('click', () => openDialog()); $('#mobileAddButton').addEventListener('click', () => openDialog()); $('#mobileNewTaskButton').addEventListener('click', () => openDialog()); $('#emptyAddButton').addEventListener('click', () => openDialog());
 $('#closeDialog').addEventListener('click', closeDialog); $('#cancelDialog').addEventListener('click', closeDialog); $('#taskForm').addEventListener('submit', handleSubmit); $('#deleteTask').addEventListener('click', deleteCurrent);
-$('#taskPhoto').addEventListener('change', e => preparePhoto(e.target.files[0])); $('#removePhoto').addEventListener('click', () => { pendingPhoto = null; $('#taskPhoto').value = ''; renderPhotoPreview(); });
+$('#taskCameraButton').addEventListener('click', () => $('#taskCameraInput').click()); $('#taskGalleryButton').addEventListener('click', () => $('#taskGalleryInput').click()); $('#taskDocumentButton').addEventListener('click', () => $('#taskDocumentInput').click());
+['taskCameraInput', 'taskGalleryInput', 'taskDocumentInput'].forEach(id => $('#' + id).addEventListener('change', e => { prepareAttachment(e.target.files[0]); e.target.value = ''; }));
+$('#removePhoto').addEventListener('click', () => { pendingPhoto = null; pendingAttachment = null; renderPhotoPreview(); });
 $('#taskTimeMode').addEventListener('change', updateTimeMode);
 $('#reminderButton').addEventListener('click', () => { currentPlanningView = 'today'; planningAnchorDate = selectedDate; renderPlanningDialog(); $('#reminderDialog').showModal(); }); $('#closeReminders').addEventListener('click', () => $('#reminderDialog').close()); $('#enableNotifications').addEventListener('click', enableNotifications);
 $$('[data-planning-view]').forEach(button => button.addEventListener('click', () => { currentPlanningView = button.dataset.planningView; renderPlanningDialog(); })); $('#planForm').addEventListener('submit', addPeriodPlans);
@@ -201,14 +209,15 @@ $('#planPeriodPrev').addEventListener('click', () => movePlanningPeriod(-1)); $(
 $('#syncButton').addEventListener('click', () => { if ($('#profileDialog').open) $('#profileDialog').close(); refreshSyncUi(); $('#syncDialog').showModal(); }); $('#closeSync').addEventListener('click', () => $('#syncDialog').close());
 $('#accountEntryButton').addEventListener('click', () => { refreshSyncUi(); $('#syncDialog').showModal(); });
 $('#profileButton').addEventListener('click', openProfile); $('#closeProfile').addEventListener('click', () => $('#profileDialog').close()); $('#profileForm').addEventListener('submit', saveProfileForm);
-$('#chooseProfilePhoto').addEventListener('click', () => $('#profilePhotoInput').click()); $('#profilePhotoInput').addEventListener('change', e => prepareProfilePhoto(e.target.files[0]));
-$('#removeProfilePhoto').addEventListener('click', () => { pendingProfilePhoto = ''; $('#profilePhotoInput').value = ''; renderProfile(); });
+$('#chooseProfilePhoto').addEventListener('click', () => $('#profilePhotoInput').click()); $('#profileGalleryButton').addEventListener('click', () => $('#profilePhotoInput').click()); $('#profileCameraButton').addEventListener('click', () => $('#profileCameraInput').click());
+$('#profilePhotoInput').addEventListener('change', e => { prepareProfilePhoto(e.target.files[0]); e.target.value = ''; }); $('#profileCameraInput').addEventListener('change', e => { prepareProfilePhoto(e.target.files[0]); e.target.value = ''; });
+$('#removeProfilePhoto').addEventListener('click', () => { pendingProfilePhoto = ''; $('#profilePhotoInput').value = ''; $('#profileCameraInput').value = ''; renderProfile(); });
 $('#syncAuthForm').addEventListener('submit', handleSyncLogin); $('#syncSignUp').addEventListener('click', handleSyncSignUp); $('#syncNow').addEventListener('click', () => performSync()); $('#syncLogout').addEventListener('click', handleSyncLogout);
 $$('[data-period]').forEach(b => b.addEventListener('click', () => { currentPeriod = b.dataset.period; currentView = 'today'; syncNav(); render(); }));
 $('#periodPrev').addEventListener('click', () => movePeriod(-1)); $('#periodNext').addEventListener('click', () => movePeriod(1)); $('#periodToday').addEventListener('click', () => { selectedDate = todayKey; render(); });
 $$('[data-view]').forEach(b => b.addEventListener('click', () => { if (b.dataset.view === 'settings') { toast('Все данные, фото и планы хранятся только на этом устройстве'); return; } currentView = b.dataset.view; if (currentView === 'today') selectedDate = todayKey; syncNav(); render(); }));
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; $('#installButton').hidden = false; });
 $('#installButton').addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('#installButton').hidden = true; });
-if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('sw.js?v=30'));
+if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('sw.js?v=31'));
 
 runAutoCarry(); save(); render(); refreshSyncUi(); renderProfile(); if (window.DaySync?.user()) performSync(false); checkReminders(); setInterval(checkReminders, 30000);
