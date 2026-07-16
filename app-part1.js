@@ -24,10 +24,12 @@ let currentView = 'today';
 let currentPeriod = 'day';
 let installPrompt = null;
 let pendingPhoto = null;
+let pendingAttachment = null;
 let deletedIds = loadDeletedIds();
 let suppressSync = false;
 let syncTimer = null;
 let activeRecognition = null;
+let activeVoiceButton = null;
 let profile = loadProfile();
 let pendingProfilePhoto = profile.photo || '';
 let periodPlans = loadPeriodPlans();
@@ -44,7 +46,7 @@ function loadTasks() {
     }
     const legacy = accountSuffix() === 'guest' ? localStorage.getItem(STORAGE_KEY) || localStorage.getItem(LEGACY_KEY) : null;
     const parsed = JSON.parse(current || legacy || 'null');
-    if (Array.isArray(parsed)) return parsed.map(t => ({ autoCarry: false, reminder: '', notified: false, photo: null, photoCapturedAt: '', proofNote: '', repeat: 'none', subtasks: [], carryCount: 0, updatedAt: new Date(0).toISOString(), ...t }));
+    if (Array.isArray(parsed)) return parsed.map(t => ({ autoCarry: false, reminder: '', notified: false, photo: null, attachment: null, photoCapturedAt: '', proofNote: '', repeat: 'none', subtasks: [], carryCount: 0, updatedAt: new Date(0).toISOString(), ...t }));
     return seedTasks();
   } catch { return seedTasks(); }
 }
@@ -98,7 +100,7 @@ function seedTasks() {
 
 function save() {
   try { localStorage.setItem(taskStorageKey(), JSON.stringify(tasks)); if (!suppressSync) queueCloudSync(); return true; }
-  catch { toast('Не хватает памяти. Удалите несколько больших фото.'); return false; }
+  catch { toast('Не хватает памяти. Удалите несколько больших вложений.'); return false; }
 }
 
 function runAutoCarry() {
