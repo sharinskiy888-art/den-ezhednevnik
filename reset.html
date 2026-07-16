@@ -24,26 +24,36 @@
     </section>
     <section id="resultPanel" hidden>
       <h1 id="resultTitle">Пароль изменён</h1><p id="resultText">Теперь можно войти в ежедневник с новым паролем.</p>
-      <a class="link" href="./?v=34">Открыть ежедневник</a>
-      <a class="link secondary" href="./?v=34" id="retryLink">Вернуться ко входу</a>
+      <a class="link" href="./?v=35">Открыть ежедневник</a>
+      <a class="link secondary" href="./?v=35" id="retryLink">Вернуться ко входу</a>
     </section>
   </main>
-  <script src="sync-config.js?v=34"></script>
+  <script src="sync-config.js?v=35"></script>
   <script>
     const hash = new URLSearchParams(location.hash.replace(/^#/, '')); const query = new URLSearchParams(location.search);
-    const accessToken = hash.get('access_token') || query.get('access_token'); const type = hash.get('type') || query.get('type');
+    let accessToken = hash.get('access_token') || query.get('access_token'); const type = hash.get('type') || query.get('type');
+    const tokenHash = query.get('token_hash') || hash.get('token_hash');
     const errorText = hash.get('error_description') || query.get('error_description') || hash.get('error') || query.get('error');
     const loading = document.querySelector('#loadingPanel'); const resetPanel = document.querySelector('#resetPanel'); const resultPanel = document.querySelector('#resultPanel');
     function showResult(title, text, error = false) { loading.hidden = true; resetPanel.hidden = true; resultPanel.hidden = false; document.querySelector('#resultTitle').textContent = title; document.querySelector('#resultText').textContent = text; document.querySelector('#resultTitle').style.color = error ? '#b43b33' : '#237a60'; document.querySelector('#retryLink').hidden = !error; }
     async function initialize() {
       if (errorText) { showResult('Ссылка недействительна', errorText.replace(/\+/g, ' ') + '. Запросите новое письмо.', true); return; }
+      if (!accessToken && tokenHash) {
+        try {
+          const response = await fetch(`${SUPABASE_CONFIG.url}/auth/v1/verify`, { method: 'POST', headers: { apikey: SUPABASE_CONFIG.anonKey, 'Content-Type': 'application/json' }, body: JSON.stringify({ token_hash: tokenHash, type: 'recovery' }) });
+          const body = await response.json().catch(() => ({}));
+          if (!response.ok || !body.access_token) throw new Error(body.message || body.msg || body.error_description || 'Ссылка недействительна или уже использована');
+          accessToken = body.access_token;
+          localStorage.setItem('day-sync-session-v1', JSON.stringify({ access_token: body.access_token, refresh_token: body.refresh_token || '', expires_at: Math.floor(Date.now()/1000) + Number(body.expires_in || 3600), user: body.user || null }));
+        } catch (error) { showResult('Ссылка недействительна', `${error.message}. Запросите новое письмо.`, true); return; }
+      }
       if (!accessToken) { showResult('Код восстановления не найден', 'Эта ссылка неполная или уже использована. Запросите новое письмо.', true); return; }
       if (type && type !== 'recovery') {
         try {
           const response = await fetch(`${SUPABASE_CONFIG.url}/auth/v1/user`, { headers: { apikey: SUPABASE_CONFIG.anonKey, Authorization: `Bearer ${accessToken}` } });
           const user = response.ok ? await response.json() : null; if (user) localStorage.setItem('day-sync-session-v1', JSON.stringify({ access_token: accessToken, refresh_token: hash.get('refresh_token') || '', expires_at: Math.floor(Date.now()/1000) + Number(hash.get('expires_in') || 3600), user }));
         } catch {}
-        location.replace('./?auth=confirmed&v=34'); return;
+        location.replace('./?auth=confirmed&v=35'); return;
       }
       history.replaceState(null, '', 'reset.html?recovery=1'); loading.hidden = true; resetPanel.hidden = false; document.querySelector('#password').focus();
     }
