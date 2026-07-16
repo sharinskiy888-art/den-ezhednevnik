@@ -7,7 +7,7 @@
   <meta name="description" content="Простой ежедневник, который работает офлайн на телефоне и Windows.">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=36.2">
+  <link rel="stylesheet" href="styles.css?v=37">
   <title>День — ежедневник</title>
   <script>
     (() => {
@@ -266,10 +266,18 @@
           <button type="button" class="secondary-button" id="syncSignUp">Регистрация</button>
           <button type="submit" class="primary-button">Войти</button>
         </div>
-        <button type="button" class="forgot-password-button" id="syncForgotPassword">Забыли пароль? Получить письмо для восстановления</button>
+        <button type="button" class="forgot-password-button" id="syncForgotPassword">Забыли пароль? Получить код по email</button>
+      </form>
+      <form id="syncRecoveryCodeForm" hidden>
+        <p class="sync-reset-note">Мы отправим одноразовый код. Введите сюда код только из самого нового письма.</p>
+        <label>Email<input type="email" id="syncRecoveryEmail" autocomplete="email" required placeholder="name@example.com"></label>
+        <label>Код из письма<input type="text" id="syncRecoveryCode" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6,8}" maxlength="8" required placeholder="6–8 цифр"></label>
+        <button type="submit" class="primary-button">Проверить код</button>
+        <button type="button" class="secondary-button recovery-button" id="syncResendRecoveryCode">Отправить новый код</button>
+        <button type="button" class="forgot-password-button" id="syncBackToLogin">Вернуться ко входу</button>
       </form>
       <form id="syncResetForm" hidden>
-        <p class="sync-reset-note">Придумайте новый пароль после перехода по ссылке из письма.</p>
+        <p class="sync-reset-note">Код подтверждён. Придумайте новый пароль — старый пароль вводить не нужно.</p>
         <label>Новый пароль<input type="password" id="syncNewPassword" minlength="8" required autocomplete="new-password" placeholder="Не менее 8 символов"></label>
         <label>Повторите пароль<input type="password" id="syncNewPasswordConfirm" minlength="8" required autocomplete="new-password"></label>
         <button type="submit" class="primary-button">Сохранить новый пароль</button>
@@ -322,8 +330,8 @@
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastAction" hidden></button></div>
-  <script src="sync-config.js?v=36.2"></script>
-  <script src="sync.js?v=36.2"></script>
-  <script src="app.js?v=36.2"></script>
+  <script src="sync-config.js?v=37"></script>
+  <script src="sync.js?v=37"></script>
+  <script src="app.js?v=37"></script>
 </body>
 </html>
