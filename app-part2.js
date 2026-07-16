@@ -1,25 +1,3 @@
-function renderTasks() {
-  const list = visibleTasks();
-  $('#taskList').innerHTML = list.map(t => {
-    const subDone = (t.subtasks || []).filter(s => s.done).length;
-    const carryLabel = t.carryCount ? `Переносилась ${t.carryCount} ${t.carryCount === 1 ? 'день' : t.carryCount < 5 ? 'дня' : 'дней'}` : 'Автоперенос';
-    return `<article class="task priority-${t.priority || 'normal'} ${t.completed ? 'completed' : ''}" data-task-id="${t.id}">
-    <input class="check" type="checkbox" data-check="${t.id}" ${t.completed ? 'checked' : ''} aria-label="Отметить задачу ${escapeHtml(t.title)} выполненной">
-    <div class="task-main"><div class="task-title">${escapeHtml(t.title)}</div><div class="task-meta">
-      <span>${currentPeriod !== 'day' || currentView !== 'today' ? formatShortDate(t.date) + ' · ' : ''}${t.time || 'В течение дня'}</span>
-      ${t.autoCarry ? `<span class="tag carry">↻ ${carryLabel}</span>` : ''}${t.photo ? '<span class="photo-chip">📷 фотоотчёт</span>' : ''}
-      ${t.repeat && t.repeat !== 'none' ? `<span class="tag repeat">⟳ ${REPEAT_LABELS[t.repeat]}</span>` : ''}
-      ${(t.subtasks || []).length ? `<span class="tag checklist">☑ ${subDone}/${t.subtasks.length}</span>` : ''}
-      ${t.attachment || t.photo ? '<span class="tag">📎 вложение</span>' : ''}
-      ${t.priority === 'high' ? '<span class="priority-label high">Важно</span>' : t.priority === 'low' ? '<span class="priority-label low">Можно позже</span>' : ''}
-    </div>${(t.subtasks || []).length ? `<div class="subtask-list">${t.subtasks.map((s, i) => `<button type="button" class="subtask ${s.done ? 'done' : ''}" data-subtask="${t.id}" data-sub-index="${i}"><i>${s.done ? '✓' : ''}</i>${escapeHtml(s.title)}</button>`).join('')}</div>` : ''}</div><button class="more-button" data-edit="${t.id}" aria-label="Редактировать ${escapeHtml(t.title)}">•••</button></article>`;
-  }).join('');
-  $('#emptyState').hidden = list.length > 0;
-  $$('[data-check]').forEach(el => el.addEventListener('change', () => toggleTask(el.dataset.check)));
-  $$('[data-edit]').forEach(el => el.addEventListener('click', () => openDialog(el.dataset.edit)));
-  $$('[data-subtask]').forEach(el => el.addEventListener('click', () => toggleSubtask(el.dataset.subtask, Number(el.dataset.subIndex))));
-  enableTaskGestures();
-}
 
 function renderStats() {
   const day = tasks.filter(t => t.date === selectedDate); const done = day.filter(t => t.completed).length; const planned = day.length - done;
@@ -196,4 +174,63 @@ async function prepareAttachment(file) {
   const reader = new FileReader();
   reader.onload = () => { pendingPhoto = null; pendingAttachment = { name: file.name || 'Документ', type: file.type || 'application/octet-stream', data: reader.result, size: file.size }; renderPhotoPreview(); toast('Документ прикреплён'); };
   reader.onerror = () => toast('Не удалось прочитать документ'); reader.readAsDataURL(file);
+}
+function renderPhotoPreview() {
+  const attachment = pendingAttachment || (pendingPhoto ? { name: 'Фотоотчёт.jpg', type: 'image/jpeg', data: pendingPhoto, size: 0 } : null);
+  $('#photoPreview').hidden = !attachment;
+  const imagePreview = $('#photoPreviewImage'); const fileIcon = $('#attachmentFileIcon');
+  if (attachment) {
+    const isImage = attachment.type?.startsWith('image/'); imagePreview.hidden = !isImage; fileIcon.hidden = isImage;
+    if (isImage) imagePreview.src = attachment.data; else imagePreview.removeAttribute('src');
+    $('#attachmentName').textContent = attachment.name || (isImage ? 'Фотография' : 'Документ');
+    const task = tasks.find(t => t.id === $('#taskId').value); const size = attachment.size ? ` · ${Math.max(1, Math.round(attachment.size / 1024))} КБ` : '';
+    $('#photoMeta').textContent = (task?.photoCapturedAt ? `Добавлено ${new Date(task.photoCapturedAt).toLocaleString('ru-RU')}` : 'Новое вложение') + size;
+    $('#attachmentOpen').href = attachment.data; $('#attachmentOpen').download = attachment.name || 'Вложение';
+  } else {
+    imagePreview.hidden = true; fileIcon.hidden = true; imagePreview.removeAttribute('src'); $('#attachmentName').textContent = ''; $('#photoMeta').textContent = ''; $('#attachmentOpen').removeAttribute('href');
+  }
+}
+
+function resetVoiceButton() {
+  activeRecognition = null;
+  const button = activeVoiceButton || $('#voiceButton'); activeVoiceButton = null;
+  if (!button) return; button.classList.remove('listening'); button.textContent = '🎙'; button.title = 'Голосовой ввод';
+}
+function voiceFallback(targetId, message) {
+  const target = $('#' + targetId); setTimeout(() => { target?.focus(); toast(message || 'Нажмите микрофон на клавиатуре и продиктуйте текст'); }, 120);
+}
+function applyVoiceText(targetId, text, parseTask) {
+  const target = $('#' + targetId); if (!target) return;
+  if (parseTask) {
+    const parsed = parseQuickTask(text); target.value = parsed.title; $('#taskDate').value = parsed.date;
+    $('#taskTimeMode').value = parsed.time ? 'exact' : 'anytime'; updateTimeMode(); if (parsed.time) $('#taskTime').value = parsed.time;
+  } else if (targetId === 'taskSubtasks') target.value = [target.value.trim(), text].filter(Boolean).join('\n');
+  else target.value = [target.value.trim(), text].filter(Boolean).join(target.value.trim() ? ' ' : '');
+  target.focus();
+}
+async function startVoiceForField(targetId, buttonId, options = {}) {
+  if (activeRecognition) { activeRecognition.stop(); resetVoiceButton(); toast('Голосовой ввод остановлен'); return; }
+  if (options.openTask) { openDialog(); $('#dialogTitle').textContent = 'Новая задача голосом'; $('#taskAutoCarry').checked = true; }
+  const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!Recognition) { voiceFallback(targetId, 'Нажмите микрофон на клавиатуре телефона и продиктуйте текст'); return; }
+  if (!isSecureContext) { toast('Микрофон работает только в установленном приложении или через HTTPS'); return; }
+  try {
+    if (navigator.mediaDevices?.getUserMedia) { const stream = await navigator.mediaDevices.getUserMedia({ audio: true }); stream.getTracks().forEach(track => track.stop()); }
+    const recognition = new Recognition(); activeRecognition = recognition; activeVoiceButton = $('#' + buttonId);
+    recognition.lang = 'ru-RU'; recognition.interimResults = false; recognition.continuous = false; recognition.maxAlternatives = 1;
+    activeVoiceButton?.classList.add('listening'); if (activeVoiceButton) { activeVoiceButton.textContent = '●'; activeVoiceButton.title = 'Слушаю…'; }
+    recognition.onstart = () => toast(options.prompt || 'Слушаю… Говорите');
+    recognition.onresult = e => {
+      const text = [...e.results].map(result => result[0].transcript).join(' ').trim();
+      if (text) { applyVoiceText(targetId, text, !!options.parseTask); toast(options.success || 'Текст добавлен'); }
+      else toast('Речь не распознана. Попробуйте ещё раз');
+    };
+    recognition.onerror = e => {
+      const messages = { 'not-allowed': 'Разрешите доступ к микрофону в настройках браузера', 'service-not-allowed': 'Браузер запретил службу распознавания речи', 'audio-capture': 'Микрофон не найден или занят другим приложением', 'no-speech': 'Речь не услышана. Нажмите микрофон и повторите', network: 'Нет связи со службой распознавания речи' };
+      toast(messages[e.error] || 'Не удалось распознать речь. Попробуйте ещё раз');
+    };
+    recognition.onend = resetVoiceButton; recognition.start();
+  } catch (error) {
+    resetVoiceButton(); if (error?.name === 'NotAllowedError' || error?.name === 'SecurityError') toast('Разрешите приложению доступ к микрофону'); else toast('Не удалось включить микрофон');
+  }
 }
