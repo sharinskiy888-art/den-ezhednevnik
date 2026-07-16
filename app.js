@@ -5,7 +5,7 @@ const PROFILE_KEY = 'day-planner-profile-v1';
 const PLAN_KEY = 'day-planner-period-plans-v1';
 const STATE_UPDATED_KEY = 'day-planner-state-updated-v1';
 const PIN_KEY = 'day-planner-pin-v1';
-const APP_VERSION = '36';
+const APP_VERSION = '36.1';
 const UPDATE_SEEN_KEY = 'day-planner-update-seen-v1';
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -711,7 +711,9 @@ $('#removePhoto').addEventListener('click', () => { pendingPhoto = null; pending
 $('#taskTimeMode').addEventListener('change', updateTimeMode);
 $('#updateButton').addEventListener('click', async () => { renderUpdateCenter(); $('#updateDialog').showModal(); await checkForAppUpdate(false); }); $('#closeUpdate').addEventListener('click', () => $('#updateDialog').close()); $('#checkUpdateButton').addEventListener('click', () => checkForAppUpdate(true)); $('#applyUpdateButton').addEventListener('click', applyAppUpdate);
 $('#closeReminders').addEventListener('click', () => $('#reminderDialog').close()); $('#enableNotifications').addEventListener('click', enableNotifications);
-$('#mobilePlansButton').addEventListener('click', () => { currentPlanningView = 'week'; planningAnchorDate = selectedDate; renderPlanningDialog(); $('#reminderDialog').showModal(); });
+function openPlansDialog() { currentPlanningView = 'week'; planningAnchorDate = selectedDate; renderPlanningDialog(); $('#reminderDialog').showModal(); }
+$('#mobilePlansButton').addEventListener('click', openPlansDialog);
+$('#desktopPlansButton').addEventListener('click', openPlansDialog);
 $$('[data-planning-view]').forEach(button => button.addEventListener('click', () => { currentPlanningView = button.dataset.planningView; renderPlanningDialog(); })); $('#planForm').addEventListener('submit', addPeriodPlans);
 $('#planPeriodPrev').addEventListener('click', () => movePlanningPeriod(-1)); $('#planPeriodNext').addEventListener('click', () => movePlanningPeriod(1));
 $('#syncButton').addEventListener('click', () => { if ($('#profileDialog').open) $('#profileDialog').close(); refreshSyncUi(); $('#syncDialog').showModal(); }); $('#closeSync').addEventListener('click', () => $('#syncDialog').close());
