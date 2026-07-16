@@ -678,9 +678,10 @@ function renderUpdateCenter() {
 }
 async function checkForAppUpdate(showFeedback = false) {
   try {
-    const response = await fetch(`version.json?check=${Date.now()}`, { cache: 'no-store' });
-    if (!response.ok) throw new Error('Не удалось проверить версию');
-    const release = await response.json(); latestAppVersion = String(release.version || APP_VERSION); latestUpdateNotes = Array.isArray(release.notes) && release.notes.length ? release.notes : latestUpdateNotes;
+    await new Promise((resolve, reject) => {
+      $('#appVersionCheck')?.remove(); const script = document.createElement('script'); script.id = 'appVersionCheck'; script.src = `version.js?check=${Date.now()}`; script.onload = resolve; script.onerror = () => reject(new Error('Не удалось проверить версию')); document.head.append(script);
+    });
+    const release = window.DAY_APP_RELEASE || {}; latestAppVersion = String(release.version || APP_VERSION); latestUpdateNotes = Array.isArray(release.notes) && release.notes.length ? release.notes : latestUpdateNotes;
     refreshUpdateIndicator(); renderUpdateCenter();
     if (showFeedback) toast(compareAppVersions(latestAppVersion, APP_VERSION) > 0 ? `Доступна версия ${latestAppVersion}` : 'Установлена последняя версия');
   } catch { if (showFeedback) toast('Не удалось проверить обновление. Проверьте интернет.'); }
