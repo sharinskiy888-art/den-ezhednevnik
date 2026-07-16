@@ -10,6 +10,7 @@ function renderTasks() {
       ${t.autoCarry ? `<span class="tag carry">↻ ${carryLabel}</span>` : ''}${t.photo ? '<span class="photo-chip">📷 фотоотчёт</span>' : ''}
       ${t.repeat && t.repeat !== 'none' ? `<span class="tag repeat">⟳ ${REPEAT_LABELS[t.repeat]}</span>` : ''}
       ${(t.subtasks || []).length ? `<span class="tag checklist">☑ ${subDone}/${t.subtasks.length}</span>` : ''}
+      ${t.attachment || t.photo ? '<span class="tag">📎 вложение</span>' : ''}
       ${t.priority === 'high' ? '<span class="priority-label high">Важно</span>' : t.priority === 'low' ? '<span class="priority-label low">Можно позже</span>' : ''}
     </div>${(t.subtasks || []).length ? `<div class="subtask-list">${t.subtasks.map((s, i) => `<button type="button" class="subtask ${s.done ? 'done' : ''}" data-subtask="${t.id}" data-sub-index="${i}"><i>${s.done ? '✓' : ''}</i>${escapeHtml(s.title)}</button>`).join('')}</div>` : ''}</div><button class="more-button" data-edit="${t.id}" aria-label="Редактировать ${escapeHtml(t.title)}">•••</button></article>`;
   }).join('');
@@ -96,7 +97,7 @@ function createNextRepeat(task) {
   const nextDate = nextRepeatDate(task);
   const source = task.recurrenceSource || task.id;
   if (tasks.some(t => t.recurrenceSource === source && t.date === nextDate)) return null;
-  const clone = { ...task, id: crypto.randomUUID(), date: nextDate, completed: false, notified: false, carriedFrom: '', carryCount: 0, recurrenceSource: source, subtasks: (task.subtasks || []).map(s => ({ title: s.title, done: false })), photo: null, photoCapturedAt: '', proofNote: '', updatedAt: new Date().toISOString() };
+  const clone = { ...task, id: crypto.randomUUID(), date: nextDate, completed: false, notified: false, carriedFrom: '', carryCount: 0, recurrenceSource: source, subtasks: (task.subtasks || []).map(s => ({ title: s.title, done: false })), photo: null, attachment: null, photoCapturedAt: '', proofNote: '', updatedAt: new Date().toISOString() };
   if (task.reminder) { const old = new Date(task.reminder); const base = fromKey(task.date); const next = fromKey(nextDate); old.setDate(old.getDate() + Math.round((next - base) / 86400000)); clone.reminder = `${toKey(old)}T${pad(old.getHours())}:${pad(old.getMinutes())}`; }
   tasks.push(clone);
   return clone.id;
@@ -143,12 +144,13 @@ function parseQuickTask(text) {
 }
 function addQuickTask(title) {
   const lines = title.split(/\r?\n/).map(line => line.trim().replace(/^[-•\d.)\s]+/, '')).filter(Boolean); if (!lines.length) return;
-  lines.forEach(clean => { const parsed = parseQuickTask(clean); tasks.push({ id: crypto.randomUUID(), ...parsed, priority: 'normal', note: '', completed: false, autoCarry: true, reminder: '', notified: false, photo: null, photoCapturedAt: '', proofNote: '', repeat: 'none', subtasks: [], carryCount: 0, updatedAt: new Date().toISOString() }); });
+  lines.forEach(clean => { const parsed = parseQuickTask(clean); tasks.push({ id: crypto.randomUUID(), ...parsed, priority: 'normal', note: '', completed: false, autoCarry: true, reminder: '', notified: false, photo: null, attachment: null, photoCapturedAt: '', proofNote: '', repeat: 'none', subtasks: [], carryCount: 0, updatedAt: new Date().toISOString() }); });
   save(); $('#quickInput').value = ''; render(); toast(lines.length > 1 ? `Добавлено дел: ${lines.length}` : 'Дело добавлено с автопереносом');
 }
 
 function openDialog(id = null) {
   const task = tasks.find(t => t.id === id); $('#taskForm').reset(); pendingPhoto = task?.photo || null;
+  pendingAttachment = task?.attachment || (task?.photo ? { name: 'Фотоотчёт.jpg', type: 'image/jpeg', data: task.photo, size: 0 } : null);
   $('#taskId').value = task?.id || ''; $('#dialogTitle').textContent = task ? 'Редактировать задачу' : 'Новая задача';
   $('#taskTitle').value = task?.title || ''; $('#taskDate').value = task?.date || selectedDate; $('#taskTime').value = task?.time || '';
   $('#taskTimeMode').value = task?.time ? 'exact' : 'anytime'; updateTimeMode();
@@ -167,7 +169,8 @@ function handleSubmit(event) {
   event.preventDefault(); const id = $('#taskId').value;
   const existing = tasks.find(t => t.id === id); const previousSubtasks = existing?.subtasks || [];
   const subtasks = $('#taskSubtasks').value.split(/\r?\n/).map(x => x.trim()).filter(Boolean).map(title => ({ title, done: previousSubtasks.find(s => s.title === title)?.done || false }));
-  const data = { title: $('#taskTitle').value.trim(), date: $('#taskDate').value, time: $('#taskTimeMode').value === 'exact' ? $('#taskTime').value : '', priority: $('#taskPriority').value, note: $('#taskNote').value.trim(), autoCarry: $('#taskAutoCarry').checked, reminder: $('#taskReminder').value, repeat: $('#taskRepeat').value, subtasks, proofNote: $('#taskProofNote').value.trim(), notified: false, photo: pendingPhoto, photoCapturedAt: pendingPhoto && pendingPhoto !== existing?.photo ? new Date().toISOString() : existing?.photoCapturedAt || '', updatedAt: new Date().toISOString() };
+  const attachmentChanged = pendingAttachment?.data !== existing?.attachment?.data && pendingAttachment?.data !== existing?.photo;
+  const data = { title: $('#taskTitle').value.trim(), date: $('#taskDate').value, time: $('#taskTimeMode').value === 'exact' ? $('#taskTime').value : '', priority: $('#taskPriority').value, note: $('#taskNote').value.trim(), autoCarry: $('#taskAutoCarry').checked, reminder: $('#taskReminder').value, repeat: $('#taskRepeat').value, subtasks, proofNote: $('#taskProofNote').value.trim(), notified: false, photo: pendingPhoto, attachment: pendingAttachment, photoCapturedAt: pendingAttachment && attachmentChanged ? new Date().toISOString() : existing?.photoCapturedAt || '', updatedAt: new Date().toISOString() };
   if (!data.title) return;
   if (id) Object.assign(existing, data);
   else tasks.push({ id: crypto.randomUUID(), ...data, completed: false, carryCount: 0 });
@@ -175,22 +178,22 @@ function handleSubmit(event) {
 }
 function deleteCurrent() { const id = $('#taskId').value; if (!id) return; tasks = tasks.filter(t => t.id !== id); if (!deletedIds.includes(id)) deletedIds.push(id); localStorage.setItem(deletedStorageKey(), JSON.stringify(deletedIds)); save(); closeDialog(); render(); toast('Задача удалена'); }
 
-async function preparePhoto(file) {
+async function prepareAttachment(file) {
   if (!file) return;
-  const url = URL.createObjectURL(file); const image = new Image();
-  image.onload = () => {
-    const max = 1280; const scale = Math.min(1, max / Math.max(image.width, image.height));
-    const canvas = document.createElement('canvas'); canvas.width = Math.round(image.width * scale); canvas.height = Math.round(image.height * scale);
-    canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height); pendingPhoto = canvas.toDataURL('image/jpeg', .76);
-    URL.revokeObjectURL(url); renderPhotoPreview(); toast('Фото прикреплено');
-  };
-  image.onerror = () => { URL.revokeObjectURL(url); toast('Не удалось прочитать фото'); };
-  image.src = url;
-}
-function renderPhotoPreview() {
-  $('#photoPreview').hidden = !pendingPhoto;
-  if (pendingPhoto) {
-    $('#photoPreviewImage').src = pendingPhoto;
-    const task = tasks.find(t => t.id === $('#taskId').value); $('#photoMeta').textContent = task?.photoCapturedAt ? `Добавлено ${new Date(task.photoCapturedAt).toLocaleString('ru-RU')}` : 'Новое фото';
-  } else { $('#photoPreviewImage').removeAttribute('src'); $('#photoMeta').textContent = ''; }
+  if (file.size > 4 * 1024 * 1024) { toast('Файл слишком большой. Максимальный размер — 4 МБ'); return; }
+  if (file.type?.startsWith('image/')) {
+    const url = URL.createObjectURL(file); const image = new Image();
+    image.onload = () => {
+      const max = 1280; const scale = Math.min(1, max / Math.max(image.width, image.height));
+      const canvas = document.createElement('canvas'); canvas.width = Math.round(image.width * scale); canvas.height = Math.round(image.height * scale);
+      canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height); const data = canvas.toDataURL('image/jpeg', .76);
+      pendingPhoto = data; pendingAttachment = { name: file.name || 'Фото.jpg', type: 'image/jpeg', data, size: file.size };
+      URL.revokeObjectURL(url); renderPhotoPreview(); toast('Фотография прикреплена');
+    };
+    image.onerror = () => { URL.revokeObjectURL(url); toast('Не удалось прочитать фотографию'); };
+    image.src = url; return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => { pendingPhoto = null; pendingAttachment = { name: file.name || 'Документ', type: file.type || 'application/octet-stream', data: reader.result, size: file.size }; renderPhotoPreview(); toast('Документ прикреплён'); };
+  reader.onerror = () => toast('Не удалось прочитать документ'); reader.readAsDataURL(file);
 }
