@@ -7,7 +7,7 @@
   <meta name="description" content="Простой ежедневник, который работает офлайн на телефоне и Windows.">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=31">
+  <link rel="stylesheet" href="styles.css?v=32">
   <title>День — ежедневник</title>
 </head>
 <body>
@@ -120,10 +120,8 @@
 
     <nav class="bottom-nav" aria-label="Мобильная навигация">
       <button class="mobile-nav active" data-view="today"><span>◉</span><small>Сегодня</small></button>
-      <button class="mobile-nav" data-view="upcoming"><span>▦</span><small>Планы</small></button>
       <button class="mobile-add" id="mobileAddButton" aria-label="Добавить задачу">+</button>
-      <button class="mobile-nav" data-view="completed"><span>✓</span><small>Готово</small></button>
-      <button class="mobile-nav" data-view="settings"><span>•••</span><small>Ещё</small></button>
+      <button class="mobile-nav" id="mobilePlansButton"><span>▦</span><small>Планы</small></button>
     </nav>
   </div>
 
@@ -196,12 +194,11 @@
         <button type="button" class="close-button" id="closeReminders" aria-label="Закрыть">×</button>
       </div>
       <div class="planning-tabs" role="tablist" aria-label="Период планирования">
-        <button type="button" class="planning-tab active" data-planning-view="today">Сегодня</button>
-        <button type="button" class="planning-tab" data-planning-view="week">Неделя</button>
+        <button type="button" class="planning-tab active" data-planning-view="week">Неделя</button>
         <button type="button" class="planning-tab" data-planning-view="month">Месяц</button>
         <button type="button" class="planning-tab" data-planning-view="year">Год</button>
       </div>
-      <section id="todayPlanningPanel">
+      <section id="todayPlanningPanel" hidden>
         <div class="mini-task-list" id="miniTaskList"></div>
         <button class="primary-button notification-permission" id="enableNotifications">Включить уведомления</button>
       </section>
@@ -238,13 +235,35 @@
           <button type="button" class="secondary-button" id="syncSignUp">Регистрация</button>
           <button type="submit" class="primary-button">Войти</button>
         </div>
+        <button type="button" class="forgot-password-button" id="syncForgotPassword">Забыли пароль? Получить письмо для восстановления</button>
+      </form>
+      <form id="syncResetForm" hidden>
+        <p class="sync-reset-note">Придумайте новый пароль после перехода по ссылке из письма.</p>
+        <label>Новый пароль<input type="password" id="syncNewPassword" minlength="8" required autocomplete="new-password" placeholder="Не менее 8 символов"></label>
+        <label>Повторите пароль<input type="password" id="syncNewPasswordConfirm" minlength="8" required autocomplete="new-password"></label>
+        <button type="submit" class="primary-button">Сохранить новый пароль</button>
       </form>
       <div class="sync-connected" id="syncConnected" hidden>
         <button class="primary-button" id="syncNow">Синхронизировать сейчас</button>
         <button class="secondary-button" id="syncLogout">Сменить пользователя</button>
+        <div class="pin-settings">
+          <strong>Быстрый вход по PIN</strong><small>Четыре цифры хранятся только на этом устройстве.</small>
+          <input type="password" id="pinSetupInput" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="4 цифры" aria-label="Новый PIN-код">
+          <div><button type="button" class="primary-button" id="pinSaveButton">Установить PIN</button><button type="button" class="secondary-button" id="pinRemoveButton">Убрать PIN</button></div>
+        </div>
       </div>
       <p class="sync-note">У каждого email свой отдельный ежедневник. На общем устройстве нажмите «Сменить пользователя», прежде чем другой человек войдёт в свой аккаунт.</p>
     </div>
+  </dialog>
+
+  <dialog id="pinDialog" class="pin-dialog">
+    <form id="pinUnlockForm">
+      <div class="pin-lock-icon">🔒</div><h2>Введите PIN</h2><p>Четыре цифры для быстрого входа в ежедневник.</p>
+      <input type="password" id="pinUnlockInput" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" required autocomplete="off" aria-label="PIN-код">
+      <button type="submit" class="primary-button">Открыть ежедневник</button>
+      <button type="button" class="secondary-button" id="pinUsePassword">Войти по почте и паролю</button>
+      <small id="pinError" role="status"></small>
+    </form>
   </dialog>
 
   <dialog id="profileDialog" class="profile-dialog">
@@ -272,11 +291,11 @@
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastAction" hidden></button></div>
-  <script src="sync-config.js?v=31"></script>
-  <script src="sync.js?v=31"></script>
-  <script src="app-part1.js?v=31"></script>
-<script src="app-part2.js?v=31"></script>
-<script src="app-part3.js?v=31"></script>
-<!-- build-31-responsive-attachments -->
+  <script src="sync-config.js?v=32"></script>
+  <script src="sync.js?v=32"></script>
+  <script src="app-part1.js?v=32"></script>
+  <script src="app-part2.js?v=32"></script>
+  <script src="app-part3.js?v=32"></script>
+  <!-- build-32-account-pin-holidays -->
 </body>
 </html>
