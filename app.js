@@ -5,7 +5,8 @@ const PROFILE_KEY = 'day-planner-profile-v1';
 const PLAN_KEY = 'day-planner-period-plans-v1';
 const STATE_UPDATED_KEY = 'day-planner-state-updated-v1';
 const PIN_KEY = 'day-planner-pin-v1';
-const APP_VERSION = '38';
+const NOTIFICATION_KEY = 'day-planner-notifications-v1';
+const APP_VERSION = '39';
 const UPDATE_SEEN_KEY = 'day-planner-update-seen-v1';
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -22,6 +23,7 @@ const profileStorageKey = () => `${PROFILE_KEY}:${accountSuffix()}`;
 const planStorageKey = () => `${PLAN_KEY}:${accountSuffix()}`;
 const stateUpdatedStorageKey = () => `${STATE_UPDATED_KEY}:${accountSuffix()}`;
 const pinStorageKey = () => `${PIN_KEY}:${accountSuffix()}`;
+const notificationStorageKey = () => `${NOTIFICATION_KEY}:${accountSuffix()}`;
 
 let tasks = loadTasks();
 let selectedDate = todayKey;
@@ -43,6 +45,10 @@ let periodPlans = loadPeriodPlans();
 let appStateUpdatedAt = localStorage.getItem(stateUpdatedStorageKey()) || new Date(0).toISOString();
 let currentPlanningView = 'week';
 let planningAnchorDate = selectedDate;
+let feedbackPhoto = null;
+const defaultNotificationSettings = { exact: true, daily: true, dailyTime: '09:00', overdue: true };
+function loadNotificationSettings() { try { return { ...defaultNotificationSettings, ...JSON.parse(localStorage.getItem(notificationStorageKey()) || '{}') }; } catch { return { ...defaultNotificationSettings }; } }
+let notificationSettings = loadNotificationSettings();
 let pinUnlocked = false;
 let appHiddenAt = 0;
 let latestAppVersion = APP_VERSION;
@@ -523,21 +529,61 @@ function addPeriodPlans(event) {
 
 async function enableNotifications() {
   if (!('Notification' in window)) { toast('Уведомления не поддерживаются'); return; }
-  const permission = await Notification.requestPermission(); renderMiniTasks(); toast(permission === 'granted' ? 'Уведомления включены' : 'Уведомления не разрешены');
+  const permission = await Notification.requestPermission(); renderMiniTasks(); renderNotificationSettings();
+  if (permission === 'granted') { toast('Уведомления включены'); await showAppNotification('День — уведомления включены', { body: 'Напоминания о делах будут появляться на этом устройстве.', tag: 'notification-enabled' }); }
+  else toast('Уведомления не разрешены. Разрешите их в настройках устройства.');
+}
+async function showAppNotification(title, options = {}) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return false;
+  const payload = { icon: 'assets/icon-192.png', badge: 'assets/icon-192.png', data: { url: './', ...(options.data || {}) }, ...options };
+  try { const registration = await navigator.serviceWorker?.ready; if (registration) await registration.showNotification(title, payload); else new Notification(title, payload); return true; } catch { return false; }
+}
+function notificationStampKey(type) { return `day-notification-${type}:${accountSuffix()}:${todayKey}`; }
+function updateAppBadge() {
+  const count = tasks.filter(task => !task.completed && task.date <= todayKey).length;
+  if (navigator.setAppBadge) { if (count) navigator.setAppBadge(count).catch(() => {}); else navigator.clearAppBadge?.().catch(() => {}); }
 }
 async function checkReminders() {
-  const now = new Date(); const due = tasks.filter(t => !t.completed && t.reminder && !t.notified && new Date(t.reminder) <= now);
-  if (!due.length) return;
+  const now = new Date(); updateAppBadge();
+  const due = tasks.filter(t => !t.completed && t.reminder && !t.notified && new Date(t.reminder) <= now);
   for (const task of due) {
     task.notified = true;
     task.updatedAt = new Date().toISOString();
-    if ('Notification' in window && Notification.permission === 'granted') {
-      const registration = await navigator.serviceWorker?.ready;
-      if (registration) registration.showNotification('День — пора выполнить задачу', { body: task.title, icon: 'assets/icon-192.png', badge: 'assets/icon-192.png', tag: task.id, data: { taskId: task.id } });
-      else new Notification('День — пора выполнить задачу', { body: task.title });
-    }
+    if (notificationSettings.exact) await showAppNotification('День — пора выполнить задачу', { body: task.title, tag: `task-${task.id}`, data: { taskId: task.id } });
   }
-  save(); if ($('#reminderDialog').open === false) toast(`Напоминание: ${due[0].title}`);
+  if (due.length) { save(); if (notificationSettings.exact && $('#reminderDialog').open === false) toast(`Напоминание: ${due[0].title}`); }
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  const minutesNow = now.getHours() * 60 + now.getMinutes(); const [dailyHour, dailyMinute] = notificationSettings.dailyTime.split(':').map(Number); const dailyAt = dailyHour * 60 + dailyMinute;
+  const todayTasks = tasks.filter(task => !task.completed && task.date === todayKey).sort((a, b) => (a.time || '99:99').localeCompare(b.time || '99:99'));
+  if (notificationSettings.daily && todayTasks.length && minutesNow >= dailyAt && !localStorage.getItem(notificationStampKey('daily'))) {
+    const preview = todayTasks.slice(0, 3).map(task => task.title).join(' · '); await showAppNotification(`Сегодня дел: ${todayTasks.length}`, { body: preview, tag: `daily-${todayKey}` }); localStorage.setItem(notificationStampKey('daily'), '1');
+  }
+  const overdue = tasks.filter(task => !task.completed && task.date < todayKey);
+  if (notificationSettings.overdue && overdue.length && !localStorage.getItem(notificationStampKey('overdue'))) {
+    await showAppNotification(`Остались незавершённые дела: ${overdue.length}`, { body: overdue.slice(0, 3).map(task => task.title).join(' · '), tag: `overdue-${todayKey}` }); localStorage.setItem(notificationStampKey('overdue'), '1');
+  }
+}
+
+function renderNotificationSettings() {
+  notificationSettings = loadNotificationSettings(); $('#notifyExact').checked = notificationSettings.exact; $('#notifyDaily').checked = notificationSettings.daily; $('#notifyDailyTime').value = notificationSettings.dailyTime; $('#notifyOverdue').checked = notificationSettings.overdue;
+  const state = $('#notificationPermissionState'); const supported = 'Notification' in window; const permission = supported ? Notification.permission : 'unsupported';
+  state.className = `permission-state ${permission === 'granted' ? 'allowed' : permission === 'denied' ? 'blocked' : ''}`;
+  state.textContent = permission === 'granted' ? '✓ Системные уведомления разрешены на этом устройстве.' : permission === 'denied' ? 'Уведомления заблокированы. Разрешите их в настройках браузера или телефона.' : supported ? 'Сначала разрешите приложению показывать уведомления.' : 'Это устройство или браузер не поддерживает системные уведомления.';
+}
+async function openNotificationDialog() { $('#updateDialog').close(); renderNotificationSettings(); $('#notificationDialog').showModal(); if ('Notification' in window && Notification.permission === 'default') await enableNotifications(); }
+function saveNotificationSettings(event) { event.preventDefault(); notificationSettings = { exact: $('#notifyExact').checked, daily: $('#notifyDaily').checked, dailyTime: $('#notifyDailyTime').value || '09:00', overdue: $('#notifyOverdue').checked }; localStorage.setItem(notificationStorageKey(), JSON.stringify(notificationSettings)); $('#notificationDialog').close(); checkReminders(); toast('Настройки уведомлений сохранены'); }
+async function testNotification() { if (!('Notification' in window) || Notification.permission !== 'granted') { await enableNotifications(); return; } const shown = await showAppNotification('Проверка — День', { body: 'Уведомления работают правильно.', tag: 'notification-test' }); toast(shown ? 'Проверочное уведомление отправлено' : 'Не удалось показать уведомление'); }
+
+function resetFeedbackForm() { $('#feedbackForm').reset(); feedbackPhoto = null; $('#feedbackFile').hidden = true; $('#feedbackFileName').textContent = ''; }
+function chooseFeedbackPhoto(file) { if (!file) return; if (!file.type.startsWith('image/')) { toast('Выберите фотографию или изображение'); return; } if (file.size > 10 * 1024 * 1024) { toast('Фото слишком большое. Максимум 10 МБ'); return; } feedbackPhoto = file; $('#feedbackFileName').textContent = file.name || 'Фото проблемы'; $('#feedbackFile').hidden = false; }
+function feedbackMessage(text) { const email = window.DaySync?.user()?.email || 'не выполнен вход'; return `Обратная связь по приложению «День»\nВерсия: ${APP_VERSION}\nАккаунт: ${email}\nУстройство: ${navigator.userAgent}\n\n${text}`; }
+async function submitFeedback(event) {
+  event.preventDefault(); const textValue = $('#feedbackText').value.trim(); if (!textValue) return; const message = feedbackMessage(textValue);
+  try {
+    const shareData = { title: 'Обратная связь — День', text: message }; if (feedbackPhoto && navigator.canShare?.({ files: [feedbackPhoto] })) shareData.files = [feedbackPhoto];
+    if (navigator.share) { await navigator.share(shareData); resetFeedbackForm(); $('#feedbackDialog').close(); toast('Спасибо. Сообщение подготовлено к отправке'); return; }
+    await navigator.clipboard?.writeText(message); const subject = encodeURIComponent('Обратная связь — приложение День'); const body = encodeURIComponent(message.slice(0, 1800)); location.href = `mailto:sharinskiy888@gmail.com?subject=${subject}&body=${body}`; toast(feedbackPhoto ? 'Текст скопирован. Добавьте выбранное фото к письму.' : 'Открываем почту для отправки');
+  } catch (error) { if (error?.name !== 'AbortError') toast('Не удалось открыть отправку. Попробуйте ещё раз.'); }
 }
 
 function movePeriod(direction) {
@@ -669,7 +715,7 @@ async function hashPin(pin) {
 }
 async function savePin() {
   const pin = $('#pinSetupInput').value.trim(); if (!/^\d{4}$/.test(pin)) { toast('Введите ровно четыре цифры'); return; }
-  localStorage.setItem(pinStorageKey(), await hashPin(pin)); $('#pinSetupInput').value = ''; pinUnlocked = true; refreshSyncUi(); toast('PIN установлен на этом устройстве');
+  localStorage.setItem(pinStorageKey(), await hashPin(pin)); $('#pinSetupInput').value = ''; pinUnlocked = true; refreshSyncUi(); if ($('#syncDialog').open) $('#syncDialog').close(); toast('PIN установлен. Настройки закрыты.');
 }
 function removePin() { localStorage.removeItem(pinStorageKey()); $('#pinSetupInput').value = ''; pinUnlocked = true; refreshSyncUi(); toast('PIN удалён'); }
 async function maybeLockApp() {
@@ -740,6 +786,8 @@ $('#taskCameraButton').addEventListener('click', () => $('#taskCameraInput').cli
 $('#removePhoto').addEventListener('click', () => { pendingPhoto = null; pendingAttachment = null; renderPhotoPreview(); });
 $('#taskTimeMode').addEventListener('change', updateTimeMode);
 $('#updateButton').addEventListener('click', async () => { renderUpdateCenter(); $('#updateDialog').showModal(); await checkForAppUpdate(false); }); $('#closeUpdate').addEventListener('click', () => $('#updateDialog').close()); $('#checkUpdateButton').addEventListener('click', () => checkForAppUpdate(true)); $('#applyUpdateButton').addEventListener('click', applyAppUpdate);
+$('#openNotificationSettings').addEventListener('click', openNotificationDialog); $('#closeNotificationSettings').addEventListener('click', () => $('#notificationDialog').close()); $('#notificationForm').addEventListener('submit', saveNotificationSettings); $('#testNotification').addEventListener('click', testNotification);
+$('#openFeedback').addEventListener('click', () => { $('#updateDialog').close(); resetFeedbackForm(); $('#feedbackDialog').showModal(); }); $('#closeFeedback').addEventListener('click', () => $('#feedbackDialog').close()); $('#feedbackVoiceButton').addEventListener('click', () => startVoiceForField('feedbackText', 'feedbackVoiceButton', { prompt: 'Слушаю описание проблемы', success: 'Текст обратной связи добавлен' })); $('#chooseFeedbackPhoto').addEventListener('click', () => $('#feedbackPhotoInput').click()); $('#feedbackPhotoInput').addEventListener('change', event => { chooseFeedbackPhoto(event.target.files[0]); event.target.value = ''; }); $('#removeFeedbackPhoto').addEventListener('click', () => { feedbackPhoto = null; $('#feedbackFile').hidden = true; $('#feedbackFileName').textContent = ''; }); $('#feedbackForm').addEventListener('submit', submitFeedback);
 $('#closeReminders').addEventListener('click', () => $('#reminderDialog').close()); $('#enableNotifications').addEventListener('click', enableNotifications);
 function openPlansDialog() { currentPlanningView = 'week'; planningAnchorDate = selectedDate; renderPlanningDialog(); $('#reminderDialog').showModal(); }
 $('#mobilePlansButton').addEventListener('click', openPlansDialog);
@@ -761,7 +809,7 @@ $('#periodPrev').addEventListener('click', () => movePeriod(-1)); $('#periodNext
 $$('[data-view]').forEach(b => b.addEventListener('click', () => { if (b.dataset.view === 'settings') { toast('Все данные, фото и планы хранятся только на этом устройстве'); return; } currentView = b.dataset.view; if (currentView === 'today') selectedDate = todayKey; syncNav(); render(); }));
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; $('#installButton').hidden = false; });
 $('#installButton').addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('#installButton').hidden = true; });
-if ('serviceWorker' in navigator) window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=38'); checkForAppUpdate(false); });
+if ('serviceWorker' in navigator) window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=39'); checkForAppUpdate(false); });
 
 async function initializeAccount() {
   if (new URLSearchParams(location.search).get('recovery') === 'code') {
