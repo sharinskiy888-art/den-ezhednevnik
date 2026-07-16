@@ -7,7 +7,7 @@
   <meta name="description" content="Простой ежедневник, который работает офлайн на телефоне и Windows.">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=37">
+  <link rel="stylesheet" href="styles.css?v=38">
   <title>День — ежедневник</title>
   <script>
     (() => {
@@ -287,7 +287,7 @@
         <button class="secondary-button" id="syncLogout">Сменить пользователя</button>
         <div class="pin-settings">
           <strong>Быстрый вход по PIN</strong><small>Четыре цифры хранятся только на этом устройстве.</small>
-          <input type="password" id="pinSetupInput" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="4 цифры" aria-label="Новый PIN-код">
+          <input type="text" id="pinSetupInput" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" autocomplete="off" enterkeyhint="done" data-form-type="other" placeholder="4 цифры" aria-label="Новый PIN-код">
           <div><button type="button" class="primary-button" id="pinSaveButton">Установить PIN</button><button type="button" class="secondary-button" id="pinRemoveButton">Убрать PIN</button></div>
         </div>
       </div>
@@ -298,7 +298,7 @@
   <dialog id="pinDialog" class="pin-dialog">
     <form id="pinUnlockForm">
       <div class="pin-lock-icon">🔒</div><h2>Введите PIN</h2><p>Четыре цифры для быстрого входа в ежедневник.</p>
-      <input type="password" id="pinUnlockInput" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" required autocomplete="off" aria-label="PIN-код">
+      <input type="text" id="pinUnlockInput" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" required autocomplete="off" enterkeyhint="done" data-form-type="other" aria-label="PIN-код">
       <button type="submit" class="primary-button">Открыть ежедневник</button>
       <button type="button" class="secondary-button" id="pinUsePassword">Войти по почте и паролю</button>
       <small id="pinError" role="status"></small>
@@ -330,8 +330,8 @@
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastAction" hidden></button></div>
-  <script src="sync-config.js?v=37"></script>
-  <script src="sync.js?v=37"></script>
-  <script src="app.js?v=37"></script>
+  <script src="sync-config.js?v=38"></script>
+  <script src="sync.js?v=38"></script>
+  <script src="app.js?v=38"></script>
 </body>
 </html>
