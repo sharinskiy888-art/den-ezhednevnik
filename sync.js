@@ -38,10 +38,15 @@
     return request(`/auth/v1/recover?redirect_to=${encodeURIComponent(redirect)}`, { method: 'POST', body: JSON.stringify({ email }) }, false);
   }
   async function consumeRecoveryFromUrl() {
-    const params = new URLSearchParams(location.hash.replace(/^#/, ''));
-    if (params.get('type') !== 'recovery' || !params.get('access_token')) return false;
-    const session = { access_token: params.get('access_token'), refresh_token: params.get('refresh_token') || '', token_type: params.get('token_type') || 'bearer', expires_at: Math.floor(Date.now() / 1000) + Number(params.get('expires_in') || 3600), user: null };
-    setSession(session); const account = await request('/auth/v1/user'); session.user = account; setSession(session);
+    const hash = new URLSearchParams(location.hash.replace(/^#/, '')); const query = new URLSearchParams(location.search);
+    const error = hash.get('error_description') || query.get('error_description') || hash.get('error') || query.get('error');
+    if (error) throw new Error(error.replace(/\+/g, ' '));
+    const type = hash.get('type') || query.get('type'); const accessToken = hash.get('access_token') || query.get('access_token');
+    const recoveryIntent = type === 'recovery' || query.get('recovery') === '1' || !!accessToken;
+    if (!recoveryIntent) return false;
+    if (!accessToken) throw new Error('Ссылка не содержит кода восстановления. Запросите новое письмо.');
+    const session = { access_token: accessToken, refresh_token: hash.get('refresh_token') || query.get('refresh_token') || '', token_type: hash.get('token_type') || query.get('token_type') || 'bearer', expires_at: Math.floor(Date.now() / 1000) + Number(hash.get('expires_in') || query.get('expires_in') || 3600), user: null };
+    setSession(session);
     history.replaceState(null, '', `${location.pathname}?recovery=1`); return true;
   }
   async function updatePassword(password) {
