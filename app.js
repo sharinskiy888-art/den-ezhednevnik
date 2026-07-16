@@ -670,6 +670,760 @@ function refreshUpdateIndicator() {
 function renderUpdateCenter() {
   const available = compareAppVersions(latestAppVersion, APP_VERSION) > 0;
   const unseen = localStorage.getItem(UPDATE_SEEN_KEY) !== latestAppVersion;
+  $('#latestVersionLabel').textContent = latestAppVersion;
+  $('#updateStatusTitle').textContent = available ? 'Доступно новое обновление' : unseen ? 'Получено новое обновление' : 'Установлена последняя версия';
+  $('#updateStatusText').innerHTML = available ? `Можно обновить с версии <b>${APP_VERSION}</b> до <b>${latestAppVersion}</b>` : `Текущая версия: <b>${APP_VERSION}</b>`;
+  $('#updateNotes').innerHTML = latestUpdateNotes.map(note => `<li>${escapeHtml(note)}</li>`).join('');
+  $('#applyUpdateButton').textContent = available ? 'Установить обновление' : unseen ? 'Принять обновление' : 'Обновить приложение';
+}
+async function checkForAppUpdate(showFeedback = false) {
+  try {
+    await new Promise((resolve, reject) => {
+      $('#appVersionCheck')?.remove(); const script = document.createElement('script'); script.id = 'appVersionCheck'; script.src = `version.js?check=${Date.now()}`; script.onload = resolve; script.onerror = () => reject(new Error('Не удалось проверить версию')); document.head.append(script);
+    });
+    const release = window.DAY_APP_RELEASE || {}; latestAppVersion = String(release.version || APP_VERSION); latestUpdateNotes = Array.isArray(release.notes) && release.notes.length ? release.notes : latestUpdateNotes;
+    refreshUpdateIndicator(); renderUpdateCenter();
+    if (showFeedback) toast(compareAppVersions(latestAppVersion, APP_VERSION) > 0 ? `Доступна версия ${latestAppVersion}` : 'Установлена последняя версия');
+  } catch { if (showFeedback) toast('Не удалось проверить обновление. Проверьте интернет.'); }
+}
+async function applyAppUpdate() {
+  const button = $('#applyUpdateButton'); button.disabled = true; button.textContent = 'Обновляем…';
+  localStorage.setItem(UPDATE_SEEN_KEY, latestAppVersion); refreshUpdateIndicator();
+  try {
+    const registration = await navigator.serviceWorker?.getRegistration(); if (registration) await registration.update();
+    const url = new URL('./', location.href); url.searchParams.set('v', latestAppVersion); url.searchParams.set('updated', Date.now()); location.replace(url.href);
+  } catch { button.disabled = false; button.textContent = 'Повторить обновление'; toast('Не удалось обновить. Проверьте интернет.'); }
+}
+
+$('#quickForm').addEventListener('submit', e => { e.preventDefault(); addQuickTask($('#quickInput').value); });
+$('#quickInput').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addQuickTask(e.currentTarget.value); } });
+$('#taskSearch').addEventListener('input', e => { searchQuery = e.currentTarget.value.trim().toLocaleLowerCase('ru'); renderTasks(); renderStats(); });
+$('#weekOverviewButton').addEventListener('click', () => { currentView = 'today'; currentPeriod = 'week'; syncNav(); render(); });
+$('#voiceButton').addEventListener('click', startVoiceInput);
+$('#voiceTitleButton').addEventListener('click', () => startVoiceForField('taskTitle', 'voiceTitleButton', { parseTask: true, prompt: 'Слушаю название, дату и время', success: 'Название задачи добавлено' }));
+$('#voiceSubtasksButton').addEventListener('click', () => startVoiceForField('taskSubtasks', 'voiceSubtasksButton', { prompt: 'Продиктуйте одну подзадачу', success: 'Подзадача добавлена новой строкой' }));
+$('#voiceNoteButton').addEventListener('click', () => startVoiceForField('taskNote', 'voiceNoteButton', { prompt: 'Продиктуйте заметку', success: 'Заметка добавлена' }));
+$('#addButton').addEventListener('click', () => openDialog()); $('#mobileAddButton').addEventListener('click', () => openDialog()); $('#mobileNewTaskButton').addEventListener('click', () => openDialog()); $('#emptyAddButton').addEventListener('click', () => openDialog());
+$('#closeDialog').addEventListener('click', closeDialog); $('#cancelDialog').addEventListener('click', closeDialog); $('#taskForm').addEventListener('submit', handleSubmit); $('#deleteTask').addEventListener('click', deleteCurrent);
+$('#taskCameraButton').addEventListener('click', () => $('#taskCameraInput').click()); $('#taskGalleryButton').addEventListener('click', () => $('#taskGalleryInput').click()); $('#taskDocumentButton').addEventListener('click', () => $('#taskDocumentInput').click());
+['taskCameraInput', 'taskGalleryInput', 'taskDocumentInput'].forEach(id => $('#' + id).addEventListener('change', e => { prepareAttachment(e.target.files[0]); e.target.value = ''; }));
+$('#removePhoto').addEventListener('click', () => { pendingPhoto = null; pendingAttachment = null; renderPhotoPreview(); });
+$('#taskTimeMode').addEventListener('change', updateTimeMode);
+$('#updateButton').addEventListener('click', async () => { renderUpdateCenter(); $('#updateDialog').showModal(); await checkForAppUpdate(false); }); $('#closeUpdate').addEventListener('click', () => $('#updateDialog').close()); $('#checkUpdateButton').addEventListener('click', () => checkForAppUpdate(true)); $('#applyUpdateButton').addEventListener('click', applyAppUpdate);
+$('#closeReminders').addEventListener('click', () => $('#reminderDialog').close()); $('#enableNotifications').addEventListener('click', enableNotifications);
+$('#mobilePlansButton').addEventListener('click', () => { currentPlanningView = 'week'; planningAnchorDate = selectedDate; renderPlanningDialog(); $('#reminderDialog').showModal(); });
+$$('[data-planning-view]').forEach(button => button.addEventListener('click', () => { currentPlanningView = button.dataset.planningView; renderPlanningDialog(); })); $('#planForm').addEventListener('submit', addPeriodPlans);
+$('#planPeriodPrev').addEventListener('click', () => movePlanningPeriod(-1)); $('#planPeriodNext').addEventListener('click', () => movePlanningPeriod(1));
+$('#syncButton').addEventListener('click', () => { if ($('#profileDialog').open) $('#profileDialog').close(); refreshSyncUi(); $('#syncDialog').showModal(); }); $('#closeSync').addEventListener('click', () => $('#syncDialog').close());
+$('#accountEntryButton').addEventListener('click', () => { refreshSyncUi(); $('#syncDialog').showModal(); });
+$('#profileButton').addEventListener('click', openProfile); $('#closeProfile').addEventListener('click', () => $('#profileDialog').close()); $('#profileForm').addEventListener('submit', saveProfileForm);
+$('#chooseProfilePhoto').addEventListener('click', () => $('#profilePhotoInput').click()); $('#profileGalleryButton').addEventListener('click', () => $('#profilePhotoInput').click()); $('#profileCameraButton').addEventListener('click', () => $('#profileCameraInput').click());
+$('#profilePhotoInput').addEventListener('change', e => { prepareProfilePhoto(e.target.files[0]); e.target.value = ''; }); $('#profileCameraInput').addEventListener('change', e => { prepareProfilePhoto(e.target.files[0]); e.target.value = ''; });
+$('#removeProfilePhoto').addEventListener('click', () => { pendingProfilePhoto = ''; $('#profilePhotoInput').value = ''; $('#profileCameraInput').value = ''; renderProfile(); });
+$('#syncAuthForm').addEventListener('submit', handleSyncLogin); $('#syncSignUp').addEventListener('click', handleSyncSignUp); $('#syncForgotPassword').addEventListener('click', handleForgotPassword); $('#syncResetForm').addEventListener('submit', handleResetPassword);
+$('#syncNow').addEventListener('click', () => performSync()); $('#syncLogout').addEventListener('click', handleSyncLogout); $('#pinSaveButton').addEventListener('click', savePin); $('#pinRemoveButton').addEventListener('click', removePin);
+$('#pinUnlockForm').addEventListener('submit', unlockWithPin); $('#pinUsePassword').addEventListener('click', useAccountPassword);
+$$('[data-period]').forEach(b => b.addEventListener('click', () => { currentPeriod = b.dataset.period; currentView = 'today'; syncNav(); render(); }));
+$('#periodPrev').addEventListener('click', () => movePeriod(-1)); $('#periodNext').addEventListener('click', () => movePeriod(1)); $('#periodToday').addEventListener('click', () => { selectedDate = todayKey; render(); });
+$$('[data-view]').forEach(b => b.addEventListener('click', () => { if (b.dataset.view === 'settings') { toast('Все данные, фото и планы хранятся только на этом устройстве'); return; } currentView = b.dataset.view; if (currentView === 'today') selectedDate = todayKey; syncNav(); render(); }));
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; $('#installButton').hidden = false; });
+$('#installButton').addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('#installButton').hidden = true; });
+if ('serviceWorker' in navigator) window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=36.1'); checkForAppUpdate(false); });
+
+async function initializeAccount() {
+  try {
+    const recovery = await window.DaySync?.consumeRecoveryFromUrl?.();
+    if (recovery) {
+      pinUnlocked = true; refreshSyncUi(); $('#syncAuthForm').hidden = true; $('#syncConnected').hidden = true; $('#syncResetForm').hidden = false; $('#syncDialog').showModal();
+      setSyncStatus('connected', 'Ссылка подтверждена', 'Теперь задайте новый пароль.'); return;
+    }
+  } catch (error) {
+    await window.DaySync?.signOut?.(); refreshSyncUi(); $('#syncEmail').value = ''; $('#syncDialog').showModal();
+    setSyncStatus('error', 'Ссылка восстановления недействительна', `${error.message} Закройте это окно и запросите новое письмо.`); return;
+  }
+  refreshSyncUi();
+  if (window.DaySync?.user()) { await maybeLockApp(); await performSync(false); }
+}
+window.addEventListener('online', () => performSync(false));
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { appHiddenAt = Date.now(); return; }
+  if (appHiddenAt && Date.now() - appHiddenAt > 60000) { pinUnlocked = false; maybeLockApp(); } performSync(false);
+});
+setInterval(() => { if (document.visibilityState === 'visible' && navigator.onLine) performSync(false); }, 15000);
+
+runAutoCarry(); save(); render(); renderProfile(); refreshUpdateIndicator(); initializeAccount(); checkReminders(); setInterval(checkReminders, 30000);
+const STORAGE_KEY = 'day-planner-tasks-v2';
+const LEGACY_KEY = 'day-planner-tasks-v1';
+const DELETED_KEY = 'day-planner-deleted-v1';
+const PROFILE_KEY = 'day-planner-profile-v1';
+const PLAN_KEY = 'day-planner-period-plans-v1';
+const STATE_UPDATED_KEY = 'day-planner-state-updated-v1';
+const PIN_KEY = 'day-planner-pin-v1';
+const APP_VERSION = '36';
+const UPDATE_SEEN_KEY = 'day-planner-update-seen-v1';
+const $ = (selector) => document.querySelector(selector);
+const $$ = (selector) => [...document.querySelectorAll(selector)];
+const pad = (n) => String(n).padStart(2, '0');
+const toKey = (date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+const fromKey = (key) => { const [y, m, d] = key.split('-').map(Number); return new Date(y, m - 1, d); };
+const todayKey = toKey(new Date());
+
+const migrateExistingAccount = !!window.DaySync?.user();
+const accountSuffix = () => window.DaySync?.user()?.id || 'guest';
+const taskStorageKey = () => `${STORAGE_KEY}:${accountSuffix()}`;
+const deletedStorageKey = () => `${DELETED_KEY}:${accountSuffix()}`;
+const profileStorageKey = () => `${PROFILE_KEY}:${accountSuffix()}`;
+const planStorageKey = () => `${PLAN_KEY}:${accountSuffix()}`;
+const stateUpdatedStorageKey = () => `${STATE_UPDATED_KEY}:${accountSuffix()}`;
+const pinStorageKey = () => `${PIN_KEY}:${accountSuffix()}`;
+
+let tasks = loadTasks();
+let selectedDate = todayKey;
+let searchQuery = '';
+let currentView = 'today';
+let currentPeriod = 'day';
+let installPrompt = null;
+let pendingPhoto = null;
+let pendingAttachment = null;
+let deletedIds = loadDeletedIds();
+let suppressSync = false;
+let syncTimer = null;
+let syncInFlight = false;
+let activeRecognition = null;
+let activeVoiceButton = null;
+let profile = loadProfile();
+let pendingProfilePhoto = profile.photo || '';
+let periodPlans = loadPeriodPlans();
+let appStateUpdatedAt = localStorage.getItem(stateUpdatedStorageKey()) || new Date(0).toISOString();
+let currentPlanningView = 'week';
+let planningAnchorDate = selectedDate;
+let pinUnlocked = false;
+let appHiddenAt = 0;
+let latestAppVersion = APP_VERSION;
+let latestUpdateNotes = ['Центр обновлений и ручная установка новой версии.'];
+
+function loadTasks() {
+  try {
+    let current = localStorage.getItem(taskStorageKey());
+    if (!current && migrateExistingAccount && window.DaySync?.user()) {
+      current = localStorage.getItem(STORAGE_KEY) || localStorage.getItem(LEGACY_KEY);
+      if (current) localStorage.setItem(taskStorageKey(), current);
+      localStorage.removeItem(STORAGE_KEY); localStorage.removeItem(LEGACY_KEY);
+    }
+    const legacy = accountSuffix() === 'guest' ? localStorage.getItem(STORAGE_KEY) || localStorage.getItem(LEGACY_KEY) : null;
+    const parsed = JSON.parse(current || legacy || 'null');
+    if (Array.isArray(parsed)) return parsed.map(t => ({ autoCarry: false, reminder: '', notified: false, photo: null, attachment: null, photoCapturedAt: '', proofNote: '', repeat: 'none', subtasks: [], carryCount: 0, updatedAt: new Date(0).toISOString(), ...t }));
+    return seedTasks();
+  } catch { return seedTasks(); }
+}
+
+function loadDeletedIds() {
+  try { return JSON.parse(localStorage.getItem(deletedStorageKey()) || '[]'); } catch { return []; }
+}
+function loadProfile() {
+  try { return { name: '', photo: '', ...JSON.parse(localStorage.getItem(profileStorageKey()) || '{}') }; }
+  catch { return { name: '', photo: '' }; }
+}
+function loadPeriodPlans() {
+  try {
+    const value = JSON.parse(localStorage.getItem(planStorageKey()) || '[]');
+    if (!Array.isArray(value)) return [];
+    return value.map(plan => {
+      if (plan.plannedDate) return { ...plan, scope: 'all', anchorDate: plan.plannedDate };
+      let anchorDate = plan.anchorDate;
+      if (!anchorDate && plan.scope === 'week') anchorDate = plan.period;
+      if (!anchorDate && plan.scope === 'month') anchorDate = `${plan.period}-01`;
+      if (!anchorDate && plan.scope === 'year') anchorDate = `${plan.period}-01-01`;
+      return { ...plan, scope: 'all', anchorDate: anchorDate || todayKey };
+    });
+  }
+  catch { return []; }
+}
+function touchAppState() {
+  appStateUpdatedAt = new Date().toISOString(); localStorage.setItem(stateUpdatedStorageKey(), appStateUpdatedAt); queueCloudSync();
+}
+function savePeriodPlans() {
+  try { localStorage.setItem(planStorageKey(), JSON.stringify(periodPlans)); touchAppState(); return true; }
+  catch { toast('Не удалось сохранить планы'); return false; }
+}
+function saveProfile() {
+  try { localStorage.setItem(profileStorageKey(), JSON.stringify(profile)); touchAppState(); return true; }
+  catch { toast('Не удалось сохранить фотографию. Выберите снимок меньшего размера'); return false; }
+}
+function profileDisplayName() {
+  const emailName = window.DaySync?.user()?.email?.split('@')[0] || '';
+  const value = (profile.name || emailName).trim(); return value ? value.charAt(0).toLocaleUpperCase('ru') + value.slice(1) : '';
+}
+function greetingText() {
+  const hour = new Date().getHours(); return hour < 6 ? 'Доброй ночи' : hour < 12 ? 'Доброе утро' : hour < 18 ? 'Добрый день' : 'Добрый вечер';
+}
+function taskWord(count) { const n = Math.abs(count) % 100; const n1 = n % 10; return n > 10 && n < 20 ? 'задач' : n1 === 1 ? 'задача' : n1 > 1 && n1 < 5 ? 'задачи' : 'задач'; }
+
+function switchAccountData() {
+  tasks = loadTasks(); deletedIds = loadDeletedIds(); profile = loadProfile(); pendingProfilePhoto = profile.photo || ''; periodPlans = loadPeriodPlans(); appStateUpdatedAt = localStorage.getItem(stateUpdatedStorageKey()) || new Date(0).toISOString(); runAutoCarry(); render(); refreshSyncUi(); renderProfile();
+}
+
+function seedTasks() {
+  return [];
+}
+
+function save() {
+  try { localStorage.setItem(taskStorageKey(), JSON.stringify(tasks)); if (!suppressSync) queueCloudSync(); return true; }
+  catch { toast('Не хватает памяти. Удалите несколько больших вложений.'); return false; }
+}
+
+function runAutoCarry() {
+  let changed = false;
+  tasks.forEach(task => {
+    if (!task.completed && task.autoCarry && task.date < todayKey) {
+      task.carriedFrom = task.carriedFrom || task.date;
+      const missedDays = Math.max(1, Math.round((fromKey(todayKey) - fromKey(task.date)) / 86400000));
+      task.carryCount = (task.carryCount || 0) + missedDays;
+      task.date = todayKey;
+      task.updatedAt = new Date().toISOString();
+      changed = true;
+    }
+  });
+  if (changed) save();
+}
+
+function formatLong(key) { return fromKey(key).toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' }); }
+function formatHeaderDate(key) { const text = fromKey(key).toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }); return text.charAt(0).toLocaleUpperCase('ru') + text.slice(1); }
+function escapeHtml(value = '') { const d = document.createElement('div'); d.textContent = value; return d.innerHTML; }
+const REPEAT_LABELS = { daily: 'Каждый день', weekdays: 'По будням', weekly: 'Каждую неделю', monthly: 'Каждый месяц' };
+const FIXED_HOLIDAYS = { '01-01': 'Новый год', '01-02': 'Новогодние каникулы', '01-03': 'Новогодние каникулы', '01-04': 'Новогодние каникулы', '01-05': 'Новогодние каникулы', '01-06': 'Новогодние каникулы', '01-07': 'Рождество Христово', '01-08': 'Новогодние каникулы', '02-23': 'День защитника Отечества', '03-08': 'Международный женский день', '05-01': 'Праздник Весны и Труда', '05-09': 'День Победы', '06-12': 'День России', '11-04': 'День народного единства' };
+const OFFICIAL_HOLIDAYS_2026 = (() => {
+  const result = {}; const addRange = (start, end, name) => { const d = fromKey(start); const last = fromKey(end); while (d <= last) { result[toKey(d)] = name; d.setDate(d.getDate() + 1); } };
+  addRange('2026-01-01', '2026-01-11', 'Новогодние каникулы'); addRange('2026-02-21', '2026-02-23', 'Праздничные выходные'); addRange('2026-03-07', '2026-03-09', 'Праздничные выходные'); addRange('2026-05-01', '2026-05-03', 'Праздник Весны и Труда'); addRange('2026-05-09', '2026-05-11', 'День Победы'); addRange('2026-06-12', '2026-06-14', 'День России'); result['2026-11-04'] = 'День народного единства'; result['2026-12-31'] = 'Официальный выходной'; return result;
+})();
+function holidayName(key) { return OFFICIAL_HOLIDAYS_2026[key] || FIXED_HOLIDAYS[key.slice(5)] || ''; }
+function formatShortDate(key) { return fromKey(key).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' }); }
+function weekBounds(key) {
+  const date = fromKey(key); const start = new Date(date); start.setDate(date.getDate() - ((date.getDay() + 6) % 7));
+  const end = new Date(start); end.setDate(start.getDate() + 6); return [toKey(start), toKey(end)];
+}
+function formatWeekRange(key) {
+  const [startKey, endKey] = weekBounds(key); const start = fromKey(startKey); const end = fromKey(endKey);
+  if (start.getMonth() === end.getMonth()) {
+    const month = end.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' }).replace(/^\d+\s*/, '');
+    return `${start.getDate()}–${end.getDate()} ${month}`;
+  }
+  return `${start.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })} — ${end.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}`;
+}
+function periodBounds() {
+  const d = fromKey(selectedDate);
+  if (currentPeriod === 'day') return [selectedDate, selectedDate];
+  if (currentPeriod === 'week') return weekBounds(selectedDate);
+  if (currentPeriod === 'month') return [toKey(new Date(d.getFullYear(), d.getMonth(), 1)), toKey(new Date(d.getFullYear(), d.getMonth() + 1, 0))];
+  return [`${d.getFullYear()}-01-01`, `${d.getFullYear()}-12-31`];
+}
+
+function renderPeriod() {
+  const strip = $('#weekStrip'); const overview = $('#calendarOverview');
+  $$('.period-button').forEach(b => b.classList.toggle('active', b.dataset.period === currentPeriod));
+  if (currentPeriod === 'day' || currentPeriod === 'week') {
+    strip.hidden = false; overview.hidden = true; renderWeek();
+  } else {
+    strip.hidden = true; overview.hidden = false;
+    if (currentPeriod === 'month') renderMonth(); else renderYear();
+  }
+}
+
+function renderWeek() {
+  const base = fromKey(selectedDate); const monday = new Date(base); monday.setDate(base.getDate() - ((base.getDay() + 6) % 7));
+  const names = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+  $('#weekStrip').innerHTML = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(monday); d.setDate(monday.getDate() + i); const key = toKey(d);
+    const dayTasks = tasks.filter(t => t.date === key && !t.completed); const importantCount = dayTasks.filter(t => t.priority === 'high').length;
+    const priorityText = importantCount ? `, важных задач: ${importantCount}` : ''; const holiday = holidayName(key); const weekend = [0, 6].includes(d.getDay());
+    return `<button class="day-button ${key === selectedDate ? 'selected' : ''} ${dayTasks.length ? 'has-tasks' : ''} ${importantCount ? 'has-high-priority' : ''} ${weekend ? 'weekend' : ''} ${holiday ? 'holiday' : ''}" data-date="${key}" aria-label="${formatLong(key)}${holiday ? `, ${holiday}` : ''}${priorityText}" title="${holiday}"><em ${importantCount ? '' : 'hidden'} aria-hidden="true">!</em><span>${names[i]}</span><b>${d.getDate()}</b><i></i></button>`;
+  }).join('');
+  $$('.day-button').forEach(b => b.addEventListener('click', () => { selectedDate = b.dataset.date; if (currentPeriod === 'day') render(); else { renderPeriod(); renderStats(); } }));
+}
+
+function renderMonth() {
+  const anchor = fromKey(selectedDate); const first = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+  const start = new Date(first); start.setDate(first.getDate() - ((first.getDay() + 6) % 7));
+  const heads = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map(x => `<div class="month-grid-head">${x}</div>`).join('');
+  const days = Array.from({ length: 42 }, (_, i) => {
+    const d = new Date(start); d.setDate(start.getDate() + i); const key = toKey(d); const count = tasks.filter(t => t.date === key && !t.completed).length; const holiday = holidayName(key); const weekend = [0, 6].includes(d.getDay());
+    return `<button class="month-day ${d.getMonth() !== anchor.getMonth() ? 'outside' : ''} ${key === selectedDate ? 'selected' : ''} ${weekend ? 'weekend' : ''} ${holiday ? 'holiday' : ''}" data-month-date="${key}" title="${holiday}" aria-label="${formatLong(key)}${holiday ? `, ${holiday}` : ''}"><b>${d.getDate()}</b>${holiday ? '<em>праздник</em>' : count ? `<small>${count} дел</small>` : ''}</button>`;
+  }).join('');
+  $('#calendarOverview').innerHTML = `<div class="month-grid">${heads}${days}</div>`;
+  $$('[data-month-date]').forEach(b => b.addEventListener('click', () => { selectedDate = b.dataset.monthDate; currentPeriod = 'day'; render(); }));
+}
+
+function renderYear() {
+  const year = fromKey(selectedDate).getFullYear();
+  $('#calendarOverview').innerHTML = `<div class="year-grid">${Array.from({ length: 12 }, (_, month) => {
+    const count = tasks.filter(t => { const d = fromKey(t.date); return d.getFullYear() === year && d.getMonth() === month && !t.completed; }).length;
+    const name = new Date(year, month, 1).toLocaleDateString('ru-RU', { month: 'long' });
+    return `<button class="year-month" data-month="${month}"><strong>${name[0].toUpperCase() + name.slice(1)}</strong><span><b>${count}</b> активных дел</span></button>`;
+  }).join('')}</div>`;
+  $$('[data-month]').forEach(b => b.addEventListener('click', () => { selectedDate = toKey(new Date(year, Number(b.dataset.month), 1)); currentPeriod = 'month'; render(); }));
+}
+
+function visibleTasks() {
+  let result; const [start, end] = periodBounds();
+  if (currentView === 'upcoming') result = tasks.filter(t => t.date >= todayKey && !t.completed);
+  else if (currentView === 'completed') result = tasks.filter(t => t.completed);
+  else result = tasks.filter(t => t.date >= start && t.date <= end);
+  if (searchQuery) result = result.filter(t => `${t.title} ${t.note || ''} ${t.proofNote || ''} ${(t.subtasks || []).map(s => s.title).join(' ')}`.toLocaleLowerCase('ru').includes(searchQuery));
+  const priorityOrder = { high: 0, normal: 1, low: 2 };
+  return result.sort((a, b) => (a.date + (a.time || '99:99')).localeCompare(b.date + (b.time || '99:99')) || (priorityOrder[a.priority] ?? 1) - (priorityOrder[b.priority] ?? 1));
+}
+
+function renderTasks() {
+  const list = visibleTasks();
+  $('#taskList').innerHTML = list.map(t => {
+    const subDone = (t.subtasks || []).filter(s => s.done).length;
+    const carryLabel = t.carryCount ? `Переносилась ${t.carryCount} ${t.carryCount === 1 ? 'день' : t.carryCount < 5 ? 'дня' : 'дней'}` : 'Автоперенос';
+    return `<article class="task priority-${t.priority || 'normal'} ${t.completed ? 'completed' : ''}" data-task-id="${t.id}">
+    <input class="check" type="checkbox" data-check="${t.id}" ${t.completed ? 'checked' : ''} aria-label="Отметить задачу ${escapeHtml(t.title)} выполненной">
+    <div class="task-main"><div class="task-title">${escapeHtml(t.title)}</div><div class="task-meta">
+      <span>${currentPeriod !== 'day' || currentView !== 'today' ? formatShortDate(t.date) + ' · ' : ''}${t.time || 'В течение дня'}</span>
+      ${t.autoCarry ? `<span class="tag carry">↻ ${carryLabel}</span>` : ''}${t.photo ? '<span class="photo-chip">📷 фотоотчёт</span>' : ''}
+      ${t.repeat && t.repeat !== 'none' ? `<span class="tag repeat">⟳ ${REPEAT_LABELS[t.repeat]}</span>` : ''}
+      ${(t.subtasks || []).length ? `<span class="tag checklist">☑ ${subDone}/${t.subtasks.length}</span>` : ''}
+      ${t.attachment || t.photo ? '<span class="tag">📎 вложение</span>' : ''}
+      ${t.priority === 'high' ? '<span class="priority-label high">Важно</span>' : t.priority === 'low' ? '<span class="priority-label low">Можно позже</span>' : ''}
+    </div>${(t.subtasks || []).length ? `<div class="subtask-list">${t.subtasks.map((s, i) => `<button type="button" class="subtask ${s.done ? 'done' : ''}" data-subtask="${t.id}" data-sub-index="${i}"><i>${s.done ? '✓' : ''}</i>${escapeHtml(s.title)}</button>`).join('')}</div>` : ''}</div><button class="more-button" data-edit="${t.id}" aria-label="Редактировать ${escapeHtml(t.title)}">•••</button></article>`;
+  }).join('');
+  $('#emptyState').hidden = list.length > 0;
+  $$('[data-check]').forEach(el => el.addEventListener('change', () => toggleTask(el.dataset.check)));
+  $$('[data-edit]').forEach(el => el.addEventListener('click', () => openDialog(el.dataset.edit)));
+  $$('[data-subtask]').forEach(el => el.addEventListener('click', () => toggleSubtask(el.dataset.subtask, Number(el.dataset.subIndex))));
+  enableTaskGestures();
+}
+
+function renderStats() {
+  const day = tasks.filter(t => t.date === selectedDate); const done = day.filter(t => t.completed).length; const planned = day.length - done;
+  const percent = day.length ? Math.round(done / day.length * 100) : 0;
+  $('#doneCount').textContent = done; $('#plannedCount').textContent = planned; $('#progressPercent').textContent = `${percent}%`;
+  $('#progressRing').style.setProperty('--p', percent); $('#progressCaption').textContent = percent === 100 ? 'Отличный день!' : percent > 0 ? 'Так держать' : 'Начните с малого';
+  const focus = day.find(t => !t.completed && t.priority === 'high') || day.find(t => !t.completed);
+  $('#focusTitle').textContent = focus ? focus.title : 'Все дела завершены';
+  $('#focusMeta').textContent = focus ? (focus.time ? `В ${focus.time}` : focus.autoCarry ? 'Переносится до выполнения' : 'В удобное время') : 'Можно спокойно отдохнуть';
+  const periodList = visibleTasks(); const periodDone = periodList.filter(t => t.completed).length;
+  $('#taskSummary').textContent = periodList.length ? `${periodDone} из ${periodList.length} выполнено` : 'Пока всё свободно';
+}
+
+function renderHeader() {
+  const d = fromKey(selectedDate); const [start, end] = periodBounds();
+  const periodLabel = currentPeriod === 'day' ? formatLong(selectedDate) : currentPeriod === 'week' ? `${fromKey(start).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })} — ${fromKey(end).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}` : currentPeriod === 'month' ? d.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' }) : String(d.getFullYear());
+  $('#weekOverviewLabel').textContent = formatWeekRange(selectedDate);
+  $('#weekOverviewButton').hidden = currentView !== 'today' || currentPeriod !== 'day';
+  $('#dateEyebrow').textContent = periodLabel;
+  if (currentView === 'upcoming') { $('#pageTitle').textContent = 'Предстоящие дела'; $('#pageSubtitle').textContent = 'Всё важное — в одном списке.'; $('#listTitle').textContent = 'Ближайшие задачи'; }
+  else if (currentView === 'completed') { $('#pageTitle').textContent = 'Выполнено'; $('#pageSubtitle').textContent = 'Приятно видеть результат.'; $('#listTitle').textContent = 'Готовые задачи'; }
+  else {
+    const titles = { day: 'План на день', week: 'План на неделю', month: 'План на месяц', year: 'План на год' };
+    const name = profileDisplayName(); const openCount = tasks.filter(t => t.date === selectedDate && !t.completed).length;
+    $('#pageTitle').textContent = currentPeriod === 'day' ? `${greetingText()}${name ? `, ${name}` : ''}!` : titles[currentPeriod];
+    $('#pageSubtitle').textContent = currentPeriod === 'day' ? `${formatHeaderDate(selectedDate)} · осталось ${openCount} ${taskWord(openCount)}` : 'Незавершённые дела не потеряются.';
+    $('#listTitle').textContent = currentPeriod === 'day' ? (selectedDate === todayKey ? 'Задачи на сегодня' : `Задачи на ${d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}`) : `Задачи: ${periodLabel}`;
+  }
+}
+
+function renderProfile() {
+  const name = profileDisplayName(); const initial = (name || 'Я').charAt(0).toLocaleUpperCase('ru');
+  if (!$('#profileInitial')) $('#profileButton').innerHTML = '<span id="profileInitial">Я</span><img id="profileAvatarImage" alt="" hidden>';
+  $('#profileInitial').textContent = initial; const previewInitial = $('#profilePreviewInitial'); if (previewInitial) previewInitial.textContent = initial;
+  const avatar = $('#profileAvatarImage'); avatar.hidden = !profile.photo; if (profile.photo) avatar.src = profile.photo; else avatar.removeAttribute('src');
+  $('#profileInitial').hidden = !!profile.photo;
+  const preview = $('#profilePreviewImage'); if (preview) { preview.hidden = !pendingProfilePhoto; if (pendingProfilePhoto) preview.src = pendingProfilePhoto; else preview.removeAttribute('src'); }
+  if (previewInitial) previewInitial.hidden = !!pendingProfilePhoto; const remove = $('#removeProfilePhoto'); if (remove) remove.hidden = !pendingProfilePhoto;
+  $('#profileButton').title = name ? `Профиль: ${name}` : 'Настроить личный профиль';
+}
+function openProfile() {
+  pendingProfilePhoto = profile.photo || ''; $('#profileName').value = profile.name || '';
+  $('#profileEmail').textContent = window.DaySync?.user()?.email || 'Не выполнен вход'; renderProfile(); $('#profileDialog').showModal();
+}
+function prepareProfilePhoto(file) {
+  if (!file?.type?.startsWith('image/')) { toast('Выберите фотографию'); return; }
+  const image = new Image(); const url = URL.createObjectURL(file);
+  image.onload = () => {
+    const size = 512; const scale = Math.max(size / image.width, size / image.height); const width = size / scale; const height = size / scale;
+    const canvas = document.createElement('canvas'); canvas.width = size; canvas.height = size;
+    canvas.getContext('2d').drawImage(image, (image.width - width) / 2, (image.height - height) / 2, width, height, 0, 0, size, size);
+    pendingProfilePhoto = canvas.toDataURL('image/jpeg', .78); URL.revokeObjectURL(url); renderProfile();
+  };
+  image.onerror = () => { URL.revokeObjectURL(url); toast('Не удалось прочитать фотографию'); }; image.src = url;
+}
+function saveProfileForm(event) {
+  event.preventDefault(); profile = { name: $('#profileName').value.trim(), photo: pendingProfilePhoto };
+  if (!saveProfile()) return; renderProfile(); renderHeader(); $('#profileDialog').close(); toast('Профиль сохранён');
+}
+
+function render() { renderHeader(); renderPeriod(); renderTasks(); renderStats(); renderMiniTasks(); }
+function syncNav() { $$('[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === currentView)); }
+function nextRepeatDate(task) {
+  const date = fromKey(task.date);
+  if (task.repeat === 'daily') date.setDate(date.getDate() + 1);
+  else if (task.repeat === 'weekdays') { do { date.setDate(date.getDate() + 1); } while ([0, 6].includes(date.getDay())); }
+  else if (task.repeat === 'weekly') date.setDate(date.getDate() + 7);
+  else if (task.repeat === 'monthly') date.setMonth(date.getMonth() + 1);
+  return toKey(date);
+}
+function createNextRepeat(task) {
+  if (!task.repeat || task.repeat === 'none') return null;
+  const nextDate = nextRepeatDate(task);
+  const source = task.recurrenceSource || task.id;
+  if (tasks.some(t => t.recurrenceSource === source && t.date === nextDate)) return null;
+  const clone = { ...task, id: crypto.randomUUID(), date: nextDate, completed: false, notified: false, carriedFrom: '', carryCount: 0, recurrenceSource: source, subtasks: (task.subtasks || []).map(s => ({ title: s.title, done: false })), photo: null, attachment: null, photoCapturedAt: '', proofNote: '', updatedAt: new Date().toISOString() };
+  if (task.reminder) { const old = new Date(task.reminder); const base = fromKey(task.date); const next = fromKey(nextDate); old.setDate(old.getDate() + Math.round((next - base) / 86400000)); clone.reminder = `${toKey(old)}T${pad(old.getHours())}:${pad(old.getMinutes())}`; }
+  tasks.push(clone);
+  return clone.id;
+}
+function toggleTask(id) {
+  const task = tasks.find(t => t.id === id); if (!task) return;
+  const wasCompleted = task.completed; task.completed = !task.completed; task.updatedAt = new Date().toISOString();
+  const createdRepeatId = task.completed ? createNextRepeat(task) : null;
+  save(); render();
+  toast(task.completed ? 'Задача выполнена' : 'Задача возвращена', task.completed ? 'Отменить' : '', () => { task.completed = wasCompleted; if (createdRepeatId) tasks = tasks.filter(t => t.id !== createdRepeatId); task.updatedAt = new Date().toISOString(); save(); render(); });
+}
+function toggleSubtask(id, index) {
+  const task = tasks.find(t => t.id === id); if (!task?.subtasks?.[index]) return;
+  task.subtasks[index].done = !task.subtasks[index].done; task.updatedAt = new Date().toISOString(); save(); render();
+}
+function enableTaskGestures() {
+  $$('.task').forEach(row => {
+    let startX = 0; let startY = 0;
+    row.addEventListener('touchstart', e => { startX = e.touches[0].clientX; startY = e.touches[0].clientY; }, { passive: true });
+    row.addEventListener('touchend', e => {
+      const dx = e.changedTouches[0].clientX - startX; const dy = e.changedTouches[0].clientY - startY;
+      if (Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 1.4) return;
+      if (dx > 0) toggleTask(row.dataset.taskId); else openDialog(row.dataset.taskId);
+    }, { passive: true });
+  });
+}
+
+function parseQuickTask(text) {
+  let title = text.trim(); let date = selectedDate < todayKey ? todayKey : selectedDate; let time = '';
+  const base = fromKey(todayKey);
+  if (/\bпослезавтра\b/i.test(title)) { base.setDate(base.getDate() + 2); date = toKey(base); title = title.replace(/\bпослезавтра\b/ig, ''); }
+  else if (/\bзавтра\b/i.test(title)) { base.setDate(base.getDate() + 1); date = toKey(base); title = title.replace(/\bзавтра\b/ig, ''); }
+  else if (/\bсегодня\b/i.test(title)) { date = todayKey; title = title.replace(/\bсегодня\b/ig, ''); }
+  const months = { января: 0, февраля: 1, марта: 2, апреля: 3, мая: 4, июня: 5, июля: 6, августа: 7, сентября: 8, октября: 9, ноября: 10, декабря: 11 };
+  const dateMatch = title.match(/(?:\bна|\bдо)?\s*(\d{1,2})\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)(?:\s+(\d{4}))?/i);
+  if (dateMatch) {
+    let year = Number(dateMatch[3]) || base.getFullYear(); const month = months[dateMatch[2].toLocaleLowerCase('ru')];
+    if (!dateMatch[3] && new Date(year, month, Number(dateMatch[1])) < fromKey(todayKey)) year += 1;
+    date = toKey(new Date(year, month, Number(dateMatch[1]))); title = title.replace(dateMatch[0], '');
+  }
+  const timeMatch = title.match(/(?:\bв\s*)?([01]?\d|2[0-3])(?::|\.)([0-5]\d)\b|\bв\s+([01]?\d|2[0-3])\s*(?:час(?:а|ов)?)?\b/i);
+  if (timeMatch) { time = `${pad(Number(timeMatch[1] || timeMatch[3]))}:${timeMatch[2] || '00'}`; title = title.replace(timeMatch[0], ''); }
+  return { title: title.replace(/\s{2,}/g, ' ').replace(/^[,.;\s]+|[,.;\s]+$/g, '') || text.trim(), date, time };
+}
+function addQuickTask(title) {
+  const lines = title.split(/\r?\n/).map(line => line.trim().replace(/^[-•\d.)\s]+/, '')).filter(Boolean); if (!lines.length) return;
+  lines.forEach(clean => { const parsed = parseQuickTask(clean); tasks.push({ id: crypto.randomUUID(), ...parsed, priority: 'normal', note: '', completed: false, autoCarry: true, reminder: '', notified: false, photo: null, attachment: null, photoCapturedAt: '', proofNote: '', repeat: 'none', subtasks: [], carryCount: 0, updatedAt: new Date().toISOString() }); });
+  save(); $('#quickInput').value = ''; render(); toast(lines.length > 1 ? `Добавлено дел: ${lines.length}` : 'Дело добавлено с автопереносом');
+}
+
+function openDialog(id = null) {
+  const task = tasks.find(t => t.id === id); $('#taskForm').reset(); pendingPhoto = task?.photo || null;
+  pendingAttachment = task?.attachment || (task?.photo ? { name: 'Фотоотчёт.jpg', type: 'image/jpeg', data: task.photo, size: 0 } : null);
+  $('#taskId').value = task?.id || ''; $('#dialogTitle').textContent = task ? 'Редактировать задачу' : 'Новая задача';
+  $('#taskTitle').value = task?.title || ''; $('#taskDate').value = task?.date || selectedDate; $('#taskTime').value = task?.time || '';
+  $('#taskTimeMode').value = task?.time ? 'exact' : 'anytime'; updateTimeMode();
+  $('#taskPriority').value = task?.priority || 'normal'; $('#taskNote').value = task?.note || '';
+  $('#taskAutoCarry').checked = task?.autoCarry || false; $('#taskReminder').value = task?.reminder || ''; $('#taskRepeat').value = task?.repeat || 'none';
+  $('#taskSubtasks').value = (task?.subtasks || []).map(s => s.title).join('\n'); $('#taskProofNote').value = task?.proofNote || ''; $('#deleteTask').hidden = !task;
+  renderPhotoPreview(); $('#taskDialog').showModal(); setTimeout(() => $('#taskTitle').focus(), 50);
+}
+function closeDialog() { $('#taskDialog').close(); }
+function updateTimeMode() {
+  const exact = $('#taskTimeMode').value === 'exact';
+  $('#taskTime').hidden = !exact; $('#taskTime').required = exact;
+  if (!exact) $('#taskTime').value = '';
+}
+function handleSubmit(event) {
+  event.preventDefault(); const id = $('#taskId').value;
+  const existing = tasks.find(t => t.id === id); const previousSubtasks = existing?.subtasks || [];
+  const subtasks = $('#taskSubtasks').value.split(/\r?\n/).map(x => x.trim()).filter(Boolean).map(title => ({ title, done: previousSubtasks.find(s => s.title === title)?.done || false }));
+  const attachmentChanged = pendingAttachment?.data !== existing?.attachment?.data && pendingAttachment?.data !== existing?.photo;
+  const data = { title: $('#taskTitle').value.trim(), date: $('#taskDate').value, time: $('#taskTimeMode').value === 'exact' ? $('#taskTime').value : '', priority: $('#taskPriority').value, note: $('#taskNote').value.trim(), autoCarry: $('#taskAutoCarry').checked, reminder: $('#taskReminder').value, repeat: $('#taskRepeat').value, subtasks, proofNote: $('#taskProofNote').value.trim(), notified: false, photo: pendingPhoto, attachment: pendingAttachment, photoCapturedAt: pendingAttachment && attachmentChanged ? new Date().toISOString() : existing?.photoCapturedAt || '', updatedAt: new Date().toISOString() };
+  if (!data.title) return;
+  if (id) Object.assign(existing, data);
+  else tasks.push({ id: crypto.randomUUID(), ...data, completed: false, carryCount: 0 });
+  if (!save()) return; selectedDate = data.date; closeDialog(); render(); toast(id ? 'Изменения сохранены' : 'Задача добавлена');
+}
+function deleteCurrent() { const id = $('#taskId').value; if (!id) return; tasks = tasks.filter(t => t.id !== id); if (!deletedIds.includes(id)) deletedIds.push(id); localStorage.setItem(deletedStorageKey(), JSON.stringify(deletedIds)); save(); closeDialog(); render(); toast('Задача удалена'); }
+
+async function prepareAttachment(file) {
+  if (!file) return;
+  if (file.size > 4 * 1024 * 1024) { toast('Файл слишком большой. Максимальный размер — 4 МБ'); return; }
+  if (file.type?.startsWith('image/')) {
+    const url = URL.createObjectURL(file); const image = new Image();
+    image.onload = () => {
+      const max = 1280; const scale = Math.min(1, max / Math.max(image.width, image.height));
+      const canvas = document.createElement('canvas'); canvas.width = Math.round(image.width * scale); canvas.height = Math.round(image.height * scale);
+      canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height); const data = canvas.toDataURL('image/jpeg', .76);
+      pendingPhoto = data; pendingAttachment = { name: file.name || 'Фото.jpg', type: 'image/jpeg', data, size: file.size };
+      URL.revokeObjectURL(url); renderPhotoPreview(); toast('Фотография прикреплена');
+    };
+    image.onerror = () => { URL.revokeObjectURL(url); toast('Не удалось прочитать фотографию'); };
+    image.src = url; return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => { pendingPhoto = null; pendingAttachment = { name: file.name || 'Документ', type: file.type || 'application/octet-stream', data: reader.result, size: file.size }; renderPhotoPreview(); toast('Документ прикреплён'); };
+  reader.onerror = () => toast('Не удалось прочитать документ'); reader.readAsDataURL(file);
+}
+function renderPhotoPreview() {
+  const attachment = pendingAttachment || (pendingPhoto ? { name: 'Фотоотчёт.jpg', type: 'image/jpeg', data: pendingPhoto, size: 0 } : null);
+  $('#photoPreview').hidden = !attachment;
+  const imagePreview = $('#photoPreviewImage'); const fileIcon = $('#attachmentFileIcon');
+  if (attachment) {
+    const isImage = attachment.type?.startsWith('image/'); imagePreview.hidden = !isImage; fileIcon.hidden = isImage;
+    if (isImage) imagePreview.src = attachment.data; else imagePreview.removeAttribute('src');
+    $('#attachmentName').textContent = attachment.name || (isImage ? 'Фотография' : 'Документ');
+    const task = tasks.find(t => t.id === $('#taskId').value); const size = attachment.size ? ` · ${Math.max(1, Math.round(attachment.size / 1024))} КБ` : '';
+    $('#photoMeta').textContent = (task?.photoCapturedAt ? `Добавлено ${new Date(task.photoCapturedAt).toLocaleString('ru-RU')}` : 'Новое вложение') + size;
+    $('#attachmentOpen').href = attachment.data; $('#attachmentOpen').download = attachment.name || 'Вложение';
+  } else {
+    imagePreview.hidden = true; fileIcon.hidden = true; imagePreview.removeAttribute('src'); $('#attachmentName').textContent = ''; $('#photoMeta').textContent = ''; $('#attachmentOpen').removeAttribute('href');
+  }
+}
+
+function resetVoiceButton() {
+  activeRecognition = null;
+  const button = activeVoiceButton || $('#voiceButton'); activeVoiceButton = null;
+  if (!button) return; button.classList.remove('listening'); button.textContent = '🎙'; button.title = 'Голосовой ввод';
+}
+function voiceFallback(targetId, message) {
+  const target = $('#' + targetId); setTimeout(() => { target?.focus(); toast(message || 'Нажмите микрофон на клавиатуре и продиктуйте текст'); }, 120);
+}
+function applyVoiceText(targetId, text, parseTask) {
+  const target = $('#' + targetId); if (!target) return;
+  if (parseTask) {
+    const parsed = parseQuickTask(text); target.value = parsed.title; $('#taskDate').value = parsed.date;
+    $('#taskTimeMode').value = parsed.time ? 'exact' : 'anytime'; updateTimeMode(); if (parsed.time) $('#taskTime').value = parsed.time;
+  } else if (targetId === 'taskSubtasks') target.value = [target.value.trim(), text].filter(Boolean).join('\n');
+  else target.value = [target.value.trim(), text].filter(Boolean).join(target.value.trim() ? ' ' : '');
+  target.focus();
+}
+async function startVoiceForField(targetId, buttonId, options = {}) {
+  if (activeRecognition) { activeRecognition.stop(); resetVoiceButton(); toast('Голосовой ввод остановлен'); return; }
+  if (options.openTask) { openDialog(); $('#dialogTitle').textContent = 'Новая задача голосом'; $('#taskAutoCarry').checked = true; }
+  const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!Recognition) { voiceFallback(targetId, 'Нажмите микрофон на клавиатуре телефона и продиктуйте текст'); return; }
+  if (!isSecureContext) { toast('Микрофон работает только в установленном приложении или через HTTPS'); return; }
+  try {
+    if (navigator.mediaDevices?.getUserMedia) { const stream = await navigator.mediaDevices.getUserMedia({ audio: true }); stream.getTracks().forEach(track => track.stop()); }
+    const recognition = new Recognition(); activeRecognition = recognition; activeVoiceButton = $('#' + buttonId);
+    recognition.lang = 'ru-RU'; recognition.interimResults = false; recognition.continuous = false; recognition.maxAlternatives = 1;
+    activeVoiceButton?.classList.add('listening'); if (activeVoiceButton) { activeVoiceButton.textContent = '●'; activeVoiceButton.title = 'Слушаю…'; }
+    recognition.onstart = () => toast(options.prompt || 'Слушаю… Говорите');
+    recognition.onresult = e => {
+      const text = [...e.results].map(result => result[0].transcript).join(' ').trim();
+      if (text) { applyVoiceText(targetId, text, !!options.parseTask); toast(options.success || 'Текст добавлен'); }
+      else toast('Речь не распознана. Попробуйте ещё раз');
+    };
+    recognition.onerror = e => {
+      const messages = { 'not-allowed': 'Разрешите доступ к микрофону в настройках браузера', 'service-not-allowed': 'Браузер запретил службу распознавания речи', 'audio-capture': 'Микрофон не найден или занят другим приложением', 'no-speech': 'Речь не услышана. Нажмите микрофон и повторите', network: 'Нет связи со службой распознавания речи' };
+      toast(messages[e.error] || 'Не удалось распознать речь. Попробуйте ещё раз');
+    };
+    recognition.onend = resetVoiceButton; recognition.start();
+  } catch (error) {
+    resetVoiceButton(); if (error?.name === 'NotAllowedError' || error?.name === 'SecurityError') toast('Разрешите приложению доступ к микрофону'); else toast('Не удалось включить микрофон');
+  }
+}
+function startVoiceInput() { return startVoiceForField('taskTitle', 'voiceButton', { openTask: true, parseTask: true, prompt: 'Слушаю… Назовите задачу, дату и время', success: 'Задача распознана. Проверьте и сохраните' }); }
+
+function renderMiniTasks() {
+  const today = tasks.filter(t => t.date === todayKey && !t.completed).sort((a, b) => (a.time || '99:99').localeCompare(b.time || '99:99'));
+  $('#miniTaskList').innerHTML = today.length ? today.map(t => `<label class="mini-task"><input class="check" type="checkbox" data-mini-check="${t.id}"><div><strong>${escapeHtml(t.title)}</strong><small>${t.time || 'В течение дня'}${t.reminder ? ' · 🔔 ' + new Date(t.reminder).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) : ''}</small></div></label>`).join('') : '<div class="empty-state"><div class="empty-icon">✓</div><h3>На сегодня всё</h3></div>';
+  $$('[data-mini-check]').forEach(el => el.addEventListener('change', () => toggleTask(el.dataset.miniCheck)));
+  $('#enableNotifications').hidden = !('Notification' in window) || Notification.permission === 'granted';
+}
+
+function periodKeyForPlanDate(view, dateKey) {
+  if (view === 'week') return weekBounds(dateKey)[0];
+  if (view === 'month') return dateKey.slice(0, 7);
+  return dateKey.slice(0, 4);
+}
+function planningPeriodKey(view = currentPlanningView, anchor = planningAnchorDate) { return periodKeyForPlanDate(view, anchor); }
+function planningPeriodLabel(view = currentPlanningView) {
+  const d = fromKey(planningAnchorDate);
+  if (view === 'week') return formatWeekRange(planningAnchorDate);
+  if (view === 'month') return d.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
+  return `${d.getFullYear()} год`;
+}
+function movePlanningPeriod(direction) {
+  const d = fromKey(planningAnchorDate);
+  if (currentPlanningView === 'week') d.setDate(d.getDate() + direction * 7);
+  else if (currentPlanningView === 'month') d.setMonth(d.getMonth() + direction);
+  else if (currentPlanningView === 'year') d.setFullYear(d.getFullYear() + direction);
+  planningAnchorDate = toKey(d); $('#planDate').value = ''; renderPlanningDialog();
+}
+function renderPlanningDialog() {
+  $$('.planning-tab').forEach(button => button.classList.toggle('active', button.dataset.planningView === currentPlanningView));
+  const today = currentPlanningView === 'today'; $('#todayPlanningPanel').hidden = !today; $('#longPlanningPanel').hidden = today;
+  if (today) { renderMiniTasks(); return; }
+  const names = { week: 'Планы на неделю', month: 'Планы на месяц', year: 'Планы на год' };
+  $('#planPeriodTitle').textContent = names[currentPlanningView]; $('#planPeriodLabel').textContent = planningPeriodLabel();
+  $('#planDate').removeAttribute('min'); $('#planDate').removeAttribute('max');
+  const key = planningPeriodKey();
+  const list = periodPlans.filter(plan => periodKeyForPlanDate(currentPlanningView, plan.plannedDate || plan.anchorDate || todayKey) === key).sort((a, b) => (a.plannedDate || a.anchorDate || '9999-12-31').localeCompare(b.plannedDate || b.anchorDate || '9999-12-31') || a.createdAt.localeCompare(b.createdAt));
+  $('#periodPlanList').innerHTML = list.length ? list.map(plan => `<article class="period-plan"><span>•</span><div class="period-plan-content"><p>${escapeHtml(plan.text)}</p>${plan.plannedDate ? `<time datetime="${plan.plannedDate}">До ${fromKey(plan.plannedDate).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}</time>` : '<time>Без точной даты · этот период</time>'}</div><button type="button" data-delete-plan="${plan.id}" aria-label="Удалить план">×</button></article>`).join('') : '<div class="plan-empty">На этот период планов пока нет. Добавьте первый пункт или перейдите стрелками к другому периоду.</div>';
+  $$('[data-delete-plan]').forEach(button => button.addEventListener('click', () => { periodPlans = periodPlans.filter(plan => plan.id !== button.dataset.deletePlan); savePeriodPlans(); renderPlanningDialog(); }));
+}
+function addPeriodPlans(event) {
+  event.preventDefault(); if (!event.currentTarget.reportValidity()) return; const items = $('#planInput').value.split(/\n+/).map(text => text.trim()).filter(Boolean); if (!items.length) return;
+  const plannedDate = $('#planDate').value || ''; const targetDate = plannedDate || planningAnchorDate; items.forEach(text => periodPlans.push({ id: crypto.randomUUID(), scope: 'all', anchorDate: targetDate, text, plannedDate, createdAt: new Date().toISOString() }));
+  if (!savePeriodPlans()) return; if (plannedDate) planningAnchorDate = plannedDate; $('#planInput').value = ''; $('#planDate').value = ''; renderPlanningDialog(); $('#planInput').focus(); toast(items.length === 1 ? 'План добавлен — можно записать следующий' : `Добавлено планов: ${items.length}`);
+}
+
+async function enableNotifications() {
+  if (!('Notification' in window)) { toast('Уведомления не поддерживаются'); return; }
+  const permission = await Notification.requestPermission(); renderMiniTasks(); toast(permission === 'granted' ? 'Уведомления включены' : 'Уведомления не разрешены');
+}
+async function checkReminders() {
+  const now = new Date(); const due = tasks.filter(t => !t.completed && t.reminder && !t.notified && new Date(t.reminder) <= now);
+  if (!due.length) return;
+  for (const task of due) {
+    task.notified = true;
+    task.updatedAt = new Date().toISOString();
+    if ('Notification' in window && Notification.permission === 'granted') {
+      const registration = await navigator.serviceWorker?.ready;
+      if (registration) registration.showNotification('День — пора выполнить задачу', { body: task.title, icon: 'assets/icon-192.png', badge: 'assets/icon-192.png', tag: task.id, data: { taskId: task.id } });
+      else new Notification('День — пора выполнить задачу', { body: task.title });
+    }
+  }
+  save(); if ($('#reminderDialog').open === false) toast(`Напоминание: ${due[0].title}`);
+}
+
+function movePeriod(direction) {
+  const d = fromKey(selectedDate);
+  if (currentPeriod === 'day') d.setDate(d.getDate() + direction);
+  else if (currentPeriod === 'week') d.setDate(d.getDate() + direction * 7);
+  else if (currentPeriod === 'month') d.setMonth(d.getMonth() + direction);
+  else d.setFullYear(d.getFullYear() + direction);
+  selectedDate = toKey(d); render();
+}
+function toast(message, actionLabel = '', action = null) {
+  const el = $('#toast'); const button = $('#toastAction'); $('#toastText').textContent = message;
+  button.hidden = !actionLabel; button.textContent = actionLabel; button.onclick = action ? () => { action(); el.classList.remove('show'); } : null;
+  el.classList.add('show'); clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.remove('show'), actionLabel ? 5000 : 2400);
+}
+
+function setSyncStatus(status, title, text) {
+  const button = $('#syncButton'); button.classList.remove('connected', 'syncing', 'error');
+  if (status) button.classList.add(status);
+  $('#syncStateTitle').textContent = title; $('#syncStateText').textContent = text;
+}
+function refreshSyncUi() {
+  const user = window.DaySync?.user();
+  $('#syncAuthForm').hidden = !!user; $('#syncConnected').hidden = !user; $('#syncResetForm').hidden = true;
+  $('#pinRemoveButton').hidden = !user || !localStorage.getItem(pinStorageKey());
+  const avatar = $('#profileButton');
+  if (user) {
+    setSyncStatus('connected', 'Личный аккаунт подключён', user.email || 'Облачная синхронизация активна');
+    $('#accountEntryButton').classList.add('connected'); $('#accountEntryText').textContent = 'Аккаунт ✓'; $('#accountEntryButton').title = user.email || 'Личный аккаунт'; avatar.title = user.email || 'Личный аккаунт';
+  }
+  else {
+    setSyncStatus('', 'Не подключено', 'Каждый человек входит со своей почтой и видит только свои задачи.');
+    $('#accountEntryButton').classList.remove('connected'); $('#accountEntryText').textContent = 'Войти'; $('#accountEntryButton').title = 'Войти или зарегистрироваться'; avatar.title = 'Личный профиль';
+  }
+}
+function queueCloudSync() {
+  if (!window.DaySync?.user()) return;
+  clearTimeout(syncTimer); syncTimer = setTimeout(() => performSync(false), 900);
+}
+async function performSync(showMessage = true) {
+  if (!window.DaySync?.user()) { if (showMessage) toast('Сначала войдите в облако'); return; }
+  if (syncInFlight) return;
+  syncInFlight = true;
+  setSyncStatus('syncing', 'Синхронизация…', 'Обмениваемся изменениями с облаком');
+  try {
+    const result = await window.DaySync.sync(tasks, deletedIds, { profile, periodPlans, updatedAt: appStateUpdatedAt });
+    tasks = result.tasks || []; deletedIds = []; localStorage.setItem(deletedStorageKey(), '[]');
+    const remoteState = result.appState;
+    if (remoteState && new Date(remoteState.updatedAt || 0) > new Date(appStateUpdatedAt || 0)) {
+      profile = { name: '', photo: '', ...(remoteState.profile || {}) };
+      periodPlans = Array.isArray(remoteState.periodPlans) ? remoteState.periodPlans : [];
+      pendingProfilePhoto = profile.photo || '';
+      appStateUpdatedAt = remoteState.updatedAt;
+      localStorage.setItem(profileStorageKey(), JSON.stringify(profile));
+      localStorage.setItem(planStorageKey(), JSON.stringify(periodPlans));
+      localStorage.setItem(stateUpdatedStorageKey(), appStateUpdatedAt);
+    }
+    suppressSync = true; save(); suppressSync = false; render(); renderProfile();
+    setSyncStatus('connected', 'Синхронизировано', `Задач в облаке: ${tasks.length}`);
+    if (showMessage) toast('Данные синхронизированы');
+  } catch (error) {
+    suppressSync = false; setSyncStatus('error', 'Ошибка синхронизации', error.message); if (showMessage) toast(error.message);
+  } finally { syncInFlight = false; }
+}
+async function handleSyncLogin(event) {
+  event.preventDefault(); const email = $('#syncEmail').value.trim(); const password = $('#syncPassword').value;
+  setSyncStatus('syncing', 'Выполняется вход…', email);
+  try { await window.DaySync.signIn(email, password); pinUnlocked = true; $('#syncPassword').value = ''; switchAccountData(); await performSync(); }
+  catch (error) { setSyncStatus('error', 'Не удалось войти', error.message); }
+}
+async function handleSyncSignUp() {
+  const form = $('#syncAuthForm'); if (!form.reportValidity()) return;
+  const email = $('#syncEmail').value.trim(); const password = $('#syncPassword').value;
+  setSyncStatus('syncing', 'Создаём аккаунт…', email);
+  try {
+    const result = await window.DaySync.signUp(email, password); $('#syncPassword').value = '';
+    if (result.access_token) { pinUnlocked = true; switchAccountData(); await performSync(); }
+    else setSyncStatus('', 'Подтвердите email', 'Откройте письмо Supabase, затем войдите здесь.');
+  } catch (error) { setSyncStatus('error', 'Не удалось зарегистрироваться', error.message); }
+}
+async function handleForgotPassword() {
+  const email = $('#syncEmail').value.trim();
+  if (!email || !$('#syncEmail').checkValidity()) { $('#syncEmail').reportValidity(); return; }
+  setSyncStatus('syncing', 'Отправляем письмо…', email);
+  try { await window.DaySync.resetPassword(email); setSyncStatus('', 'Письмо отправлено', 'Откройте письмо и нажмите ссылку. Затем задайте новый пароль.'); toast('Письмо для восстановления отправлено'); }
+  catch (error) { setSyncStatus('error', 'Не удалось отправить письмо', error.message); }
+}
+async function handleResetPassword(event) {
+  event.preventDefault(); const password = $('#syncNewPassword').value; const confirm = $('#syncNewPasswordConfirm').value;
+  if (password !== confirm) { setSyncStatus('error', 'Пароли не совпадают', 'Введите одинаковый пароль в двух полях.'); return; }
+  try {
+    await window.DaySync.updatePassword(password); pinUnlocked = true; history.replaceState(null, '', location.pathname);
+    $('#syncNewPassword').value = ''; $('#syncNewPasswordConfirm').value = ''; switchAccountData(); await performSync(false); toast('Новый пароль сохранён');
+  } catch (error) { setSyncStatus('error', 'Не удалось сменить пароль', error.message); }
+}
+async function hashPin(pin) {
+  const bytes = new TextEncoder().encode(`${accountSuffix()}:${pin}`); const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return [...new Uint8Array(digest)].map(value => value.toString(16).padStart(2, '0')).join('');
+}
+async function savePin() {
+  const pin = $('#pinSetupInput').value.trim(); if (!/^\d{4}$/.test(pin)) { toast('Введите ровно четыре цифры'); return; }
+  localStorage.setItem(pinStorageKey(), await hashPin(pin)); $('#pinSetupInput').value = ''; pinUnlocked = true; refreshSyncUi(); toast('PIN установлен на этом устройстве');
+}
+function removePin() { localStorage.removeItem(pinStorageKey()); $('#pinSetupInput').value = ''; pinUnlocked = true; refreshSyncUi(); toast('PIN удалён'); }
+async function maybeLockApp() {
+  if (!window.DaySync?.user() || pinUnlocked || !localStorage.getItem(pinStorageKey()) || $('#pinDialog').open) return;
+  $('#pinUnlockInput').value = ''; $('#pinError').textContent = ''; $('#pinDialog').showModal(); setTimeout(() => $('#pinUnlockInput').focus(), 50);
+}
+async function unlockWithPin(event) {
+  event.preventDefault(); const entered = await hashPin($('#pinUnlockInput').value);
+  if (entered !== localStorage.getItem(pinStorageKey())) { $('#pinError').textContent = 'Неверный PIN. Попробуйте ещё раз.'; $('#pinUnlockInput').select(); return; }
+  pinUnlocked = true; $('#pinDialog').close(); performSync(false);
+}
+async function useAccountPassword() {
+  $('#pinDialog').close(); save(); await window.DaySync.signOut(); pinUnlocked = false; switchAccountData(); $('#syncDialog').showModal();
+}
+async function handleSyncLogout() { save(); await window.DaySync.signOut(); pinUnlocked = false; switchAccountData(); toast('Вы вышли. Личные задачи этого аккаунта скрыты.'); }
+
+function compareAppVersions(left, right) {
+  const a = String(left).split('.').map(Number); const b = String(right).split('.').map(Number);
+  for (let i = 0; i < Math.max(a.length, b.length); i += 1) { const difference = (a[i] || 0) - (b[i] || 0); if (difference) return difference; }
+  return 0;
+}
+function refreshUpdateIndicator() {
+  const unseen = localStorage.getItem(UPDATE_SEEN_KEY) !== latestAppVersion;
+  const available = compareAppVersions(latestAppVersion, APP_VERSION) > 0;
+  $('#updateBadge').hidden = !(unseen || available);
+  $('#updateButton').setAttribute('aria-label', unseen || available ? 'Обновления — есть новое' : 'Обновления');
+}
+function renderUpdateCenter() {
+  const available = compareAppVersions(latestAppVersion, APP_VERSION) > 0;
+  const unseen = localStorage.getItem(UPDATE_SEEN_KEY) !== latestAppVersion;
   $('#currentVersionLabel').textContent = APP_VERSION; $('#latestVersionLabel').textContent = latestAppVersion;
   $('#updateStatusTitle').textContent = available ? 'Доступно новое обновление' : unseen ? 'Получено новое обновление' : 'Установлена последняя версия';
   $('#updateStatusText').innerHTML = available ? `Можно обновить с версии <b>${APP_VERSION}</b> до <b>${latestAppVersion}</b>` : `Текущая версия: <b>${APP_VERSION}</b>`;
