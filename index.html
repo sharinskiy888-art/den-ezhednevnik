@@ -266,10 +266,10 @@
           <button type="button" class="secondary-button" id="syncSignUp">Регистрация</button>
           <button type="submit" class="primary-button">Войти</button>
         </div>
-        <button type="button" class="forgot-password-button" id="syncForgotPassword">Забыли пароль? Получить код по email</button>
+        <button type="button" class="forgot-password-button" id="syncForgotPassword">Забыли пароль? Получить новое письмо</button>
       </form>
       <form id="syncRecoveryCodeForm" hidden>
-        <p class="sync-reset-note">Мы отправим одноразовый код. Введите сюда код только из самого нового письма.</p>
+        <p class="sync-reset-note">Откройте только самое новое письмо. Нажмите в нём «Reset password». Если письмо содержит цифровой код, его можно ввести ниже.</p>
         <label>Email<input type="email" id="syncRecoveryEmail" autocomplete="email" required placeholder="name@example.com"></label>
         <label>Код из письма<input type="text" id="syncRecoveryCode" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6,8}" maxlength="8" required placeholder="6–8 цифр"></label>
         <button type="submit" class="primary-button">Проверить код</button>
