@@ -37,6 +37,11 @@
     const redirect = new URL('reset.html', location.href).href;
     return request(`/auth/v1/recover?redirect_to=${encodeURIComponent(redirect)}`, { method: 'POST', body: JSON.stringify({ email }) }, false);
   }
+  async function verifyRecoveryCode(email, token) {
+    const result = await request('/auth/v1/verify', { method: 'POST', body: JSON.stringify({ email, token, type: 'recovery' }) }, false);
+    if (!result?.access_token) throw new Error('Код не подтверждён. Запросите новый код и попробуйте ещё раз.');
+    setSession(result); return result;
+  }
   async function consumeRecoveryFromUrl() {
     const hash = new URLSearchParams(location.hash.replace(/^#/, '')); const query = new URLSearchParams(location.search);
     const error = hash.get('error_description') || query.get('error_description') || hash.get('error') || query.get('error');
@@ -88,5 +93,5 @@
     }
     return { tasks: result, appState };
   }
-  window.DaySync = { getSession, user, signUp, signIn, signOut, resetPassword, consumeRecoveryFromUrl, updatePassword, sync };
+  window.DaySync = { getSession, user, signUp, signIn, signOut, resetPassword, verifyRecoveryCode, consumeRecoveryFromUrl, updatePassword, sync };
 })();
