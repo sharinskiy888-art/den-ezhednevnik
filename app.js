@@ -625,12 +625,12 @@ async function handleForgotPassword() {
 }
 async function sendRecoveryCode(email) {
   if (!email || !/^\S+@\S+\.\S+$/.test(email)) { setSyncStatus('error', 'Введите email', 'Укажите почту, на которую зарегистрирован ежедневник.'); return; }
-  setSyncStatus('syncing', 'Отправляем код…', email);
+  setSyncStatus('syncing', 'Отправляем письмо…', email);
   try {
     await window.DaySync.resetPassword(email); localStorage.setItem('day-password-recovery-email', email);
     $('#syncRecoveryEmail').value = email; $('#syncAuthForm').hidden = true; $('#syncConnected').hidden = true; $('#syncResetForm').hidden = true; $('#syncRecoveryCodeForm').hidden = false;
-    setSyncStatus('', 'Код отправлен', 'Введите код только из самого нового письма. Ссылку в письме открывать не нужно.');
-    toast('Код восстановления отправлен'); setTimeout(() => $('#syncRecoveryCode').focus(), 50);
+    setSyncStatus('', 'Письмо отправлено', 'Откройте только самое новое письмо. Нажмите в нём Reset password; старые письма уже недействительны.');
+    toast('Новое письмо восстановления отправлено');
   }
   catch (error) { setSyncStatus('error', 'Не удалось отправить письмо', error.message); }
 }
@@ -767,7 +767,7 @@ async function initializeAccount() {
     }
   } catch (error) {
     await window.DaySync?.signOut?.(); refreshSyncUi(); const email = localStorage.getItem('day-password-recovery-email') || ''; $('#syncEmail').value = email; $('#syncRecoveryEmail').value = email; $('#syncAuthForm').hidden = true; $('#syncRecoveryCodeForm').hidden = false; $('#syncDialog').showModal();
-    setSyncStatus('error', 'Старая ссылка недействительна', 'Отправьте новый код и введите его здесь. Ссылку из письма открывать не нужно.'); return;
+    setSyncStatus('error', 'Старая ссылка недействительна', 'Вернитесь ко входу и запросите новое письмо. Открывайте только самое новое письмо.'); return;
   }
   refreshSyncUi();
   if (window.DaySync?.user()) { await maybeLockApp(); await performSync(false); }
