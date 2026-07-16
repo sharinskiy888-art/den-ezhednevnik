@@ -5,7 +5,7 @@ const PROFILE_KEY = 'day-planner-profile-v1';
 const PLAN_KEY = 'day-planner-period-plans-v1';
 const STATE_UPDATED_KEY = 'day-planner-state-updated-v1';
 const PIN_KEY = 'day-planner-pin-v1';
-const APP_VERSION = '36.2';
+const APP_VERSION = '37';
 const UPDATE_SEEN_KEY = 'day-planner-update-seen-v1';
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -561,7 +561,7 @@ function setSyncStatus(status, title, text) {
 }
 function refreshSyncUi() {
   const user = window.DaySync?.user();
-  $('#syncAuthForm').hidden = !!user; $('#syncConnected').hidden = !user; $('#syncResetForm').hidden = true;
+  $('#syncAuthForm').hidden = !!user; $('#syncConnected').hidden = !user; $('#syncRecoveryCodeForm').hidden = true; $('#syncResetForm').hidden = true;
   $('#pinRemoveButton').hidden = !user || !localStorage.getItem(pinStorageKey());
   const avatar = $('#profileButton');
   if (user) {
@@ -621,16 +621,38 @@ async function handleSyncSignUp() {
 async function handleForgotPassword() {
   const email = $('#syncEmail').value.trim();
   if (!email || !$('#syncEmail').checkValidity()) { $('#syncEmail').reportValidity(); return; }
-  setSyncStatus('syncing', 'Отправляем письмо…', email);
-  try { await window.DaySync.resetPassword(email); setSyncStatus('', 'Письмо отправлено', 'Откройте письмо и нажмите ссылку. Затем задайте новый пароль.'); toast('Письмо для восстановления отправлено'); }
+  await sendRecoveryCode(email);
+}
+async function sendRecoveryCode(email) {
+  if (!email || !/^\S+@\S+\.\S+$/.test(email)) { setSyncStatus('error', 'Введите email', 'Укажите почту, на которую зарегистрирован ежедневник.'); return; }
+  setSyncStatus('syncing', 'Отправляем код…', email);
+  try {
+    await window.DaySync.resetPassword(email); localStorage.setItem('day-password-recovery-email', email);
+    $('#syncRecoveryEmail').value = email; $('#syncAuthForm').hidden = true; $('#syncConnected').hidden = true; $('#syncResetForm').hidden = true; $('#syncRecoveryCodeForm').hidden = false;
+    setSyncStatus('', 'Код отправлен', 'Введите код только из самого нового письма. Ссылку в письме открывать не нужно.');
+    toast('Код восстановления отправлен'); setTimeout(() => $('#syncRecoveryCode').focus(), 50);
+  }
   catch (error) { setSyncStatus('error', 'Не удалось отправить письмо', error.message); }
+}
+async function handleVerifyRecoveryCode(event) {
+  event.preventDefault(); const email = $('#syncRecoveryEmail').value.trim(); const token = $('#syncRecoveryCode').value.trim().replace(/\s/g, '');
+  setSyncStatus('syncing', 'Проверяем код…', email);
+  try {
+    await window.DaySync.verifyRecoveryCode(email, token); $('#syncRecoveryCode').value = ''; $('#syncRecoveryCodeForm').hidden = true; $('#syncResetForm').hidden = false;
+    setSyncStatus('connected', 'Код подтверждён', 'Теперь придумайте новый пароль. Старый пароль не нужен.'); setTimeout(() => $('#syncNewPassword').focus(), 50);
+  } catch (error) { setSyncStatus('error', 'Код не подошёл', 'Введите код из самого нового письма или отправьте новый код.'); }
+}
+function showLoginForm() {
+  $('#syncRecoveryCodeForm').hidden = true; $('#syncResetForm').hidden = true; $('#syncConnected').hidden = true; $('#syncAuthForm').hidden = false;
+  const email = $('#syncRecoveryEmail').value.trim(); if (email) $('#syncEmail').value = email;
+  setSyncStatus('', 'Вход в аккаунт', 'Введите email и пароль или запросите код восстановления.');
 }
 async function handleResetPassword(event) {
   event.preventDefault(); const password = $('#syncNewPassword').value; const confirm = $('#syncNewPasswordConfirm').value;
   if (password !== confirm) { setSyncStatus('error', 'Пароли не совпадают', 'Введите одинаковый пароль в двух полях.'); return; }
   try {
     await window.DaySync.updatePassword(password); pinUnlocked = true; history.replaceState(null, '', location.pathname);
-    $('#syncNewPassword').value = ''; $('#syncNewPasswordConfirm').value = ''; switchAccountData(); await performSync(false); toast('Новый пароль сохранён');
+    $('#syncNewPassword').value = ''; $('#syncNewPasswordConfirm').value = ''; localStorage.removeItem('day-password-recovery-email'); switchAccountData(); await performSync(false); toast('Новый пароль сохранён');
   } catch (error) { setSyncStatus('error', 'Не удалось сменить пароль', error.message); }
 }
 async function hashPin(pin) {
@@ -722,7 +744,7 @@ $('#profileButton').addEventListener('click', openProfile); $('#closeProfile').a
 $('#chooseProfilePhoto').addEventListener('click', () => $('#profilePhotoInput').click()); $('#profileGalleryButton').addEventListener('click', () => $('#profilePhotoInput').click()); $('#profileCameraButton').addEventListener('click', () => $('#profileCameraInput').click());
 $('#profilePhotoInput').addEventListener('change', e => { prepareProfilePhoto(e.target.files[0]); e.target.value = ''; }); $('#profileCameraInput').addEventListener('change', e => { prepareProfilePhoto(e.target.files[0]); e.target.value = ''; });
 $('#removeProfilePhoto').addEventListener('click', () => { pendingProfilePhoto = ''; $('#profilePhotoInput').value = ''; $('#profileCameraInput').value = ''; renderProfile(); });
-$('#syncAuthForm').addEventListener('submit', handleSyncLogin); $('#syncSignUp').addEventListener('click', handleSyncSignUp); $('#syncForgotPassword').addEventListener('click', handleForgotPassword); $('#syncResetForm').addEventListener('submit', handleResetPassword);
+$('#syncAuthForm').addEventListener('submit', handleSyncLogin); $('#syncSignUp').addEventListener('click', handleSyncSignUp); $('#syncForgotPassword').addEventListener('click', handleForgotPassword); $('#syncRecoveryCodeForm').addEventListener('submit', handleVerifyRecoveryCode); $('#syncResendRecoveryCode').addEventListener('click', () => sendRecoveryCode($('#syncRecoveryEmail').value.trim())); $('#syncBackToLogin').addEventListener('click', showLoginForm); $('#syncResetForm').addEventListener('submit', handleResetPassword);
 $('#syncNow').addEventListener('click', () => performSync()); $('#syncLogout').addEventListener('click', handleSyncLogout); $('#pinSaveButton').addEventListener('click', savePin); $('#pinRemoveButton').addEventListener('click', removePin);
 $('#pinUnlockForm').addEventListener('submit', unlockWithPin); $('#pinUsePassword').addEventListener('click', useAccountPassword);
 $$('[data-period]').forEach(b => b.addEventListener('click', () => { currentPeriod = b.dataset.period; currentView = 'today'; syncNav(); render(); }));
@@ -730,9 +752,13 @@ $('#periodPrev').addEventListener('click', () => movePeriod(-1)); $('#periodNext
 $$('[data-view]').forEach(b => b.addEventListener('click', () => { if (b.dataset.view === 'settings') { toast('Все данные, фото и планы хранятся только на этом устройстве'); return; } currentView = b.dataset.view; if (currentView === 'today') selectedDate = todayKey; syncNav(); render(); }));
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; $('#installButton').hidden = false; });
 $('#installButton').addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('#installButton').hidden = true; });
-if ('serviceWorker' in navigator) window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=36.2'); checkForAppUpdate(false); });
+if ('serviceWorker' in navigator) window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=37'); checkForAppUpdate(false); });
 
 async function initializeAccount() {
+  if (new URLSearchParams(location.search).get('recovery') === 'code') {
+    refreshSyncUi(); const email = localStorage.getItem('day-password-recovery-email') || ''; $('#syncEmail').value = email; $('#syncRecoveryEmail').value = email; $('#syncAuthForm').hidden = true; $('#syncConnected').hidden = true; $('#syncRecoveryCodeForm').hidden = false; $('#syncDialog').showModal();
+    setSyncStatus('', 'Восстановление пароля', 'Введите email, получите новый код и укажите его здесь.'); return;
+  }
   try {
     const recovery = await window.DaySync?.consumeRecoveryFromUrl?.();
     if (recovery) {
@@ -740,8 +766,8 @@ async function initializeAccount() {
       setSyncStatus('connected', 'Ссылка подтверждена', 'Теперь задайте новый пароль.'); return;
     }
   } catch (error) {
-    await window.DaySync?.signOut?.(); refreshSyncUi(); $('#syncEmail').value = ''; $('#syncDialog').showModal();
-    setSyncStatus('error', 'Ссылка восстановления недействительна', `${error.message} Закройте это окно и запросите новое письмо.`); return;
+    await window.DaySync?.signOut?.(); refreshSyncUi(); const email = localStorage.getItem('day-password-recovery-email') || ''; $('#syncEmail').value = email; $('#syncRecoveryEmail').value = email; $('#syncAuthForm').hidden = true; $('#syncRecoveryCodeForm').hidden = false; $('#syncDialog').showModal();
+    setSyncStatus('error', 'Старая ссылка недействительна', 'Отправьте новый код и введите его здесь. Ссылку из письма открывать не нужно.'); return;
   }
   refreshSyncUi();
   if (window.DaySync?.user()) { await maybeLockApp(); await performSync(false); }
