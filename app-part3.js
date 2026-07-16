@@ -1,62 +1,3 @@
-function renderPhotoPreview() {
-  const attachment = pendingAttachment || (pendingPhoto ? { name: 'Фотоотчёт.jpg', type: 'image/jpeg', data: pendingPhoto, size: 0 } : null);
-  $('#photoPreview').hidden = !attachment;
-  const imagePreview = $('#photoPreviewImage'); const fileIcon = $('#attachmentFileIcon');
-  if (attachment) {
-    const isImage = attachment.type?.startsWith('image/'); imagePreview.hidden = !isImage; fileIcon.hidden = isImage;
-    if (isImage) imagePreview.src = attachment.data; else imagePreview.removeAttribute('src');
-    $('#attachmentName').textContent = attachment.name || (isImage ? 'Фотография' : 'Документ');
-    const task = tasks.find(t => t.id === $('#taskId').value); const size = attachment.size ? ` · ${Math.max(1, Math.round(attachment.size / 1024))} КБ` : '';
-    $('#photoMeta').textContent = (task?.photoCapturedAt ? `Добавлено ${new Date(task.photoCapturedAt).toLocaleString('ru-RU')}` : 'Новое вложение') + size;
-    $('#attachmentOpen').href = attachment.data; $('#attachmentOpen').download = attachment.name || 'Вложение';
-  } else {
-    imagePreview.hidden = true; fileIcon.hidden = true; imagePreview.removeAttribute('src'); $('#attachmentName').textContent = ''; $('#photoMeta').textContent = ''; $('#attachmentOpen').removeAttribute('href');
-  }
-}
-
-function resetVoiceButton() {
-  activeRecognition = null;
-  const button = activeVoiceButton || $('#voiceButton'); activeVoiceButton = null;
-  if (!button) return; button.classList.remove('listening'); button.textContent = '🎙'; button.title = 'Голосовой ввод';
-}
-function voiceFallback(targetId, message) {
-  const target = $('#' + targetId); setTimeout(() => { target?.focus(); toast(message || 'Нажмите микрофон на клавиатуре и продиктуйте текст'); }, 120);
-}
-function applyVoiceText(targetId, text, parseTask) {
-  const target = $('#' + targetId); if (!target) return;
-  if (parseTask) {
-    const parsed = parseQuickTask(text); target.value = parsed.title; $('#taskDate').value = parsed.date;
-    $('#taskTimeMode').value = parsed.time ? 'exact' : 'anytime'; updateTimeMode(); if (parsed.time) $('#taskTime').value = parsed.time;
-  } else if (targetId === 'taskSubtasks') target.value = [target.value.trim(), text].filter(Boolean).join('\n');
-  else target.value = [target.value.trim(), text].filter(Boolean).join(target.value.trim() ? ' ' : '');
-  target.focus();
-}
-async function startVoiceForField(targetId, buttonId, options = {}) {
-  if (activeRecognition) { activeRecognition.stop(); resetVoiceButton(); toast('Голосовой ввод остановлен'); return; }
-  if (options.openTask) { openDialog(); $('#dialogTitle').textContent = 'Новая задача голосом'; $('#taskAutoCarry').checked = true; }
-  const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!Recognition) { voiceFallback(targetId, 'Нажмите микрофон на клавиатуре телефона и продиктуйте текст'); return; }
-  if (!isSecureContext) { toast('Микрофон работает только в установленном приложении или через HTTPS'); return; }
-  try {
-    if (navigator.mediaDevices?.getUserMedia) { const stream = await navigator.mediaDevices.getUserMedia({ audio: true }); stream.getTracks().forEach(track => track.stop()); }
-    const recognition = new Recognition(); activeRecognition = recognition; activeVoiceButton = $('#' + buttonId);
-    recognition.lang = 'ru-RU'; recognition.interimResults = false; recognition.continuous = false; recognition.maxAlternatives = 1;
-    activeVoiceButton?.classList.add('listening'); if (activeVoiceButton) { activeVoiceButton.textContent = '●'; activeVoiceButton.title = 'Слушаю…'; }
-    recognition.onstart = () => toast(options.prompt || 'Слушаю… Говорите');
-    recognition.onresult = e => {
-      const text = [...e.results].map(result => result[0].transcript).join(' ').trim();
-      if (text) { applyVoiceText(targetId, text, !!options.parseTask); toast(options.success || 'Текст добавлен'); }
-      else toast('Речь не распознана. Попробуйте ещё раз');
-    };
-    recognition.onerror = e => {
-      const messages = { 'not-allowed': 'Разрешите доступ к микрофону в настройках браузера', 'service-not-allowed': 'Браузер запретил службу распознавания речи', 'audio-capture': 'Микрофон не найден или занят другим приложением', 'no-speech': 'Речь не услышана. Нажмите микрофон и повторите', network: 'Нет связи со службой распознавания речи' };
-      toast(messages[e.error] || 'Не удалось распознать речь. Попробуйте ещё раз');
-    };
-    recognition.onend = resetVoiceButton; recognition.start();
-  } catch (error) {
-    resetVoiceButton(); if (error?.name === 'NotAllowedError' || error?.name === 'SecurityError') toast('Разрешите приложению доступ к микрофону'); else toast('Не удалось включить микрофон');
-  }
-}
 function startVoiceInput() { return startVoiceForField('taskTitle', 'voiceButton', { openTask: true, parseTask: true, prompt: 'Слушаю… Назовите задачу, дату и время', success: 'Задача распознана. Проверьте и сохраните' }); }
 
 function renderMiniTasks() {
@@ -143,7 +84,8 @@ function setSyncStatus(status, title, text) {
 }
 function refreshSyncUi() {
   const user = window.DaySync?.user();
-  $('#syncAuthForm').hidden = !!user; $('#syncConnected').hidden = !user;
+  $('#syncAuthForm').hidden = !!user; $('#syncConnected').hidden = !user; $('#syncResetForm').hidden = true;
+  $('#pinRemoveButton').hidden = !user || !localStorage.getItem(pinStorageKey());
   const avatar = $('#profileButton');
   if (user) {
     setSyncStatus('connected', 'Личный аккаунт подключён', user.email || 'Облачная синхронизация активна');
@@ -160,21 +102,33 @@ function queueCloudSync() {
 }
 async function performSync(showMessage = true) {
   if (!window.DaySync?.user()) { if (showMessage) toast('Сначала войдите в облако'); return; }
+  if (syncInFlight) return;
+  syncInFlight = true;
   setSyncStatus('syncing', 'Синхронизация…', 'Обмениваемся изменениями с облаком');
   try {
-    const merged = await window.DaySync.sync(tasks, deletedIds);
-    tasks = merged; deletedIds = []; localStorage.setItem(deletedStorageKey(), '[]');
-    suppressSync = true; save(); suppressSync = false; render();
+    const result = await window.DaySync.sync(tasks, deletedIds, { profile, periodPlans, updatedAt: appStateUpdatedAt });
+    tasks = result.tasks || []; deletedIds = []; localStorage.setItem(deletedStorageKey(), '[]');
+    const remoteState = result.appState;
+    if (remoteState && new Date(remoteState.updatedAt || 0) > new Date(appStateUpdatedAt || 0)) {
+      profile = { name: '', photo: '', ...(remoteState.profile || {}) };
+      periodPlans = Array.isArray(remoteState.periodPlans) ? remoteState.periodPlans : [];
+      pendingProfilePhoto = profile.photo || '';
+      appStateUpdatedAt = remoteState.updatedAt;
+      localStorage.setItem(profileStorageKey(), JSON.stringify(profile));
+      localStorage.setItem(planStorageKey(), JSON.stringify(periodPlans));
+      localStorage.setItem(stateUpdatedStorageKey(), appStateUpdatedAt);
+    }
+    suppressSync = true; save(); suppressSync = false; render(); renderProfile();
     setSyncStatus('connected', 'Синхронизировано', `Задач в облаке: ${tasks.length}`);
     if (showMessage) toast('Данные синхронизированы');
   } catch (error) {
     suppressSync = false; setSyncStatus('error', 'Ошибка синхронизации', error.message); if (showMessage) toast(error.message);
-  }
+  } finally { syncInFlight = false; }
 }
 async function handleSyncLogin(event) {
   event.preventDefault(); const email = $('#syncEmail').value.trim(); const password = $('#syncPassword').value;
   setSyncStatus('syncing', 'Выполняется вход…', email);
-  try { await window.DaySync.signIn(email, password); $('#syncPassword').value = ''; switchAccountData(); await performSync(); }
+  try { await window.DaySync.signIn(email, password); pinUnlocked = true; $('#syncPassword').value = ''; switchAccountData(); await performSync(); }
   catch (error) { setSyncStatus('error', 'Не удалось войти', error.message); }
 }
 async function handleSyncSignUp() {
@@ -183,11 +137,47 @@ async function handleSyncSignUp() {
   setSyncStatus('syncing', 'Создаём аккаунт…', email);
   try {
     const result = await window.DaySync.signUp(email, password); $('#syncPassword').value = '';
-    if (result.access_token) { switchAccountData(); await performSync(); }
+    if (result.access_token) { pinUnlocked = true; switchAccountData(); await performSync(); }
     else setSyncStatus('', 'Подтвердите email', 'Откройте письмо Supabase, затем войдите здесь.');
   } catch (error) { setSyncStatus('error', 'Не удалось зарегистрироваться', error.message); }
 }
-async function handleSyncLogout() { save(); await window.DaySync.signOut(); switchAccountData(); toast('Вы вышли. Личные задачи этого аккаунта скрыты.'); }
+async function handleForgotPassword() {
+  const email = $('#syncEmail').value.trim();
+  if (!email || !$('#syncEmail').checkValidity()) { $('#syncEmail').reportValidity(); return; }
+  setSyncStatus('syncing', 'Отправляем письмо…', email);
+  try { await window.DaySync.resetPassword(email); setSyncStatus('', 'Письмо отправлено', 'Откройте письмо и нажмите ссылку. Затем задайте новый пароль.'); toast('Письмо для восстановления отправлено'); }
+  catch (error) { setSyncStatus('error', 'Не удалось отправить письмо', error.message); }
+}
+async function handleResetPassword(event) {
+  event.preventDefault(); const password = $('#syncNewPassword').value; const confirm = $('#syncNewPasswordConfirm').value;
+  if (password !== confirm) { setSyncStatus('error', 'Пароли не совпадают', 'Введите одинаковый пароль в двух полях.'); return; }
+  try {
+    await window.DaySync.updatePassword(password); pinUnlocked = true; history.replaceState(null, '', location.pathname);
+    $('#syncNewPassword').value = ''; $('#syncNewPasswordConfirm').value = ''; refreshSyncUi(); await performSync(false); toast('Новый пароль сохранён');
+  } catch (error) { setSyncStatus('error', 'Не удалось сменить пароль', error.message); }
+}
+async function hashPin(pin) {
+  const bytes = new TextEncoder().encode(`${accountSuffix()}:${pin}`); const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return [...new Uint8Array(digest)].map(value => value.toString(16).padStart(2, '0')).join('');
+}
+async function savePin() {
+  const pin = $('#pinSetupInput').value.trim(); if (!/^\d{4}$/.test(pin)) { toast('Введите ровно четыре цифры'); return; }
+  localStorage.setItem(pinStorageKey(), await hashPin(pin)); $('#pinSetupInput').value = ''; pinUnlocked = true; refreshSyncUi(); toast('PIN установлен на этом устройстве');
+}
+function removePin() { localStorage.removeItem(pinStorageKey()); $('#pinSetupInput').value = ''; pinUnlocked = true; refreshSyncUi(); toast('PIN удалён'); }
+async function maybeLockApp() {
+  if (!window.DaySync?.user() || pinUnlocked || !localStorage.getItem(pinStorageKey()) || $('#pinDialog').open) return;
+  $('#pinUnlockInput').value = ''; $('#pinError').textContent = ''; $('#pinDialog').showModal(); setTimeout(() => $('#pinUnlockInput').focus(), 50);
+}
+async function unlockWithPin(event) {
+  event.preventDefault(); const entered = await hashPin($('#pinUnlockInput').value);
+  if (entered !== localStorage.getItem(pinStorageKey())) { $('#pinError').textContent = 'Неверный PIN. Попробуйте ещё раз.'; $('#pinUnlockInput').select(); return; }
+  pinUnlocked = true; $('#pinDialog').close(); performSync(false);
+}
+async function useAccountPassword() {
+  $('#pinDialog').close(); save(); await window.DaySync.signOut(); pinUnlocked = false; switchAccountData(); $('#syncDialog').showModal();
+}
+async function handleSyncLogout() { save(); await window.DaySync.signOut(); pinUnlocked = false; switchAccountData(); toast('Вы вышли. Личные задачи этого аккаунта скрыты.'); }
 
 $('#quickForm').addEventListener('submit', e => { e.preventDefault(); addQuickTask($('#quickInput').value); });
 $('#quickInput').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addQuickTask(e.currentTarget.value); } });
@@ -203,7 +193,8 @@ $('#taskCameraButton').addEventListener('click', () => $('#taskCameraInput').cli
 ['taskCameraInput', 'taskGalleryInput', 'taskDocumentInput'].forEach(id => $('#' + id).addEventListener('change', e => { prepareAttachment(e.target.files[0]); e.target.value = ''; }));
 $('#removePhoto').addEventListener('click', () => { pendingPhoto = null; pendingAttachment = null; renderPhotoPreview(); });
 $('#taskTimeMode').addEventListener('change', updateTimeMode);
-$('#reminderButton').addEventListener('click', () => { currentPlanningView = 'today'; planningAnchorDate = selectedDate; renderPlanningDialog(); $('#reminderDialog').showModal(); }); $('#closeReminders').addEventListener('click', () => $('#reminderDialog').close()); $('#enableNotifications').addEventListener('click', enableNotifications);
+$('#reminderButton').addEventListener('click', () => { currentPlanningView = 'week'; planningAnchorDate = selectedDate; renderPlanningDialog(); $('#reminderDialog').showModal(); }); $('#closeReminders').addEventListener('click', () => $('#reminderDialog').close()); $('#enableNotifications').addEventListener('click', enableNotifications);
+$('#mobilePlansButton').addEventListener('click', () => { currentPlanningView = 'week'; planningAnchorDate = selectedDate; renderPlanningDialog(); $('#reminderDialog').showModal(); });
 $$('[data-planning-view]').forEach(button => button.addEventListener('click', () => { currentPlanningView = button.dataset.planningView; renderPlanningDialog(); })); $('#planForm').addEventListener('submit', addPeriodPlans);
 $('#planPeriodPrev').addEventListener('click', () => movePlanningPeriod(-1)); $('#planPeriodNext').addEventListener('click', () => movePlanningPeriod(1));
 $('#syncButton').addEventListener('click', () => { if ($('#profileDialog').open) $('#profileDialog').close(); refreshSyncUi(); $('#syncDialog').showModal(); }); $('#closeSync').addEventListener('click', () => $('#syncDialog').close());
@@ -212,12 +203,32 @@ $('#profileButton').addEventListener('click', openProfile); $('#closeProfile').a
 $('#chooseProfilePhoto').addEventListener('click', () => $('#profilePhotoInput').click()); $('#profileGalleryButton').addEventListener('click', () => $('#profilePhotoInput').click()); $('#profileCameraButton').addEventListener('click', () => $('#profileCameraInput').click());
 $('#profilePhotoInput').addEventListener('change', e => { prepareProfilePhoto(e.target.files[0]); e.target.value = ''; }); $('#profileCameraInput').addEventListener('change', e => { prepareProfilePhoto(e.target.files[0]); e.target.value = ''; });
 $('#removeProfilePhoto').addEventListener('click', () => { pendingProfilePhoto = ''; $('#profilePhotoInput').value = ''; $('#profileCameraInput').value = ''; renderProfile(); });
-$('#syncAuthForm').addEventListener('submit', handleSyncLogin); $('#syncSignUp').addEventListener('click', handleSyncSignUp); $('#syncNow').addEventListener('click', () => performSync()); $('#syncLogout').addEventListener('click', handleSyncLogout);
+$('#syncAuthForm').addEventListener('submit', handleSyncLogin); $('#syncSignUp').addEventListener('click', handleSyncSignUp); $('#syncForgotPassword').addEventListener('click', handleForgotPassword); $('#syncResetForm').addEventListener('submit', handleResetPassword);
+$('#syncNow').addEventListener('click', () => performSync()); $('#syncLogout').addEventListener('click', handleSyncLogout); $('#pinSaveButton').addEventListener('click', savePin); $('#pinRemoveButton').addEventListener('click', removePin);
+$('#pinUnlockForm').addEventListener('submit', unlockWithPin); $('#pinUsePassword').addEventListener('click', useAccountPassword);
 $$('[data-period]').forEach(b => b.addEventListener('click', () => { currentPeriod = b.dataset.period; currentView = 'today'; syncNav(); render(); }));
 $('#periodPrev').addEventListener('click', () => movePeriod(-1)); $('#periodNext').addEventListener('click', () => movePeriod(1)); $('#periodToday').addEventListener('click', () => { selectedDate = todayKey; render(); });
 $$('[data-view]').forEach(b => b.addEventListener('click', () => { if (b.dataset.view === 'settings') { toast('Все данные, фото и планы хранятся только на этом устройстве'); return; } currentView = b.dataset.view; if (currentView === 'today') selectedDate = todayKey; syncNav(); render(); }));
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; $('#installButton').hidden = false; });
 $('#installButton').addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('#installButton').hidden = true; });
-if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('sw.js?v=31'));
+if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('sw.js?v=32'));
 
-runAutoCarry(); save(); render(); refreshSyncUi(); renderProfile(); if (window.DaySync?.user()) performSync(false); checkReminders(); setInterval(checkReminders, 30000);
+async function initializeAccount() {
+  try {
+    const recovery = await window.DaySync?.consumeRecoveryFromUrl?.();
+    if (recovery) {
+      pinUnlocked = true; switchAccountData(); $('#syncAuthForm').hidden = true; $('#syncConnected').hidden = true; $('#syncResetForm').hidden = false; $('#syncDialog').showModal();
+      setSyncStatus('connected', 'Ссылка подтверждена', 'Теперь задайте новый пароль.'); return;
+    }
+  } catch (error) { setSyncStatus('error', 'Ссылка восстановления недействительна', error.message); }
+  refreshSyncUi();
+  if (window.DaySync?.user()) { await maybeLockApp(); await performSync(false); }
+}
+window.addEventListener('online', () => performSync(false));
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { appHiddenAt = Date.now(); return; }
+  if (appHiddenAt && Date.now() - appHiddenAt > 60000) { pinUnlocked = false; maybeLockApp(); } performSync(false);
+});
+setInterval(() => { if (document.visibilityState === 'visible' && navigator.onLine) performSync(false); }, 15000);
+
+runAutoCarry(); save(); render(); renderProfile(); initializeAccount(); checkReminders(); setInterval(checkReminders, 30000);
