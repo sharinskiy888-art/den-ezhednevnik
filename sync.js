@@ -34,7 +34,7 @@
     setSession(result); return result;
   }
   async function resetPassword(email) {
-    const redirect = `${location.origin}${location.pathname}?recovery=1`;
+    const redirect = new URL('reset.html', location.href).href;
     return request(`/auth/v1/recover?redirect_to=${encodeURIComponent(redirect)}`, { method: 'POST', body: JSON.stringify({ email }) }, false);
   }
   async function consumeRecoveryFromUrl() {
