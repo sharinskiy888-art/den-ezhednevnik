@@ -7,7 +7,7 @@
   <meta name="description" content="Простой ежедневник, который работает офлайн на телефоне и Windows.">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=38">
+  <link rel="stylesheet" href="styles.css?v=39">
   <title>День — ежедневник</title>
   <script>
     (() => {
@@ -235,10 +235,10 @@
       </div>
       <div class="update-state">
         <span class="update-state-icon">↻</span>
-        <div><strong id="updateStatusTitle">Проверяем обновление</strong><small id="updateStatusText">Текущая версия: <b id="currentVersionLabel">36</b></small></div>
+        <div><strong id="updateStatusTitle">Проверяем обновление</strong><small id="updateStatusText">Текущая версия: <b id="currentVersionLabel">39</b></small></div>
       </div>
       <div class="update-release">
-        <div><span>Последняя версия</span><strong id="latestVersionLabel">36</strong></div>
+        <div><span>Последняя версия</span><strong id="latestVersionLabel">39</strong></div>
         <ul id="updateNotes"><li>Центр обновлений и ручная установка новой версии.</li></ul>
       </div>
       <div class="update-actions">
@@ -246,7 +246,45 @@
         <button type="button" class="primary-button" id="applyUpdateButton">Обновить приложение</button>
       </div>
       <p class="update-hint">Задачи, фотографии и настройки при обновлении не удаляются.</p>
+      <div class="menu-tools" aria-label="Дополнительные возможности">
+        <button type="button" class="menu-tool" id="openNotificationSettings"><span>🔔</span><div><strong>Уведомления</strong><small>Напоминания и сводка дел</small></div><b>›</b></button>
+        <button type="button" class="menu-tool" id="openFeedback"><span>✉</span><div><strong>Обратная связь</strong><small>Сообщить о проблеме, приложить фото</small></div><b>›</b></button>
+      </div>
     </div>
+  </dialog>
+
+  <dialog id="notificationDialog" class="settings-dialog">
+    <form id="notificationForm" class="settings-panel">
+      <div class="dialog-header">
+        <div><span class="card-label">Напоминания</span><h2>Уведомления</h2></div>
+        <button type="button" class="close-button" id="closeNotificationSettings" aria-label="Закрыть">×</button>
+      </div>
+      <div class="permission-state" id="notificationPermissionState"></div>
+      <label class="setting-toggle"><span><strong>По времени задачи</strong><small>В точное время, указанное в напоминании</small></span><input type="checkbox" id="notifyExact" checked></label>
+      <label class="setting-toggle"><span><strong>Сводка на сегодня</strong><small>Количество дел и ближайшие задачи</small></span><input type="checkbox" id="notifyDaily" checked></label>
+      <label class="notification-time"><span>Время сводки</span><input type="time" id="notifyDailyTime" value="09:00"></label>
+      <label class="setting-toggle"><span><strong>Просроченные дела</strong><small>Один раз в день, если остались незавершённые задачи</small></span><input type="checkbox" id="notifyOverdue" checked></label>
+      <button type="button" class="secondary-button notification-test" id="testNotification">Проверить уведомление</button>
+      <button type="submit" class="primary-button notification-save">Сохранить настройки</button>
+      <p class="settings-hint">На iPhone уведомления работают для ежедневника, добавленного на экран «Домой». Точные уведомления приходят, пока приложение запущено; для полностью закрытого приложения потребуется серверная push-служба.</p>
+    </form>
+  </dialog>
+
+  <dialog id="feedbackDialog" class="settings-dialog">
+    <form id="feedbackForm" class="settings-panel">
+      <div class="dialog-header">
+        <div><span class="card-label">Помощь разработчику</span><h2>Обратная связь</h2></div>
+        <button type="button" class="close-button" id="closeFeedback" aria-label="Закрыть">×</button>
+      </div>
+      <label>Опишите проблему или предложение
+        <div class="feedback-text-wrap"><textarea id="feedbackText" rows="6" maxlength="3000" required placeholder="Что произошло? Что вы нажимали? Что ожидали увидеть?"></textarea><button type="button" class="field-voice-button" id="feedbackVoiceButton" aria-label="Надиктовать текст" title="Надиктовать текст">🎙</button></div>
+      </label>
+      <input type="file" id="feedbackPhotoInput" accept="image/*" hidden>
+      <button type="button" class="attachment-button feedback-photo-button" id="chooseFeedbackPhoto">▧ Прикрепить фото проблемы</button>
+      <div class="feedback-file" id="feedbackFile" hidden><span id="feedbackFileName"></span><button type="button" id="removeFeedbackPhoto" aria-label="Убрать фото">×</button></div>
+      <button type="submit" class="primary-button">Отправить</button>
+      <p class="settings-hint">Откроется системное меню отправки. Выберите почту или мессенджер и отправьте сообщение разработчику: <b>sharinskiy888@gmail.com</b>.</p>
+    </form>
   </dialog>
 
   <dialog id="syncDialog" class="sync-dialog">
@@ -330,8 +368,8 @@
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastAction" hidden></button></div>
-  <script src="sync-config.js?v=38"></script>
-  <script src="sync.js?v=38"></script>
-  <script src="app.js?v=38"></script>
+  <script src="sync-config.js?v=39"></script>
+  <script src="sync.js?v=39"></script>
+  <script src="app.js?v=39"></script>
 </body>
 </html>
