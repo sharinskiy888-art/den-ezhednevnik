@@ -3,6 +3,8 @@ const LEGACY_KEY = 'day-planner-tasks-v1';
 const DELETED_KEY = 'day-planner-deleted-v1';
 const PROFILE_KEY = 'day-planner-profile-v1';
 const PLAN_KEY = 'day-planner-period-plans-v1';
+const STATE_UPDATED_KEY = 'day-planner-state-updated-v1';
+const PIN_KEY = 'day-planner-pin-v1';
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 const pad = (n) => String(n).padStart(2, '0');
@@ -16,6 +18,8 @@ const taskStorageKey = () => `${STORAGE_KEY}:${accountSuffix()}`;
 const deletedStorageKey = () => `${DELETED_KEY}:${accountSuffix()}`;
 const profileStorageKey = () => `${PROFILE_KEY}:${accountSuffix()}`;
 const planStorageKey = () => `${PLAN_KEY}:${accountSuffix()}`;
+const stateUpdatedStorageKey = () => `${STATE_UPDATED_KEY}:${accountSuffix()}`;
+const pinStorageKey = () => `${PIN_KEY}:${accountSuffix()}`;
 
 let tasks = loadTasks();
 let selectedDate = todayKey;
@@ -28,13 +32,17 @@ let pendingAttachment = null;
 let deletedIds = loadDeletedIds();
 let suppressSync = false;
 let syncTimer = null;
+let syncInFlight = false;
 let activeRecognition = null;
 let activeVoiceButton = null;
 let profile = loadProfile();
 let pendingProfilePhoto = profile.photo || '';
 let periodPlans = loadPeriodPlans();
-let currentPlanningView = 'today';
+let appStateUpdatedAt = localStorage.getItem(stateUpdatedStorageKey()) || new Date(0).toISOString();
+let currentPlanningView = 'week';
 let planningAnchorDate = selectedDate;
+let pinUnlocked = false;
+let appHiddenAt = 0;
 
 function loadTasks() {
   try {
@@ -73,12 +81,15 @@ function loadPeriodPlans() {
   }
   catch { return []; }
 }
+function touchAppState() {
+  appStateUpdatedAt = new Date().toISOString(); localStorage.setItem(stateUpdatedStorageKey(), appStateUpdatedAt); queueCloudSync();
+}
 function savePeriodPlans() {
-  try { localStorage.setItem(planStorageKey(), JSON.stringify(periodPlans)); return true; }
+  try { localStorage.setItem(planStorageKey(), JSON.stringify(periodPlans)); touchAppState(); return true; }
   catch { toast('Не удалось сохранить планы'); return false; }
 }
 function saveProfile() {
-  try { localStorage.setItem(profileStorageKey(), JSON.stringify(profile)); return true; }
+  try { localStorage.setItem(profileStorageKey(), JSON.stringify(profile)); touchAppState(); return true; }
   catch { toast('Не удалось сохранить фотографию. Выберите снимок меньшего размера'); return false; }
 }
 function profileDisplayName() {
@@ -91,7 +102,7 @@ function greetingText() {
 function taskWord(count) { const n = Math.abs(count) % 100; const n1 = n % 10; return n > 10 && n < 20 ? 'задач' : n1 === 1 ? 'задача' : n1 > 1 && n1 < 5 ? 'задачи' : 'задач'; }
 
 function switchAccountData() {
-  tasks = loadTasks(); deletedIds = loadDeletedIds(); profile = loadProfile(); pendingProfilePhoto = profile.photo || ''; periodPlans = loadPeriodPlans(); runAutoCarry(); render(); refreshSyncUi(); renderProfile();
+  tasks = loadTasks(); deletedIds = loadDeletedIds(); profile = loadProfile(); pendingProfilePhoto = profile.photo || ''; periodPlans = loadPeriodPlans(); appStateUpdatedAt = localStorage.getItem(stateUpdatedStorageKey()) || new Date(0).toISOString(); runAutoCarry(); render(); refreshSyncUi(); renderProfile();
 }
 
 function seedTasks() {
@@ -122,6 +133,12 @@ function formatLong(key) { return fromKey(key).toLocaleDateString('ru-RU', { wee
 function formatHeaderDate(key) { const text = fromKey(key).toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }); return text.charAt(0).toLocaleUpperCase('ru') + text.slice(1); }
 function escapeHtml(value = '') { const d = document.createElement('div'); d.textContent = value; return d.innerHTML; }
 const REPEAT_LABELS = { daily: 'Каждый день', weekdays: 'По будням', weekly: 'Каждую неделю', monthly: 'Каждый месяц' };
+const FIXED_HOLIDAYS = { '01-01': 'Новый год', '01-02': 'Новогодние каникулы', '01-03': 'Новогодние каникулы', '01-04': 'Новогодние каникулы', '01-05': 'Новогодние каникулы', '01-06': 'Новогодние каникулы', '01-07': 'Рождество Христово', '01-08': 'Новогодние каникулы', '02-23': 'День защитника Отечества', '03-08': 'Международный женский день', '05-01': 'Праздник Весны и Труда', '05-09': 'День Победы', '06-12': 'День России', '11-04': 'День народного единства' };
+const OFFICIAL_HOLIDAYS_2026 = (() => {
+  const result = {}; const addRange = (start, end, name) => { const d = fromKey(start); const last = fromKey(end); while (d <= last) { result[toKey(d)] = name; d.setDate(d.getDate() + 1); } };
+  addRange('2026-01-01', '2026-01-11', 'Новогодние каникулы'); addRange('2026-02-21', '2026-02-23', 'Праздничные выходные'); addRange('2026-03-07', '2026-03-09', 'Праздничные выходные'); addRange('2026-05-01', '2026-05-03', 'Праздник Весны и Труда'); addRange('2026-05-09', '2026-05-11', 'День Победы'); addRange('2026-06-12', '2026-06-14', 'День России'); result['2026-11-04'] = 'День народного единства'; result['2026-12-31'] = 'Официальный выходной'; return result;
+})();
+function holidayName(key) { return OFFICIAL_HOLIDAYS_2026[key] || FIXED_HOLIDAYS[key.slice(5)] || ''; }
 function formatShortDate(key) { return fromKey(key).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' }); }
 function weekBounds(key) {
   const date = fromKey(key); const start = new Date(date); start.setDate(date.getDate() - ((date.getDay() + 6) % 7));
@@ -160,8 +177,8 @@ function renderWeek() {
   $('#weekStrip').innerHTML = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(monday); d.setDate(monday.getDate() + i); const key = toKey(d);
     const dayTasks = tasks.filter(t => t.date === key && !t.completed); const importantCount = dayTasks.filter(t => t.priority === 'high').length;
-    const priorityText = importantCount ? `, важных задач: ${importantCount}` : '';
-    return `<button class="day-button ${key === selectedDate ? 'selected' : ''} ${dayTasks.length ? 'has-tasks' : ''} ${importantCount ? 'has-high-priority' : ''}" data-date="${key}" aria-label="${formatLong(key)}${priorityText}"><em ${importantCount ? '' : 'hidden'} aria-hidden="true">!</em><span>${names[i]}</span><b>${d.getDate()}</b><i></i></button>`;
+    const priorityText = importantCount ? `, важных задач: ${importantCount}` : ''; const holiday = holidayName(key); const weekend = [0, 6].includes(d.getDay());
+    return `<button class="day-button ${key === selectedDate ? 'selected' : ''} ${dayTasks.length ? 'has-tasks' : ''} ${importantCount ? 'has-high-priority' : ''} ${weekend ? 'weekend' : ''} ${holiday ? 'holiday' : ''}" data-date="${key}" aria-label="${formatLong(key)}${holiday ? `, ${holiday}` : ''}${priorityText}" title="${holiday}"><em ${importantCount ? '' : 'hidden'} aria-hidden="true">!</em><span>${names[i]}</span><b>${d.getDate()}</b><i></i></button>`;
   }).join('');
   $$('.day-button').forEach(b => b.addEventListener('click', () => { selectedDate = b.dataset.date; if (currentPeriod === 'day') render(); else { renderPeriod(); renderStats(); } }));
 }
@@ -171,8 +188,8 @@ function renderMonth() {
   const start = new Date(first); start.setDate(first.getDate() - ((first.getDay() + 6) % 7));
   const heads = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map(x => `<div class="month-grid-head">${x}</div>`).join('');
   const days = Array.from({ length: 42 }, (_, i) => {
-    const d = new Date(start); d.setDate(start.getDate() + i); const key = toKey(d); const count = tasks.filter(t => t.date === key && !t.completed).length;
-    return `<button class="month-day ${d.getMonth() !== anchor.getMonth() ? 'outside' : ''} ${key === selectedDate ? 'selected' : ''}" data-month-date="${key}"><b>${d.getDate()}</b>${count ? `<small>${count} дел</small>` : ''}</button>`;
+    const d = new Date(start); d.setDate(start.getDate() + i); const key = toKey(d); const count = tasks.filter(t => t.date === key && !t.completed).length; const holiday = holidayName(key); const weekend = [0, 6].includes(d.getDay());
+    return `<button class="month-day ${d.getMonth() !== anchor.getMonth() ? 'outside' : ''} ${key === selectedDate ? 'selected' : ''} ${weekend ? 'weekend' : ''} ${holiday ? 'holiday' : ''}" data-month-date="${key}" title="${holiday}" aria-label="${formatLong(key)}${holiday ? `, ${holiday}` : ''}"><b>${d.getDate()}</b>${holiday ? '<em>праздник</em>' : count ? `<small>${count} дел</small>` : ''}</button>`;
   }).join('');
   $('#calendarOverview').innerHTML = `<div class="month-grid">${heads}${days}</div>`;
   $$('[data-month-date]').forEach(b => b.addEventListener('click', () => { selectedDate = b.dataset.monthDate; currentPeriod = 'day'; render(); }));
@@ -196,4 +213,27 @@ function visibleTasks() {
   if (searchQuery) result = result.filter(t => `${t.title} ${t.note || ''} ${t.proofNote || ''} ${(t.subtasks || []).map(s => s.title).join(' ')}`.toLocaleLowerCase('ru').includes(searchQuery));
   const priorityOrder = { high: 0, normal: 1, low: 2 };
   return result.sort((a, b) => (a.date + (a.time || '99:99')).localeCompare(b.date + (b.time || '99:99')) || (priorityOrder[a.priority] ?? 1) - (priorityOrder[b.priority] ?? 1));
+}
+
+function renderTasks() {
+  const list = visibleTasks();
+  $('#taskList').innerHTML = list.map(t => {
+    const subDone = (t.subtasks || []).filter(s => s.done).length;
+    const carryLabel = t.carryCount ? `Переносилась ${t.carryCount} ${t.carryCount === 1 ? 'день' : t.carryCount < 5 ? 'дня' : 'дней'}` : 'Автоперенос';
+    return `<article class="task priority-${t.priority || 'normal'} ${t.completed ? 'completed' : ''}" data-task-id="${t.id}">
+    <input class="check" type="checkbox" data-check="${t.id}" ${t.completed ? 'checked' : ''} aria-label="Отметить задачу ${escapeHtml(t.title)} выполненной">
+    <div class="task-main"><div class="task-title">${escapeHtml(t.title)}</div><div class="task-meta">
+      <span>${currentPeriod !== 'day' || currentView !== 'today' ? formatShortDate(t.date) + ' · ' : ''}${t.time || 'В течение дня'}</span>
+      ${t.autoCarry ? `<span class="tag carry">↻ ${carryLabel}</span>` : ''}${t.photo ? '<span class="photo-chip">📷 фотоотчёт</span>' : ''}
+      ${t.repeat && t.repeat !== 'none' ? `<span class="tag repeat">⟳ ${REPEAT_LABELS[t.repeat]}</span>` : ''}
+      ${(t.subtasks || []).length ? `<span class="tag checklist">☑ ${subDone}/${t.subtasks.length}</span>` : ''}
+      ${t.attachment || t.photo ? '<span class="tag">📎 вложение</span>' : ''}
+      ${t.priority === 'high' ? '<span class="priority-label high">Важно</span>' : t.priority === 'low' ? '<span class="priority-label low">Можно позже</span>' : ''}
+    </div>${(t.subtasks || []).length ? `<div class="subtask-list">${t.subtasks.map((s, i) => `<button type="button" class="subtask ${s.done ? 'done' : ''}" data-subtask="${t.id}" data-sub-index="${i}"><i>${s.done ? '✓' : ''}</i>${escapeHtml(s.title)}</button>`).join('')}</div>` : ''}</div><button class="more-button" data-edit="${t.id}" aria-label="Редактировать ${escapeHtml(t.title)}">•••</button></article>`;
+  }).join('');
+  $('#emptyState').hidden = list.length > 0;
+  $$('[data-check]').forEach(el => el.addEventListener('change', () => toggleTask(el.dataset.check)));
+  $$('[data-edit]').forEach(el => el.addEventListener('click', () => openDialog(el.dataset.edit)));
+  $$('[data-subtask]').forEach(el => el.addEventListener('click', () => toggleSubtask(el.dataset.subtask, Number(el.dataset.subIndex))));
+  enableTaskGestures();
 }
