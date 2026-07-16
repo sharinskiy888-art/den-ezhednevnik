@@ -7,7 +7,7 @@
   <meta name="description" content="Простой ежедневник, который работает офлайн на телефоне и Windows.">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=36">
+  <link rel="stylesheet" href="styles.css?v=36.1">
   <title>День — ежедневник</title>
   <script>
     (() => {
@@ -29,6 +29,7 @@
         <button class="nav-item active" data-view="today"><span>●</span>Сегодня</button>
         <button class="nav-item" data-view="upcoming"><span>→</span>Предстоящие</button>
         <button class="nav-item" data-view="completed"><span>✓</span>Выполнено</button>
+        <button type="button" class="nav-item" id="desktopPlansButton"><span>▦</span>Планы</button>
       </nav>
       <div class="sidebar-footer">
         <div class="progress-ring" id="progressRing"><span id="progressPercent">0%</span></div>
@@ -48,7 +49,7 @@
         </div>
         <div class="top-actions">
           <button type="button" class="account-entry-button" id="accountEntryButton"><span id="accountEntryText">Войти</span><small>или регистрация</small></button>
-          <button class="icon-button update-button" id="updateButton" title="Обновления" aria-label="Обновления">≡<span class="update-badge" id="updateBadge" hidden></span></button>
+          <button type="button" class="icon-button update-button" id="updateButton" title="Обновления" aria-label="Обновления">≡<span class="update-badge" id="updateBadge" hidden></span></button>
           <button class="icon-button" id="installButton" title="Установить приложение" hidden>⇩</button>
         </div>
       </header>
@@ -321,8 +322,8 @@
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastAction" hidden></button></div>
-  <script src="sync-config.js?v=36"></script>
-  <script src="sync.js?v=36"></script>
+  <script src="sync-config.js?v=36.1"></script>
+  <script src="sync.js?v=36.1"></script>
   <script src="app.js?v=36.1"></script>
 </body>
 </html>
