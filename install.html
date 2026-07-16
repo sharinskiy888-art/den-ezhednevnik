@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#214d78">
+  <title>Установить «День»</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;min-height:100dvh;padding:24px 16px;background:#f2f4f7;color:#172231;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.page{width:min(760px,100%);margin:auto}.card{overflow:hidden;border:1px solid #dfe4ea;border-radius:24px;background:#fff;box-shadow:0 18px 55px rgba(26,43,64,.1)}header{padding:28px 24px 20px;background:linear-gradient(135deg,#173d63,#2a659c);color:#fff}.brand{display:flex;align-items:center;gap:12px}.mark{width:48px;height:48px;display:grid;place-items:center;border-radius:14px;background:#fff;color:#214d78;font-size:24px;font-weight:850}h1{margin:18px 0 7px;font-size:clamp(27px,6vw,40px)}header p{margin:0;color:#e7f0f8;line-height:1.5}.content{display:grid;grid-template-columns:minmax(220px,310px) 1fr;gap:24px;padding:24px}.qr{width:100%;aspect-ratio:1;border:1px solid #e0e5ea;border-radius:18px;background:#fff}.linkbox{margin-top:10px;padding:11px;border-radius:10px;background:#f1f4f7;color:#526171;font-size:12px;word-break:break-all}.actions{display:grid;gap:9px}.button{display:flex;align-items:center;justify-content:center;min-height:49px;padding:12px 16px;border:0;border-radius:12px;background:#214d78;color:#fff;font:inherit;font-weight:750;text-align:center;text-decoration:none;cursor:pointer}.button.secondary{background:#edf2f6;color:#214d78}.steps{margin-top:20px}.steps h2{margin:0 0 12px;font-size:18px}.steps ol{margin:0;padding-left:22px}.steps li{margin:0 0 9px;line-height:1.4}.update{margin-top:17px;padding:14px;border-radius:13px;background:#eef7f2;color:#26614c;font-size:13px;line-height:1.45}.small{margin:14px 0 0;color:#738092;font-size:12px;line-height:1.45}@media(max-width:620px){body{padding:0;background:#fff}.card{border:0;border-radius:0;box-shadow:none}.content{grid-template-columns:1fr;padding:20px}.qr{width:min(330px,100%);justify-self:center}header{padding:24px 20px}.linkbox{text-align:center}}
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="card">
+      <header>
+        <div class="brand"><span class="mark">Д</span><strong>День — ежедневник</strong></div>
+        <h1>Установить приложение</h1>
+        <p>Выберите удобный способ: QR-код, кнопка или прямая ссылка.</p>
+      </header>
+      <div class="content">
+        <div>
+          <img class="qr" src="qr-iphone.svg" alt="QR-код для открытия ежедневника">
+          <div class="linkbox">https://sharinskiy888-art.github.io/den-ezhednevnik/</div>
+        </div>
+        <div>
+          <div class="actions">
+            <a class="button" href="https://sharinskiy888-art.github.io/den-ezhednevnik/">Открыть ежедневник</a>
+            <button class="button secondary" id="shareButton" type="button">Отправить ссылку</button>
+            <button class="button secondary" id="copyButton" type="button">Скопировать ссылку</button>
+          </div>
+          <div class="steps">
+            <h2>На iPhone</h2>
+            <ol>
+              <li>Откройте ссылку в <b>Safari</b>.</li>
+              <li>Нажмите <b>«Поделиться»</b> — квадрат со стрелкой вверх.</li>
+              <li>Выберите <b>«На экран “Домой”»</b> → <b>«Добавить»</b>.</li>
+            </ol>
+          </div>
+          <div class="steps">
+            <h2>На ноутбуке</h2>
+            <ol>
+              <li>Откройте ссылку в Chrome или Edge.</li>
+              <li>Откройте меню браузера и нажмите <b>«Установить “День”»</b>.</li>
+            </ol>
+          </div>
+          <div class="update"><b>Обновления:</b> переустанавливать приложение не нужно. Откройте меню <b>≡</b> → <b>«Обновления»</b> → <b>«Обновить приложение»</b>.</div>
+          <p class="small">Отправляйте людям адрес этой страницы — здесь всегда будет актуальная ссылка на ежедневник.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+  <script>
+    const appUrl='https://sharinskiy888-art.github.io/den-ezhednevnik/';
+    document.querySelector('#copyButton').addEventListener('click',async event=>{await navigator.clipboard.writeText(appUrl);event.currentTarget.textContent='Ссылка скопирована ✓';});
+    document.querySelector('#shareButton').addEventListener('click',async()=>{if(navigator.share)await navigator.share({title:'День — ежедневник',text:'Установить ежедневник «День»',url:location.href});else{await navigator.clipboard.writeText(location.href);document.querySelector('#shareButton').textContent='Ссылка скопирована ✓';}});
+  </script>
+</body>
+</html>
