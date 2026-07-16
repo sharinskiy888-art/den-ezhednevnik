@@ -5,7 +5,7 @@ const PROFILE_KEY = 'day-planner-profile-v1';
 const PLAN_KEY = 'day-planner-period-plans-v1';
 const STATE_UPDATED_KEY = 'day-planner-state-updated-v1';
 const PIN_KEY = 'day-planner-pin-v1';
-const APP_VERSION = '37';
+const APP_VERSION = '38';
 const UPDATE_SEEN_KEY = 'day-planner-update-seen-v1';
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -573,6 +573,14 @@ function refreshSyncUi() {
     $('#accountEntryButton').classList.remove('connected'); $('#accountEntryText').textContent = 'Войти'; $('#accountEntryButton').title = 'Войти или зарегистрироваться'; avatar.title = 'Личный профиль';
   }
 }
+function preparePinField(input) {
+  input.value = input.value.replace(/\D/g, '').slice(0, 4);
+}
+function openSyncDialog() {
+  if ($('#profileDialog').open) $('#profileDialog').close();
+  refreshSyncUi(); $('#pinSetupInput').value = ''; $('#syncDialog').showModal();
+  setTimeout(() => { if (!$('#syncConnected').hidden) $('#pinSetupInput').focus(); }, 50);
+}
 function queueCloudSync() {
   if (!window.DaySync?.user()) return;
   clearTimeout(syncTimer); syncTimer = setTimeout(() => performSync(false), 900);
@@ -738,8 +746,8 @@ $('#mobilePlansButton').addEventListener('click', openPlansDialog);
 $('#desktopPlansButton').addEventListener('click', openPlansDialog);
 $$('[data-planning-view]').forEach(button => button.addEventListener('click', () => { currentPlanningView = button.dataset.planningView; renderPlanningDialog(); })); $('#planForm').addEventListener('submit', addPeriodPlans);
 $('#planPeriodPrev').addEventListener('click', () => movePlanningPeriod(-1)); $('#planPeriodNext').addEventListener('click', () => movePlanningPeriod(1));
-$('#syncButton').addEventListener('click', () => { if ($('#profileDialog').open) $('#profileDialog').close(); refreshSyncUi(); $('#syncDialog').showModal(); }); $('#closeSync').addEventListener('click', () => $('#syncDialog').close());
-$('#accountEntryButton').addEventListener('click', () => { refreshSyncUi(); $('#syncDialog').showModal(); });
+$('#syncButton').addEventListener('click', openSyncDialog); $('#closeSync').addEventListener('click', () => $('#syncDialog').close());
+$('#accountEntryButton').addEventListener('click', openSyncDialog);
 $('#profileButton').addEventListener('click', openProfile); $('#closeProfile').addEventListener('click', () => $('#profileDialog').close()); $('#profileForm').addEventListener('submit', saveProfileForm);
 $('#chooseProfilePhoto').addEventListener('click', () => $('#profilePhotoInput').click()); $('#profileGalleryButton').addEventListener('click', () => $('#profilePhotoInput').click()); $('#profileCameraButton').addEventListener('click', () => $('#profileCameraInput').click());
 $('#profilePhotoInput').addEventListener('change', e => { prepareProfilePhoto(e.target.files[0]); e.target.value = ''; }); $('#profileCameraInput').addEventListener('change', e => { prepareProfilePhoto(e.target.files[0]); e.target.value = ''; });
@@ -747,12 +755,13 @@ $('#removeProfilePhoto').addEventListener('click', () => { pendingProfilePhoto =
 $('#syncAuthForm').addEventListener('submit', handleSyncLogin); $('#syncSignUp').addEventListener('click', handleSyncSignUp); $('#syncForgotPassword').addEventListener('click', handleForgotPassword); $('#syncRecoveryCodeForm').addEventListener('submit', handleVerifyRecoveryCode); $('#syncResendRecoveryCode').addEventListener('click', () => sendRecoveryCode($('#syncRecoveryEmail').value.trim())); $('#syncBackToLogin').addEventListener('click', showLoginForm); $('#syncResetForm').addEventListener('submit', handleResetPassword);
 $('#syncNow').addEventListener('click', () => performSync()); $('#syncLogout').addEventListener('click', handleSyncLogout); $('#pinSaveButton').addEventListener('click', savePin); $('#pinRemoveButton').addEventListener('click', removePin);
 $('#pinUnlockForm').addEventListener('submit', unlockWithPin); $('#pinUsePassword').addEventListener('click', useAccountPassword);
+$('#pinSetupInput').addEventListener('input', event => preparePinField(event.target)); $('#pinUnlockInput').addEventListener('input', event => preparePinField(event.target));
 $$('[data-period]').forEach(b => b.addEventListener('click', () => { currentPeriod = b.dataset.period; currentView = 'today'; syncNav(); render(); }));
 $('#periodPrev').addEventListener('click', () => movePeriod(-1)); $('#periodNext').addEventListener('click', () => movePeriod(1)); $('#periodToday').addEventListener('click', () => { selectedDate = todayKey; render(); });
 $$('[data-view]').forEach(b => b.addEventListener('click', () => { if (b.dataset.view === 'settings') { toast('Все данные, фото и планы хранятся только на этом устройстве'); return; } currentView = b.dataset.view; if (currentView === 'today') selectedDate = todayKey; syncNav(); render(); }));
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; $('#installButton').hidden = false; });
 $('#installButton').addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('#installButton').hidden = true; });
-if ('serviceWorker' in navigator) window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=37'); checkForAppUpdate(false); });
+if ('serviceWorker' in navigator) window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=38'); checkForAppUpdate(false); });
 
 async function initializeAccount() {
   if (new URLSearchParams(location.search).get('recovery') === 'code') {
