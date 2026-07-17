@@ -99,8 +99,8 @@
       id: row.id,
       ownerId: row.owner_id,
       ownerEmail: row.owner_email,
-      invitedEmails: row.invited_emails || [],
-      acceptedEmails: row.accepted_emails || [],
+      invitedEmails: (row.invited_emails || []).map(email => String(email).trim().toLocaleLowerCase()),
+      acceptedEmails: (row.accepted_emails || []).map(email => String(email).trim().toLocaleLowerCase()),
       updatedAt: row.payload?.updatedAt || row.updated_at
     };
   }

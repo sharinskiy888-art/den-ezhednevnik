@@ -8,7 +8,7 @@ const PIN_KEY = 'day-planner-pin-v1';
 const PIN_UNLOCKED_AT_KEY = 'day-planner-pin-unlocked-at-v1';
 const PIN_RELOCK_MS = 30 * 60 * 1000;
 const NOTIFICATION_KEY = 'day-planner-notifications-v1';
-const APP_VERSION = '46';
+const APP_VERSION = '47';
 const UPDATE_SEEN_KEY = 'day-planner-update-seen-v1';
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -59,6 +59,7 @@ let latestUpdateNotes = ['Центр обновлений и ручная уст
 let sharedTasks = [];
 let currentSharedTab = 'tasks';
 let sharedLoading = false;
+let activeSharedInviteId = '';
 
 function loadTasks() {
   try {
@@ -924,6 +925,36 @@ function renderSharedBadges() {
   ['#desktopSharedBadge', '#mobileSharedBadge'].forEach(selector => { const badge = $(selector); if (!badge) return; badge.hidden = !count; badge.textContent = count > 9 ? '9+' : count; });
   const inviteCount = $('#sharedInviteCount'); if (inviteCount) { inviteCount.hidden = !count; inviteCount.textContent = count; }
 }
+function sharedInviteShortDescription(task) {
+  const note = String(task.note || task.proofNote || '').trim();
+  if (note) return note.length > 120 ? `${note.slice(0, 117)}…` : note;
+  const subtasks = (task.subtasks || []).map(item => item.title).filter(Boolean);
+  if (subtasks.length) return `Подзадачи: ${subtasks.slice(0, 2).join(', ')}${subtasks.length > 2 ? ` и ещё ${subtasks.length - 2}` : ''}`;
+  return `${formatShortDate(task.date)} · ${task.time || 'без точного времени'}`;
+}
+function renderSharedInvitePrompt() {
+  const prompt = $('#sharedInvitePrompt');
+  if (!prompt) return;
+  const task = sharedInvites()[0];
+  if (!window.DaySync?.user() || !task) { prompt.hidden = true; activeSharedInviteId = ''; return; }
+  activeSharedInviteId = task.id;
+  $('#sharedInvitePromptTitle').textContent = task.title || 'Новая совместная задача';
+  $('#sharedInvitePromptDescription').textContent = sharedInviteShortDescription(task);
+  $('#sharedInvitePromptOwner').textContent = `Приглашает: ${task.ownerEmail || 'организатор'}`;
+  $('#sharedInvitePromptAccept').disabled = false; $('#sharedInvitePromptDecline').disabled = false;
+  prompt.hidden = false;
+}
+async function answerSharedInvitePrompt(accepted) {
+  if (!activeSharedInviteId) return;
+  const acceptButton = $('#sharedInvitePromptAccept'); const declineButton = $('#sharedInvitePromptDecline');
+  acceptButton.disabled = true; declineButton.disabled = true;
+  try {
+    await window.DaySync.answerSharedInvite(activeSharedInviteId, accepted);
+    await loadSharedTasks(false);
+    if ($('#sharedDialog')?.open) renderSharedDialog();
+    toast(accepted ? 'Совместная задача принята' : 'Приглашение отклонено');
+  } catch (error) { acceptButton.disabled = false; declineButton.disabled = false; toast(sharedErrorText(error)); }
+}
 async function loadSharedTasks(showErrors = false) {
   if (!window.DaySync?.user() || !window.DaySync?.loadSharedTasks || sharedLoading) { renderSharedBadges(); return sharedTasks; }
   sharedLoading = true;
@@ -932,6 +963,7 @@ async function loadSharedTasks(showErrors = false) {
     sharedTasks = await window.DaySync.loadSharedTasks();
     const newInvites = sharedInvites().filter(task => !previousInvites.includes(task.id));
     renderSharedBadges();
+    renderSharedInvitePrompt();
     if (newInvites.length && Notification.permission === 'granted') showAppNotification('Новое приглашение', { body: newInvites[0].title, tag: `shared-${newInvites[0].id}` });
   } catch (error) { if (showErrors) toast(sharedErrorText(error)); }
   finally { sharedLoading = false; }
@@ -1029,6 +1061,7 @@ function openPlansDialog() { currentPlanningView = 'week'; planningAnchorDate = 
 $('#mobilePlansButton').addEventListener('click', openPlansDialog);
 $('#desktopPlansButton').addEventListener('click', openPlansDialog);
 $('#mobileSharedButton').addEventListener('click', openSharedDialog); $('#desktopSharedButton').addEventListener('click', openSharedDialog); $('#closeShared').addEventListener('click', () => $('#sharedDialog').close()); $('#sharedAddButton').addEventListener('click', () => { $('#sharedDialog').close(); openDialog(null, 'shared'); });
+$('#sharedInvitePromptAccept').addEventListener('click', () => answerSharedInvitePrompt(true)); $('#sharedInvitePromptDecline').addEventListener('click', () => answerSharedInvitePrompt(false));
 $$('[data-shared-tab]').forEach(button => button.addEventListener('click', () => { currentSharedTab = button.dataset.sharedTab; renderSharedDialog(); }));
 $$('[data-planning-view]').forEach(button => button.addEventListener('click', () => { currentPlanningView = button.dataset.planningView; renderPlanningDialog(); })); $('#planForm').addEventListener('submit', addPeriodPlans);
 $('#planPeriodPrev').addEventListener('click', () => movePlanningPeriod(-1)); $('#planPeriodNext').addEventListener('click', () => movePlanningPeriod(1));
@@ -1047,7 +1080,7 @@ $('#periodPrev').addEventListener('click', () => movePeriod(-1)); $('#periodNext
 $$('[data-view]').forEach(b => b.addEventListener('click', () => { if (b.dataset.view === 'settings') { toast('Все данные, фото и планы хранятся только на этом устройстве'); return; } currentView = b.dataset.view; if (currentView === 'today') selectedDate = todayKey; syncNav(); render(); }));
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; $('#installButton').hidden = false; });
 $('#installButton').addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('#installButton').hidden = true; });
-if ('serviceWorker' in navigator) window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=46'); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
+if ('serviceWorker' in navigator) window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=47'); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
 
 async function initializeAccount() {
   if (new URLSearchParams(location.search).get('recovery') === 'code') {

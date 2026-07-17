@@ -145,6 +145,20 @@
     <button type="button" id="promptApplyUpdate">Обновить</button>
   </aside>
 
+  <aside class="shared-invite-prompt" id="sharedInvitePrompt" role="dialog" aria-modal="true" aria-labelledby="sharedInvitePromptTitle" hidden>
+    <span class="shared-invite-prompt-icon" aria-hidden="true">◎</span>
+    <div class="shared-invite-prompt-copy">
+      <span>Совместная задача</span>
+      <strong id="sharedInvitePromptTitle">Новое приглашение</strong>
+      <small id="sharedInvitePromptDescription"></small>
+      <em id="sharedInvitePromptOwner"></em>
+    </div>
+    <div class="shared-invite-prompt-actions">
+      <button type="button" class="invite-decline" id="sharedInvitePromptDecline">Отклонить</button>
+      <button type="button" class="invite-accept" id="sharedInvitePromptAccept">Принять</button>
+    </div>
+  </aside>
+
   <dialog id="taskDialog">
     <form id="taskForm" method="dialog">
       <div class="dialog-header">
@@ -415,8 +429,8 @@
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastAction" hidden></button></div>
-  <script src="sync-config.js?v=46"></script>
-  <script src="sync.js?v=46"></script>
-  <script src="app.js?v=46"></script>
+  <script src="sync-config.js?v=47"></script>
+  <script src="sync.js?v=47"></script>
+  <script src="app.js?v=47"></script>
 </body>
 </html>
