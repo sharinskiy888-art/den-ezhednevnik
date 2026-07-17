@@ -8,7 +8,7 @@ const PIN_KEY = 'day-planner-pin-v1';
 const PIN_UNLOCKED_AT_KEY = 'day-planner-pin-unlocked-at-v1';
 const PIN_RELOCK_MS = 30 * 60 * 1000;
 const NOTIFICATION_KEY = 'day-planner-notifications-v1';
-const APP_VERSION = '43';
+const APP_VERSION = '44';
 const UPDATE_SEEN_KEY = 'day-planner-update-seen-v1';
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -583,7 +583,25 @@ function saveNotificationSettings(event) { event.preventDefault(); notificationS
 async function testNotification() { if (!('Notification' in window) || Notification.permission !== 'granted') { await enableNotifications(); return; } const shown = await showAppNotification('Проверка — День', { body: 'Уведомления работают правильно.', tag: 'notification-test' }); toast(shown ? 'Проверочное уведомление отправлено' : 'Не удалось показать уведомление'); }
 
 function resetFeedbackForm() { $('#feedbackForm').reset(); const accountEmail = window.DaySync?.user()?.email || ''; $('#feedbackReplyEmail').value = accountEmail; feedbackPhoto = null; $('#feedbackFile').hidden = true; $('#feedbackFileName').textContent = ''; }
-function chooseFeedbackPhoto(file) { if (!file) return; if (!file.type.startsWith('image/')) { toast('Выберите фотографию или изображение'); return; } if (file.size > 10 * 1024 * 1024) { toast('Фото слишком большое. Максимум 10 МБ'); return; } feedbackPhoto = file; $('#feedbackFileName').textContent = file.name || 'Фото проблемы'; $('#feedbackFile').hidden = false; }
+async function chooseFeedbackPhoto(file) {
+  if (!file) return;
+  if (!file.type.startsWith('image/')) { toast('Выберите фотографию или изображение'); return; }
+  if (file.size > 10 * 1024 * 1024) { toast('Фото слишком большое. Максимум 10 МБ'); return; }
+  const url = URL.createObjectURL(file); const image = new Image();
+  try {
+    await new Promise((resolve, reject) => { image.onload = resolve; image.onerror = reject; image.src = url; });
+    const max = 1600; const scale = Math.min(1, max / Math.max(image.width, image.height));
+    const canvas = document.createElement('canvas'); canvas.width = Math.max(1, Math.round(image.width * scale)); canvas.height = Math.max(1, Math.round(image.height * scale));
+    canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', .78));
+    if (!blob) throw new Error('Не удалось подготовить фото');
+    const baseName = (file.name || 'Фото проблемы').replace(/\.[^.]+$/, '');
+    feedbackPhoto = new File([blob], `${baseName}.jpg`, { type: 'image/jpeg' });
+    $('#feedbackFileName').textContent = `${feedbackPhoto.name} · ${Math.max(1, Math.round(blob.size / 1024))} КБ`;
+    $('#feedbackFile').hidden = false; toast('Фото подготовлено к отправке');
+  } catch { toast('Не удалось прочитать фотографию'); }
+  finally { URL.revokeObjectURL(url); }
+}
 function feedbackMessage(text, replyEmail) { const accountEmail = window.DaySync?.user()?.email || 'не выполнен вход'; return `Обратная связь по приложению «День»\nВерсия: ${APP_VERSION}\nАккаунт: ${accountEmail}\nEmail для ответа: ${replyEmail}\nУстройство: ${navigator.userAgent}\n\n${text}`; }
 async function submitFeedback(event) {
   event.preventDefault();
@@ -596,12 +614,14 @@ async function submitFeedback(event) {
   try {
     const data = new FormData();
     data.append('email', accountEmail);
-    data.append('message', feedbackMessage(textValue, accountEmail));
+    data.append('Отправитель', accountEmail);
+    data.append('Версия приложения', APP_VERSION);
+    data.append('Текст обращения', textValue);
     data.append('_subject', `Обратная связь — День, версия ${APP_VERSION}`);
     data.append('_template', 'table');
     data.append('_captcha', 'false');
     if (feedbackPhoto) data.append('attachment', feedbackPhoto, feedbackPhoto.name || 'photo.jpg');
-    const response = await fetch('https://formsubmit.co/ajax/Sharinskiy888@gmail.com', { method: 'POST', headers: { Accept: 'application/json' }, body: data });
+    const response = await fetch('https://formsubmit.co/ajax/75397e76b5b257f37da54b02fc3f7c85', { method: 'POST', headers: { Accept: 'application/json' }, body: data });
     const result = await response.json().catch(() => ({}));
     if (!response.ok || result.success === false) throw new Error(result.message || 'Ошибка отправки');
     $('#feedbackDialog').close(); resetFeedbackForm(); toast(`Сообщение отправлено. Ответ придёт на ${accountEmail}`);
@@ -856,7 +876,7 @@ $('#periodPrev').addEventListener('click', () => movePeriod(-1)); $('#periodNext
 $$('[data-view]').forEach(b => b.addEventListener('click', () => { if (b.dataset.view === 'settings') { toast('Все данные, фото и планы хранятся только на этом устройстве'); return; } currentView = b.dataset.view; if (currentView === 'today') selectedDate = todayKey; syncNav(); render(); }));
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; $('#installButton').hidden = false; });
 $('#installButton').addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('#installButton').hidden = true; });
-if ('serviceWorker' in navigator) window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=43'); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
+if ('serviceWorker' in navigator) window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=44'); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
 
 async function initializeAccount() {
   if (new URLSearchParams(location.search).get('recovery') === 'code') {
