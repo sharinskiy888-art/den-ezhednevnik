@@ -7,7 +7,7 @@
   <meta name="description" content="Простой ежедневник, который работает офлайн на телефоне и Windows.">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=42">
+  <link rel="stylesheet" href="styles.css?v=43">
   <title>День — ежедневник</title>
   <script>
     (() => {
@@ -280,7 +280,7 @@
   </dialog>
 
   <dialog id="feedbackDialog" class="settings-dialog">
-    <form id="feedbackForm" class="settings-panel">
+    <form id="feedbackForm" class="settings-panel" enctype="multipart/form-data">
       <div class="dialog-header">
         <div><span class="card-label">Помощь разработчику</span><h2>Обратная связь</h2></div>
         <button type="button" class="close-button" id="closeFeedback" aria-label="Закрыть">×</button>
@@ -288,13 +288,12 @@
       <label>Опишите проблему или предложение
         <div class="feedback-text-wrap"><textarea id="feedbackText" rows="6" maxlength="3000" required placeholder="Что произошло? Что вы нажимали? Что ожидали увидеть?"></textarea><button type="button" class="field-voice-button" id="feedbackVoiceButton" aria-label="Надиктовать текст" title="Надиктовать текст">🎙</button></div>
       </label>
-      <label>Email для ответа<input type="email" id="feedbackReplyEmail" required autocomplete="email" placeholder="На этот адрес придёт ответ поддержки"></label>
+      <label>Email отправителя<input type="email" id="feedbackReplyEmail" required readonly autocomplete="email" placeholder="Будет взят из аккаунта"></label>
       <input type="file" id="feedbackPhotoInput" accept="image/*" hidden>
       <button type="button" class="attachment-button feedback-photo-button" id="chooseFeedbackPhoto">▧ Прикрепить фото проблемы</button>
       <div class="feedback-file" id="feedbackFile" hidden><span id="feedbackFileName"></span><button type="button" id="removeFeedbackPhoto" aria-label="Убрать фото">×</button></div>
-      <button type="submit" class="primary-button">Создать письмо в поддержку</button>
-      <button type="button" class="secondary-button feedback-share-button" id="shareFeedbackPhoto">Отправить вместе с фото</button>
-      <p class="settings-hint">Письмо будет адресовано на <b>Sharinskiy888@gmail.com</b>. После проверки поддержка ответит на email, указанный выше. В почтовом приложении останется нажать «Отправить».</p>
+      <button type="submit" class="primary-button" id="feedbackSubmitButton">Отправить разработчику</button>
+      <p class="settings-hint">Сообщение уйдёт на <b>Sharinskiy888@gmail.com</b> в фоне. Почтовое приложение не откроется. Ответ придёт на email вашего аккаунта.</p>
     </form>
   </dialog>
 
@@ -379,8 +378,8 @@
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastAction" hidden></button></div>
-  <script src="sync-config.js?v=42"></script>
-  <script src="sync.js?v=42"></script>
-  <script src="app.js?v=42"></script>
+  <script src="sync-config.js?v=43"></script>
+  <script src="sync.js?v=43"></script>
+  <script src="app.js?v=43"></script>
 </body>
 </html>
