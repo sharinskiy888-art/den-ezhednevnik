@@ -8,7 +8,7 @@ const PIN_KEY = 'day-planner-pin-v1';
 const PIN_UNLOCKED_AT_KEY = 'day-planner-pin-unlocked-at-v1';
 const PIN_RELOCK_MS = 30 * 60 * 1000;
 const NOTIFICATION_KEY = 'day-planner-notifications-v1';
-const APP_VERSION = '41';
+const APP_VERSION = '42';
 const UPDATE_SEEN_KEY = 'day-planner-update-seen-v1';
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -763,6 +763,15 @@ function refreshUpdateIndicator() {
   $('#updateBadge').hidden = !(unseen || available);
   $('#updateButton').setAttribute('aria-label', unseen || available ? 'Обновления — есть новое' : 'Обновления');
 }
+function showUpdatePromptIfNeeded() {
+  const unseen = localStorage.getItem(UPDATE_SEEN_KEY) !== latestAppVersion;
+  const available = compareAppVersions(latestAppVersion, APP_VERSION) > 0;
+  if (!unseen && !available) return;
+  $('#updatePromptText').textContent = available
+    ? `Версия ${latestAppVersion} готова к установке`
+    : `Установлена версия ${latestAppVersion}`;
+  $('#updatePrompt').hidden = false;
+}
 function renderUpdateCenter() {
   const available = compareAppVersions(latestAppVersion, APP_VERSION) > 0;
   const unseen = localStorage.getItem(UPDATE_SEEN_KEY) !== latestAppVersion;
@@ -772,13 +781,13 @@ function renderUpdateCenter() {
   $('#updateNotes').innerHTML = latestUpdateNotes.map(note => `<li>${escapeHtml(note)}</li>`).join('');
   $('#applyUpdateButton').textContent = available ? 'Установить обновление' : unseen ? 'Принять обновление' : 'Обновить приложение';
 }
-async function checkForAppUpdate(showFeedback = false) {
+async function checkForAppUpdate(showFeedback = false, showPrompt = false) {
   try {
     await new Promise((resolve, reject) => {
       $('#appVersionCheck')?.remove(); const script = document.createElement('script'); script.id = 'appVersionCheck'; script.src = `version.js?check=${Date.now()}`; script.onload = resolve; script.onerror = () => reject(new Error('Не удалось проверить версию')); document.head.append(script);
     });
     const release = window.DAY_APP_RELEASE || {}; latestAppVersion = String(release.version || APP_VERSION); latestUpdateNotes = Array.isArray(release.notes) && release.notes.length ? release.notes : latestUpdateNotes;
-    refreshUpdateIndicator(); renderUpdateCenter();
+    refreshUpdateIndicator(); renderUpdateCenter(); if (showPrompt) showUpdatePromptIfNeeded();
     if (showFeedback) toast(compareAppVersions(latestAppVersion, APP_VERSION) > 0 ? `Доступна версия ${latestAppVersion}` : 'Установлена последняя версия');
   } catch { if (showFeedback) toast('Не удалось проверить обновление. Проверьте интернет.'); }
 }
@@ -789,6 +798,14 @@ async function applyAppUpdate() {
     const registration = await navigator.serviceWorker?.getRegistration(); if (registration) await registration.update();
     const url = new URL('./', location.href); url.searchParams.set('v', latestAppVersion); url.searchParams.set('updated', Date.now()); location.replace(url.href);
   } catch { button.disabled = false; button.textContent = 'Повторить обновление'; toast('Не удалось обновить. Проверьте интернет.'); }
+}
+async function applyPromptedUpdate() {
+  $('#updatePrompt').hidden = true;
+  const available = compareAppVersions(latestAppVersion, APP_VERSION) > 0;
+  localStorage.setItem(UPDATE_SEEN_KEY, latestAppVersion);
+  refreshUpdateIndicator();
+  if (available) { await applyAppUpdate(); return; }
+  toast('Приложение обновлено');
 }
 
 $('#quickForm').addEventListener('submit', e => { e.preventDefault(); addQuickTask($('#quickInput').value); });
@@ -806,6 +823,7 @@ $('#taskCameraButton').addEventListener('click', () => $('#taskCameraInput').cli
 $('#removePhoto').addEventListener('click', () => { pendingPhoto = null; pendingAttachment = null; renderPhotoPreview(); });
 $('#taskTimeMode').addEventListener('change', updateTimeMode);
 $('#updateButton').addEventListener('click', async () => { renderUpdateCenter(); $('#updateDialog').showModal(); await checkForAppUpdate(false); }); $('#closeUpdate').addEventListener('click', () => $('#updateDialog').close()); $('#checkUpdateButton').addEventListener('click', () => checkForAppUpdate(true)); $('#applyUpdateButton').addEventListener('click', applyAppUpdate);
+$('#promptApplyUpdate').addEventListener('click', applyPromptedUpdate);
 $('#openNotificationSettings').addEventListener('click', openNotificationDialog); $('#closeNotificationSettings').addEventListener('click', () => $('#notificationDialog').close()); $('#notificationForm').addEventListener('submit', saveNotificationSettings); $('#testNotification').addEventListener('click', testNotification);
 $('#openFeedback').addEventListener('click', () => { $('#updateDialog').close(); resetFeedbackForm(); $('#feedbackDialog').showModal(); }); $('#closeFeedback').addEventListener('click', () => $('#feedbackDialog').close()); $('#feedbackVoiceButton').addEventListener('click', () => startVoiceForField('feedbackText', 'feedbackVoiceButton', { prompt: 'Слушаю описание проблемы', success: 'Текст обратной связи добавлен' })); $('#chooseFeedbackPhoto').addEventListener('click', () => $('#feedbackPhotoInput').click()); $('#feedbackPhotoInput').addEventListener('change', event => { chooseFeedbackPhoto(event.target.files[0]); event.target.value = ''; }); $('#removeFeedbackPhoto').addEventListener('click', () => { feedbackPhoto = null; $('#feedbackFile').hidden = true; $('#feedbackFileName').textContent = ''; }); $('#feedbackForm').addEventListener('submit', submitFeedback); $('#shareFeedbackPhoto').addEventListener('click', shareFeedbackWithPhoto);
 $('#closeReminders').addEventListener('click', () => $('#reminderDialog').close()); $('#enableNotifications').addEventListener('click', enableNotifications);
@@ -829,7 +847,7 @@ $('#periodPrev').addEventListener('click', () => movePeriod(-1)); $('#periodNext
 $$('[data-view]').forEach(b => b.addEventListener('click', () => { if (b.dataset.view === 'settings') { toast('Все данные, фото и планы хранятся только на этом устройстве'); return; } currentView = b.dataset.view; if (currentView === 'today') selectedDate = todayKey; syncNav(); render(); }));
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; $('#installButton').hidden = false; });
 $('#installButton').addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('#installButton').hidden = true; });
-if ('serviceWorker' in navigator) window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=41'); checkForAppUpdate(false); });
+if ('serviceWorker' in navigator) window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=42'); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
 
 async function initializeAccount() {
   if (new URLSearchParams(location.search).get('recovery') === 'code') {
