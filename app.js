@@ -8,7 +8,7 @@ const PIN_KEY = 'day-planner-pin-v1';
 const PIN_UNLOCKED_AT_KEY = 'day-planner-pin-unlocked-at-v1';
 const PIN_RELOCK_MS = 30 * 60 * 1000;
 const NOTIFICATION_KEY = 'day-planner-notifications-v1';
-const APP_VERSION = '40';
+const APP_VERSION = '41';
 const UPDATE_SEEN_KEY = 'day-planner-update-seen-v1';
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -829,7 +829,7 @@ $('#periodPrev').addEventListener('click', () => movePeriod(-1)); $('#periodNext
 $$('[data-view]').forEach(b => b.addEventListener('click', () => { if (b.dataset.view === 'settings') { toast('Все данные, фото и планы хранятся только на этом устройстве'); return; } currentView = b.dataset.view; if (currentView === 'today') selectedDate = todayKey; syncNav(); render(); }));
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; $('#installButton').hidden = false; });
 $('#installButton').addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('#installButton').hidden = true; });
-if ('serviceWorker' in navigator) window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=40'); checkForAppUpdate(false); });
+if ('serviceWorker' in navigator) window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=41'); checkForAppUpdate(false); });
 
 async function initializeAccount() {
   if (new URLSearchParams(location.search).get('recovery') === 'code') {
