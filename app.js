@@ -8,7 +8,7 @@ const PIN_KEY = 'day-planner-pin-v1';
 const PIN_UNLOCKED_AT_KEY = 'day-planner-pin-unlocked-at-v1';
 const PIN_RELOCK_MS = 30 * 60 * 1000;
 const NOTIFICATION_KEY = 'day-planner-notifications-v1';
-const APP_VERSION = '45';
+const APP_VERSION = '46';
 const UPDATE_SEEN_KEY = 'day-planner-update-seen-v1';
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -56,6 +56,9 @@ let pinUnlocked = false;
 let appHiddenAt = 0;
 let latestAppVersion = APP_VERSION;
 let latestUpdateNotes = ['Центр обновлений и ручная установка новой версии.'];
+let sharedTasks = [];
+let currentSharedTab = 'tasks';
+let sharedLoading = false;
 
 function loadTasks() {
   try {
@@ -115,7 +118,7 @@ function greetingText() {
 function taskWord(count) { const n = Math.abs(count) % 100; const n1 = n % 10; return n > 10 && n < 20 ? 'задач' : n1 === 1 ? 'задача' : n1 > 1 && n1 < 5 ? 'задачи' : 'задач'; }
 
 function switchAccountData() {
-  tasks = loadTasks(); deletedIds = loadDeletedIds(); profile = loadProfile(); pendingProfilePhoto = profile.photo || ''; periodPlans = loadPeriodPlans(); appStateUpdatedAt = localStorage.getItem(stateUpdatedStorageKey()) || new Date(0).toISOString(); runAutoCarry(); render(); refreshSyncUi(); renderProfile();
+  tasks = loadTasks(); deletedIds = loadDeletedIds(); profile = loadProfile(); pendingProfilePhoto = profile.photo || ''; periodPlans = loadPeriodPlans(); appStateUpdatedAt = localStorage.getItem(stateUpdatedStorageKey()) || new Date(0).toISOString(); sharedTasks = []; runAutoCarry(); render(); refreshSyncUi(); renderProfile(); loadSharedTasks(false);
 }
 
 function seedTasks() {
@@ -381,15 +384,26 @@ function addQuickTask(title) {
   save(); $('#quickInput').value = ''; render(); toast(lines.length > 1 ? `Добавлено дел: ${lines.length}` : 'Дело добавлено с автопереносом');
 }
 
-function openDialog(id = null) {
-  const task = tasks.find(t => t.id === id); $('#taskForm').reset(); pendingPhoto = task?.photo || null;
+function setTaskType(type = 'personal', locked = false) {
+  const shared = type === 'shared';
+  $('#taskSource').value = shared ? 'shared' : 'personal';
+  $('#sharedTaskFields').hidden = !shared;
+  $$('[data-task-type]').forEach(button => { button.classList.toggle('active', button.dataset.taskType === type); button.disabled = locked; });
+}
+function openDialog(id = null, source = 'personal') {
+  const task = source === 'shared' ? sharedTasks.find(t => t.id === id) : tasks.find(t => t.id === id); $('#taskForm').reset(); pendingPhoto = task?.photo || null;
   pendingAttachment = task?.attachment || (task?.photo ? { name: 'Фотоотчёт.jpg', type: 'image/jpeg', data: task.photo, size: 0 } : null);
   $('#taskId').value = task?.id || ''; $('#dialogTitle').textContent = task ? 'Редактировать задачу' : 'Новая задача';
+  setTaskType(source, !!task);
+  $('#sharedEmails').value = source === 'shared' ? [...(task?.acceptedEmails || []), ...(task?.invitedEmails || [])].filter(email => email !== task?.ownerEmail).join('\n') : '';
+  $('#sharedTaskStatus').value = task?.status || 'open';
+  const ownsSharedTask = source !== 'shared' || !task || task.ownerId === window.DaySync?.user()?.id;
+  $('#sharedEmails').disabled = !ownsSharedTask;
   $('#taskTitle').value = task?.title || ''; $('#taskDate').value = task?.date || selectedDate; $('#taskTime').value = task?.time || '';
   $('#taskTimeMode').value = task?.time ? 'exact' : 'anytime'; updateTimeMode();
   $('#taskPriority').value = task?.priority || 'normal'; $('#taskNote').value = task?.note || '';
   $('#taskAutoCarry').checked = task?.autoCarry || false; $('#taskReminder').value = task?.reminder || ''; $('#taskRepeat').value = task?.repeat || 'none';
-  $('#taskSubtasks').value = (task?.subtasks || []).map(s => s.title).join('\n'); $('#taskProofNote').value = task?.proofNote || ''; $('#deleteTask').hidden = !task;
+  $('#taskSubtasks').value = (task?.subtasks || []).map(s => s.title).join('\n'); $('#taskProofNote').value = task?.proofNote || ''; $('#deleteTask').hidden = !task || (source === 'shared' && task.ownerId !== window.DaySync?.user()?.id);
   renderPhotoPreview(); $('#taskDialog').showModal(); setTimeout(() => $('#taskTitle').focus(), 50);
 }
 function closeDialog() { $('#taskDialog').close(); }
@@ -398,18 +412,54 @@ function updateTimeMode() {
   $('#taskTime').hidden = !exact; $('#taskTime').required = exact;
   if (!exact) $('#taskTime').value = '';
 }
-function handleSubmit(event) {
+async function handleSubmit(event) {
   event.preventDefault(); const id = $('#taskId').value;
-  const existing = tasks.find(t => t.id === id); const previousSubtasks = existing?.subtasks || [];
-  const subtasks = $('#taskSubtasks').value.split(/\r?\n/).map(x => x.trim()).filter(Boolean).map(title => ({ title, done: previousSubtasks.find(s => s.title === title)?.done || false }));
+  const source = $('#taskSource').value; const existing = source === 'shared' ? sharedTasks.find(t => t.id === id) : tasks.find(t => t.id === id); const previousSubtasks = existing?.subtasks || [];
+  const subtasks = $('#taskSubtasks').value.split(/\r?\n/).map(x => x.trim()).filter(Boolean).map(title => ({ title, done: previousSubtasks.find(s => s.title === title)?.done || false, doneBy: previousSubtasks.find(s => s.title === title)?.doneBy || '', doneAt: previousSubtasks.find(s => s.title === title)?.doneAt || '' }));
   const attachmentChanged = pendingAttachment?.data !== existing?.attachment?.data && pendingAttachment?.data !== existing?.photo;
   const data = { title: $('#taskTitle').value.trim(), date: $('#taskDate').value, time: $('#taskTimeMode').value === 'exact' ? $('#taskTime').value : '', priority: $('#taskPriority').value, note: $('#taskNote').value.trim(), autoCarry: $('#taskAutoCarry').checked, reminder: $('#taskReminder').value, repeat: $('#taskRepeat').value, subtasks, proofNote: $('#taskProofNote').value.trim(), notified: false, photo: pendingPhoto, attachment: pendingAttachment, photoCapturedAt: pendingAttachment && attachmentChanged ? new Date().toISOString() : existing?.photoCapturedAt || '', updatedAt: new Date().toISOString() };
   if (!data.title) return;
+  if (source === 'shared') {
+    const account = window.DaySync?.user();
+    if (!account) { closeDialog(); toast('Сначала войдите в аккаунт'); openSyncDialog(); return; }
+    const requestedEmails = parseSharedEmails($('#sharedEmails').value).filter(email => email !== account.email?.toLocaleLowerCase());
+    if (!existing && !requestedEmails.length) { toast('Укажите почту хотя бы одного участника'); return; }
+    const isOwner = !existing || existing.ownerId === account.id;
+    const accepted = isOwner ? (existing?.acceptedEmails || []).filter(email => requestedEmails.includes(email)) : (existing?.acceptedEmails || []);
+    const invited = isOwner ? requestedEmails.filter(email => !accepted.includes(email)) : (existing?.invitedEmails || []);
+    const sharedTask = {
+      ...(existing || {}),
+      id: existing?.id || crypto.randomUUID(),
+      ...data,
+      ownerId: existing?.ownerId || account.id,
+      ownerEmail: existing?.ownerEmail || account.email?.toLocaleLowerCase(),
+      invitedEmails: invited,
+      acceptedEmails: accepted,
+      status: $('#sharedTaskStatus').value,
+      completed: $('#sharedTaskStatus').value === 'completed',
+      activity: [...(existing?.activity || []), { type: existing ? 'updated' : 'created', email: account.email, at: data.updatedAt }].slice(-30)
+    };
+    try {
+      await window.DaySync.saveSharedTask(sharedTask);
+      selectedDate = data.date; closeDialog(); await loadSharedTasks(false); renderSharedDialog();
+      toast(existing ? 'Совместная задача обновлена' : 'Приглашения отправлены в ежедневник');
+    } catch (error) { toast(sharedErrorText(error)); }
+    return;
+  }
   if (id) Object.assign(existing, data);
   else tasks.push({ id: crypto.randomUUID(), ...data, completed: false, carryCount: 0 });
   if (!save()) return; selectedDate = data.date; closeDialog(); render(); toast(id ? 'Изменения сохранены' : 'Задача добавлена');
 }
-function deleteCurrent() { const id = $('#taskId').value; if (!id) return; tasks = tasks.filter(t => t.id !== id); if (!deletedIds.includes(id)) deletedIds.push(id); localStorage.setItem(deletedStorageKey(), JSON.stringify(deletedIds)); save(); closeDialog(); render(); toast('Задача удалена'); }
+async function deleteCurrent() {
+  const id = $('#taskId').value; if (!id) return;
+  if ($('#taskSource').value === 'shared') {
+    const task = sharedTasks.find(item => item.id === id);
+    if (task?.ownerId !== window.DaySync?.user()?.id) { toast('Удалить общую задачу может только организатор'); return; }
+    try { await window.DaySync.deleteSharedTask(id); closeDialog(); await loadSharedTasks(false); renderSharedDialog(); toast('Совместная задача удалена'); } catch (error) { toast(sharedErrorText(error)); }
+    return;
+  }
+  tasks = tasks.filter(t => t.id !== id); if (!deletedIds.includes(id)) deletedIds.push(id); localStorage.setItem(deletedStorageKey(), JSON.stringify(deletedIds)); save(); closeDialog(); render(); toast('Задача удалена');
+}
 
 async function prepareAttachment(file) {
   if (!file) return;
@@ -695,7 +745,7 @@ async function performSync(showMessage = true) {
       localStorage.setItem(planStorageKey(), JSON.stringify(periodPlans));
       localStorage.setItem(stateUpdatedStorageKey(), appStateUpdatedAt);
     }
-    suppressSync = true; save(); suppressSync = false; render(); renderProfile();
+    suppressSync = true; save(); suppressSync = false; render(); renderProfile(); await loadSharedTasks(false);
     setSyncStatus('connected', 'Синхронизировано', `Задач в облаке: ${tasks.length}`);
     if (showMessage) toast('Данные синхронизированы');
   } catch (error) {
@@ -837,6 +887,124 @@ async function applyPromptedUpdate() {
   toast('Приложение обновлено');
 }
 
+function parseSharedEmails(value = '') {
+  return [...new Set(value.split(/[\s,;]+/).map(email => email.trim().toLocaleLowerCase()).filter(email => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)))];
+}
+function sharedErrorText(error) {
+  const message = error?.message || '';
+  if (/shared_tasks|answer_shared_invite|404|schema cache/i.test(message)) return 'Раздел совместных задач ещё настраивается. Обновите приложение через минуту';
+  if (/row-level|policy|403/i.test(message)) return 'Нет доступа к этой совместной задаче';
+  return message || 'Не удалось синхронизировать совместные задачи';
+}
+function currentAccountEmail() { return (window.DaySync?.user()?.email || '').toLocaleLowerCase(); }
+function sharedInvites() {
+  const email = currentAccountEmail();
+  return sharedTasks.filter(task => (task.invitedEmails || []).includes(email) && !(task.acceptedEmails || []).includes(email));
+}
+function acceptedSharedTasks() {
+  const account = window.DaySync?.user(); const email = currentAccountEmail();
+  return sharedTasks.filter(task => task.ownerId === account?.id || (task.acceptedEmails || []).includes(email));
+}
+function sharedMembers(task) {
+  const entries = [
+    { email: task.ownerEmail, role: 'Организатор', state: 'accepted' },
+    ...(task.acceptedEmails || []).map(email => ({ email, role: 'Участник', state: 'accepted' })),
+    ...(task.invitedEmails || []).map(email => ({ email, role: 'Приглашён', state: 'invited' }))
+  ];
+  return [...new Map(entries.filter(item => item.email).map(item => [item.email, item])).values()];
+}
+function memberInitial(email = '') { return (email.split('@')[0] || '?').charAt(0).toLocaleUpperCase('ru'); }
+function sharedProgress(task) {
+  const subtasks = task.subtasks || [];
+  if (subtasks.length) return Math.round(subtasks.filter(item => item.done).length / subtasks.length * 100);
+  return task.status === 'completed' ? 100 : task.status === 'review' ? 75 : 0;
+}
+function renderSharedBadges() {
+  const count = sharedInvites().length;
+  ['#desktopSharedBadge', '#mobileSharedBadge'].forEach(selector => { const badge = $(selector); if (!badge) return; badge.hidden = !count; badge.textContent = count > 9 ? '9+' : count; });
+  const inviteCount = $('#sharedInviteCount'); if (inviteCount) { inviteCount.hidden = !count; inviteCount.textContent = count; }
+}
+async function loadSharedTasks(showErrors = false) {
+  if (!window.DaySync?.user() || !window.DaySync?.loadSharedTasks || sharedLoading) { renderSharedBadges(); return sharedTasks; }
+  sharedLoading = true;
+  try {
+    const previousInvites = sharedInvites().map(task => task.id);
+    sharedTasks = await window.DaySync.loadSharedTasks();
+    const newInvites = sharedInvites().filter(task => !previousInvites.includes(task.id));
+    renderSharedBadges();
+    if (newInvites.length && Notification.permission === 'granted') showAppNotification('Новое приглашение', { body: newInvites[0].title, tag: `shared-${newInvites[0].id}` });
+  } catch (error) { if (showErrors) toast(sharedErrorText(error)); }
+  finally { sharedLoading = false; }
+  return sharedTasks;
+}
+function renderSharedSummary() {
+  const active = acceptedSharedTasks(); const done = active.filter(task => task.status === 'completed').length;
+  const percent = active.length ? Math.round(done / active.length * 100) : 0;
+  $('#sharedSummary').innerHTML = `<div class="shared-overall-ring" style="--p:${percent}"><span>${percent}%</span></div><div><strong>${done} из ${active.length} совместных задач завершено</strong><small>${sharedInvites().length ? `Ожидают ответа приглашения: ${sharedInvites().length}` : 'Все новые приглашения обработаны'} · изменения видны участникам автоматически</small></div>`;
+}
+function sharedStatusLabel(task) {
+  return task.status === 'completed' ? '<span class="done">✓ Завершено</span>' : task.status === 'review' ? '<span class="review">◷ На проверке</span>' : '<span>В работе</span>';
+}
+function renderSharedTaskCard(task) {
+  const members = sharedMembers(task); const progress = sharedProgress(task);
+  return `<article class="shared-task-card">
+    <button type="button" class="shared-card-open" data-open-shared="${task.id}"><div><h3>${escapeHtml(task.title)}</h3><p>${formatShortDate(task.date)} · ${task.time || 'В течение дня'} · прогресс ${progress}%</p>
+    <div class="shared-card-tags">${sharedStatusLabel(task)}<span>☑ ${(task.subtasks || []).filter(item => item.done).length}/${(task.subtasks || []).length}</span>${task.ownerId === window.DaySync?.user()?.id ? '<span>Вы организатор</span>' : `<span>Организатор: ${escapeHtml(task.ownerEmail || '')}</span>`}</div></div>
+    <div class="shared-avatar-stack">${members.slice(0, 4).map(member => `<span class="shared-avatar" title="${escapeHtml(member.email)}">${memberInitial(member.email)}</span>`).join('')}</div></button>
+    ${(task.subtasks || []).length ? `<div class="shared-subtasks">${task.subtasks.map((item, index) => `<button type="button" class="${item.done ? 'done' : ''}" data-shared-subtask="${task.id}" data-shared-index="${index}"><i>${item.done ? '✓' : ''}</i><span>${escapeHtml(item.title)}</span>${item.doneBy ? `<small>${escapeHtml(item.doneBy.split('@')[0])}</small>` : ''}</button>`).join('')}</div>` : ''}
+  </article>`;
+}
+function renderSharedPeople() {
+  const accountTasks = acceptedSharedTasks(); const people = new Map();
+  accountTasks.forEach(task => sharedMembers(task).filter(member => member.state === 'accepted').forEach(member => {
+    const item = people.get(member.email) || { email: member.email, roles: new Set(), tasks: 0, completed: 0, contributions: 0 };
+    item.roles.add(member.role); item.tasks += 1; if (task.status === 'completed') item.completed += 1;
+    item.contributions += (task.subtasks || []).filter(subtask => subtask.doneBy === member.email).length; people.set(member.email, item);
+  }));
+  if (!people.size) return '<div class="shared-empty"><strong>Участников пока нет</strong>Создайте совместную задачу и пригласите человека по почте.</div>';
+  return [...people.values()].map(person => {
+    const percent = person.tasks ? Math.round(person.completed / person.tasks * 100) : 0;
+    return `<article class="member-card"><div class="member-ring" style="--p:${percent}"><span>${percent}%</span></div><div><strong>${escapeHtml(person.email === currentAccountEmail() ? 'Вы' : person.email.split('@')[0])}</strong><small>${person.tasks} задач · выполнено ${person.completed} · отмечено подзадач ${person.contributions}</small></div><span class="member-role">${person.roles.has('Организатор') ? 'Организатор' : 'Участник'}</span></article>`;
+  }).join('');
+}
+function renderSharedInvites() {
+  const invites = sharedInvites();
+  if (!invites.length) return '<div class="shared-empty"><strong>Новых приглашений нет</strong>Когда вас пригласят по почте аккаунта, задача появится здесь.</div>';
+  return invites.map(task => `<article class="invite-card"><strong>${escapeHtml(task.title)}</strong><small>${escapeHtml(task.ownerEmail)} · ${formatShortDate(task.date)} · ${task.time || 'без времени'}</small><div class="invite-actions"><button type="button" class="invite-accept" data-answer-invite="${task.id}" data-accept="1">Принять</button><button type="button" class="invite-decline" data-answer-invite="${task.id}" data-accept="0">Отклонить</button></div></article>`).join('');
+}
+function bindSharedContentActions() {
+  $$('[data-open-shared]').forEach(button => button.addEventListener('click', () => { $('#sharedDialog').close(); openDialog(button.dataset.openShared, 'shared'); }));
+  $$('[data-shared-subtask]').forEach(button => button.addEventListener('click', () => toggleSharedSubtask(button.dataset.sharedSubtask, Number(button.dataset.sharedIndex))));
+  $$('[data-answer-invite]').forEach(button => button.addEventListener('click', async () => {
+    button.disabled = true;
+    try { await window.DaySync.answerSharedInvite(button.dataset.answerInvite, button.dataset.accept === '1'); await loadSharedTasks(false); renderSharedDialog(); toast(button.dataset.accept === '1' ? 'Приглашение принято' : 'Приглашение отклонено'); }
+    catch (error) { button.disabled = false; toast(sharedErrorText(error)); }
+  }));
+}
+function renderSharedDialog() {
+  if (!$('#sharedDialog')) return;
+  renderSharedBadges(); renderSharedSummary();
+  $$('[data-shared-tab]').forEach(button => button.classList.toggle('active', button.dataset.sharedTab === currentSharedTab));
+  if (currentSharedTab === 'people') $('#sharedContent').innerHTML = renderSharedPeople();
+  else if (currentSharedTab === 'invites') $('#sharedContent').innerHTML = renderSharedInvites();
+  else {
+    const list = acceptedSharedTasks();
+    $('#sharedContent').innerHTML = list.length ? list.sort((a, b) => (a.date + (a.time || '99:99')).localeCompare(b.date + (b.time || '99:99'))).map(renderSharedTaskCard).join('') : '<div class="shared-empty"><strong>Совместных задач пока нет</strong>Добавьте первую задачу и пригласите участника.</div>';
+  }
+  bindSharedContentActions();
+}
+async function openSharedDialog() {
+  if (!window.DaySync?.user()) { toast('Сначала войдите в аккаунт'); openSyncDialog(); return; }
+  currentSharedTab = sharedInvites().length ? 'invites' : 'tasks'; renderSharedDialog(); $('#sharedDialog').showModal();
+  await loadSharedTasks(true); renderSharedDialog();
+}
+async function toggleSharedSubtask(taskId, index) {
+  const task = sharedTasks.find(item => item.id === taskId); if (!task?.subtasks?.[index]) return;
+  const item = task.subtasks[index]; item.done = !item.done; item.doneBy = item.done ? currentAccountEmail() : ''; item.doneAt = item.done ? new Date().toISOString() : '';
+  task.updatedAt = new Date().toISOString();
+  try { await window.DaySync.saveSharedTask(task); renderSharedDialog(); } catch (error) { item.done = !item.done; toast(sharedErrorText(error)); }
+}
+
 $('#quickForm').addEventListener('submit', e => { e.preventDefault(); addQuickTask($('#quickInput').value); });
 $('#quickInput').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addQuickTask(e.currentTarget.value); } });
 $('#taskSearch').addEventListener('input', e => { searchQuery = e.currentTarget.value.trim().toLocaleLowerCase('ru'); renderHeader(); renderTasks(); renderStats(); });
@@ -846,6 +1014,7 @@ $('#voiceTitleButton').addEventListener('click', () => startVoiceForField('taskT
 $('#voiceSubtasksButton').addEventListener('click', () => startVoiceForField('taskSubtasks', 'voiceSubtasksButton', { prompt: 'Продиктуйте одну подзадачу', success: 'Подзадача добавлена новой строкой' }));
 $('#voiceNoteButton').addEventListener('click', () => startVoiceForField('taskNote', 'voiceNoteButton', { prompt: 'Продиктуйте заметку', success: 'Заметка добавлена' }));
 $('#addButton').addEventListener('click', () => openDialog()); $('#mobileAddButton').addEventListener('click', () => openDialog()); $('#mobileNewTaskButton').addEventListener('click', () => openDialog()); $('#emptyAddButton').addEventListener('click', () => openDialog());
+$$('[data-task-type]').forEach(button => button.addEventListener('click', () => setTaskType(button.dataset.taskType)));
 $('#closeDialog').addEventListener('click', closeDialog); $('#cancelDialog').addEventListener('click', closeDialog); $('#taskForm').addEventListener('submit', handleSubmit); $('#deleteTask').addEventListener('click', deleteCurrent);
 $('#taskCameraButton').addEventListener('click', () => $('#taskCameraInput').click()); $('#taskGalleryButton').addEventListener('click', () => $('#taskGalleryInput').click()); $('#taskDocumentButton').addEventListener('click', () => $('#taskDocumentInput').click());
 ['taskCameraInput', 'taskGalleryInput', 'taskDocumentInput'].forEach(id => $('#' + id).addEventListener('change', e => { prepareAttachment(e.target.files[0]); e.target.value = ''; }));
@@ -859,6 +1028,8 @@ $('#closeReminders').addEventListener('click', () => $('#reminderDialog').close(
 function openPlansDialog() { currentPlanningView = 'week'; planningAnchorDate = selectedDate; renderPlanningDialog(); $('#reminderDialog').showModal(); }
 $('#mobilePlansButton').addEventListener('click', openPlansDialog);
 $('#desktopPlansButton').addEventListener('click', openPlansDialog);
+$('#mobileSharedButton').addEventListener('click', openSharedDialog); $('#desktopSharedButton').addEventListener('click', openSharedDialog); $('#closeShared').addEventListener('click', () => $('#sharedDialog').close()); $('#sharedAddButton').addEventListener('click', () => { $('#sharedDialog').close(); openDialog(null, 'shared'); });
+$$('[data-shared-tab]').forEach(button => button.addEventListener('click', () => { currentSharedTab = button.dataset.sharedTab; renderSharedDialog(); }));
 $$('[data-planning-view]').forEach(button => button.addEventListener('click', () => { currentPlanningView = button.dataset.planningView; renderPlanningDialog(); })); $('#planForm').addEventListener('submit', addPeriodPlans);
 $('#planPeriodPrev').addEventListener('click', () => movePlanningPeriod(-1)); $('#planPeriodNext').addEventListener('click', () => movePlanningPeriod(1));
 $('#syncButton').addEventListener('click', openSyncDialog); $('#closeSync').addEventListener('click', () => $('#syncDialog').close());
@@ -876,7 +1047,7 @@ $('#periodPrev').addEventListener('click', () => movePeriod(-1)); $('#periodNext
 $$('[data-view]').forEach(b => b.addEventListener('click', () => { if (b.dataset.view === 'settings') { toast('Все данные, фото и планы хранятся только на этом устройстве'); return; } currentView = b.dataset.view; if (currentView === 'today') selectedDate = todayKey; syncNav(); render(); }));
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; $('#installButton').hidden = false; });
 $('#installButton').addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('#installButton').hidden = true; });
-if ('serviceWorker' in navigator) window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=45'); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
+if ('serviceWorker' in navigator) window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=46'); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
 
 async function initializeAccount() {
   if (new URLSearchParams(location.search).get('recovery') === 'code') {
