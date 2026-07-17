@@ -93,5 +93,39 @@
     }
     return { tasks: result, appState };
   }
-  window.DaySync = { getSession, user, signUp, signIn, signOut, resetPassword, verifyRecoveryCode, consumeRecoveryFromUrl, updatePassword, sync };
+  function sharedTaskFromRow(row) {
+    return {
+      ...(row.payload || {}),
+      id: row.id,
+      ownerId: row.owner_id,
+      ownerEmail: row.owner_email,
+      invitedEmails: row.invited_emails || [],
+      acceptedEmails: row.accepted_emails || [],
+      updatedAt: row.payload?.updatedAt || row.updated_at
+    };
+  }
+  async function loadSharedTasks() {
+    if (!user()) return [];
+    const rows = await request('/rest/v1/shared_tasks?select=id,owner_id,owner_email,invited_emails,accepted_emails,payload,updated_at&order=updated_at.desc', { method: 'GET' });
+    return (rows || []).map(sharedTaskFromRow);
+  }
+  async function saveSharedTask(task) {
+    const sessionUser = user(); if (!sessionUser) throw new Error('Сначала войдите в облако');
+    const ownerId = task.ownerId || sessionUser.id;
+    const ownerEmail = (task.ownerEmail || sessionUser.email || '').toLocaleLowerCase();
+    const invitedEmails = [...new Set((task.invitedEmails || []).map(email => String(email).trim().toLocaleLowerCase()).filter(Boolean))];
+    const acceptedEmails = [...new Set((task.acceptedEmails || []).map(email => String(email).trim().toLocaleLowerCase()).filter(Boolean))];
+    const { id, ownerId: _ownerId, ownerEmail: _ownerEmail, invitedEmails: _invited, acceptedEmails: _accepted, ...payload } = task;
+    const row = { id, owner_id: ownerId, owner_email: ownerEmail, invited_emails: invitedEmails, accepted_emails: acceptedEmails, payload, updated_at: task.updatedAt || new Date().toISOString() };
+    await request('/rest/v1/shared_tasks?on_conflict=id', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify(row) });
+    return { ...task, ownerId, ownerEmail, invitedEmails, acceptedEmails };
+  }
+  async function deleteSharedTask(id) {
+    await request(`/rest/v1/shared_tasks?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE', headers: { Prefer: 'return=minimal' } });
+  }
+  async function answerSharedInvite(id, accepted) {
+    const result = await request('/rest/v1/rpc/answer_shared_invite', { method: 'POST', body: JSON.stringify({ task_id: id, accept_invite: !!accepted }) });
+    return Array.isArray(result) ? result[0] : result;
+  }
+  window.DaySync = { getSession, user, signUp, signIn, signOut, resetPassword, verifyRecoveryCode, consumeRecoveryFromUrl, updatePassword, sync, loadSharedTasks, saveSharedTask, deleteSharedTask, answerSharedInvite };
 })();
