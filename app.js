@@ -8,7 +8,7 @@ const PIN_KEY = 'day-planner-pin-v1';
 const PIN_UNLOCKED_AT_KEY = 'day-planner-pin-unlocked-at-v1';
 const PIN_RELOCK_MS = 30 * 60 * 1000;
 const NOTIFICATION_KEY = 'day-planner-notifications-v1';
-const APP_VERSION = '47';
+const APP_VERSION = '48';
 const UPDATE_SEEN_KEY = 'day-planner-update-seen-v1';
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -230,7 +230,11 @@ function visibleTasks() {
   else result = tasks.filter(t => t.date >= start && t.date <= end);
   if (searchQuery) result = result.filter(t => `${t.title} ${t.note || ''} ${t.proofNote || ''} ${t.attachment?.name || ''} ${(t.subtasks || []).map(s => s.title).join(' ')}`.toLocaleLowerCase('ru').includes(searchQuery));
   const priorityOrder = { high: 0, normal: 1, low: 2 };
-  return result.sort((a, b) => searchQuery ? (b.date + (b.time || '99:99')).localeCompare(a.date + (a.time || '99:99')) : (a.date + (a.time || '99:99')).localeCompare(b.date + (b.time || '99:99')) || (priorityOrder[a.priority] ?? 1) - (priorityOrder[b.priority] ?? 1));
+  return result.sort((a, b) => {
+    if (searchQuery) return (b.date + (b.time || '99:99')).localeCompare(a.date + (a.time || '99:99'));
+    const completedLast = currentView === 'today' && currentPeriod === 'day' ? Number(a.completed) - Number(b.completed) : 0;
+    return completedLast || (a.date + (a.time || '99:99')).localeCompare(b.date + (b.time || '99:99')) || (priorityOrder[a.priority] ?? 1) - (priorityOrder[b.priority] ?? 1);
+  });
 }
 
 function renderTasks() {
@@ -838,28 +842,25 @@ function compareAppVersions(left, right) {
   return 0;
 }
 function refreshUpdateIndicator() {
-  const unseen = localStorage.getItem(UPDATE_SEEN_KEY) !== latestAppVersion;
   const available = compareAppVersions(latestAppVersion, APP_VERSION) > 0;
-  $('#updateBadge').hidden = !(unseen || available);
-  $('#updateButton').setAttribute('aria-label', unseen || available ? 'Обновления — есть новое' : 'Обновления');
+  $('#updateBadge').hidden = !available;
+  $('#updateButton').setAttribute('aria-label', available ? 'Обновления — доступна новая версия' : 'Обновления');
 }
 function showUpdatePromptIfNeeded() {
-  const unseen = localStorage.getItem(UPDATE_SEEN_KEY) !== latestAppVersion;
   const available = compareAppVersions(latestAppVersion, APP_VERSION) > 0;
-  if (!unseen && !available) return;
-  $('#updatePromptText').textContent = available
-    ? `Версия ${latestAppVersion} готова к установке`
-    : `Установлена версия ${latestAppVersion}`;
+  if (!available) { $('#updatePrompt').hidden = true; return; }
+  $('#updatePromptText').textContent = `Версия ${latestAppVersion} готова к установке`;
   $('#updatePrompt').hidden = false;
 }
 function renderUpdateCenter() {
   const available = compareAppVersions(latestAppVersion, APP_VERSION) > 0;
-  const unseen = localStorage.getItem(UPDATE_SEEN_KEY) !== latestAppVersion;
   $('#latestVersionLabel').textContent = latestAppVersion;
-  $('#updateStatusTitle').textContent = available ? 'Доступно новое обновление' : unseen ? 'Получено новое обновление' : 'Установлена последняя версия';
-  $('#updateStatusText').innerHTML = available ? `Можно обновить с версии <b>${APP_VERSION}</b> до <b>${latestAppVersion}</b>` : `Текущая версия: <b>${APP_VERSION}</b>`;
+  $('#updateStatusTitle').textContent = available ? 'Доступно новое обновление' : 'Установлена последняя версия';
+  $('#updateStatusText').textContent = available ? `Версия ${latestAppVersion} готова к установке` : 'Новых обновлений нет';
   $('#updateNotes').innerHTML = latestUpdateNotes.map(note => `<li>${escapeHtml(note)}</li>`).join('');
-  $('#applyUpdateButton').textContent = available ? 'Установить обновление' : unseen ? 'Принять обновление' : 'Обновить приложение';
+  $('#applyUpdateButton').hidden = !available;
+  $('#applyUpdateButton').disabled = !available;
+  $('#applyUpdateButton').textContent = 'Установить обновление';
 }
 async function checkForAppUpdate(showFeedback = false, showPrompt = false) {
   try {
@@ -1052,7 +1053,7 @@ $('#taskCameraButton').addEventListener('click', () => $('#taskCameraInput').cli
 ['taskCameraInput', 'taskGalleryInput', 'taskDocumentInput'].forEach(id => $('#' + id).addEventListener('change', e => { prepareAttachment(e.target.files[0]); e.target.value = ''; }));
 $('#removePhoto').addEventListener('click', () => { pendingPhoto = null; pendingAttachment = null; renderPhotoPreview(); });
 $('#taskTimeMode').addEventListener('change', updateTimeMode);
-$('#updateButton').addEventListener('click', async () => { renderUpdateCenter(); $('#updateDialog').showModal(); await checkForAppUpdate(false); }); $('#closeUpdate').addEventListener('click', () => $('#updateDialog').close()); $('#checkUpdateButton').addEventListener('click', () => checkForAppUpdate(true)); $('#applyUpdateButton').addEventListener('click', applyAppUpdate);
+$('#updateButton').addEventListener('click', async () => { renderUpdateCenter(); $('#updateDialog').showModal(); await checkForAppUpdate(false); }); $('#closeUpdate').addEventListener('click', () => $('#updateDialog').close()); $('#applyUpdateButton').addEventListener('click', applyAppUpdate);
 $('#promptApplyUpdate').addEventListener('click', applyPromptedUpdate);
 $('#openNotificationSettings').addEventListener('click', openNotificationDialog); $('#closeNotificationSettings').addEventListener('click', () => $('#notificationDialog').close()); $('#notificationForm').addEventListener('submit', saveNotificationSettings); $('#testNotification').addEventListener('click', testNotification);
 $('#openFeedback').addEventListener('click', () => { $('#updateDialog').close(); resetFeedbackForm(); $('#feedbackDialog').showModal(); }); $('#closeFeedback').addEventListener('click', () => $('#feedbackDialog').close()); $('#feedbackVoiceButton').addEventListener('click', () => startVoiceForField('feedbackText', 'feedbackVoiceButton', { prompt: 'Слушаю описание проблемы', success: 'Текст обратной связи добавлен' })); $('#chooseFeedbackPhoto').addEventListener('click', () => $('#feedbackPhotoInput').click()); $('#feedbackPhotoInput').addEventListener('change', event => { chooseFeedbackPhoto(event.target.files[0]); event.target.value = ''; }); $('#removeFeedbackPhoto').addEventListener('click', () => { feedbackPhoto = null; $('#feedbackFile').hidden = true; $('#feedbackFileName').textContent = ''; }); $('#feedbackForm').addEventListener('submit', submitFeedback);
@@ -1080,7 +1081,7 @@ $('#periodPrev').addEventListener('click', () => movePeriod(-1)); $('#periodNext
 $$('[data-view]').forEach(b => b.addEventListener('click', () => { if (b.dataset.view === 'settings') { toast('Все данные, фото и планы хранятся только на этом устройстве'); return; } currentView = b.dataset.view; if (currentView === 'today') selectedDate = todayKey; syncNav(); render(); }));
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; $('#installButton').hidden = false; });
 $('#installButton').addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('#installButton').hidden = true; });
-if ('serviceWorker' in navigator) window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=47'); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
+if ('serviceWorker' in navigator) window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=48'); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
 
 async function initializeAccount() {
   if (new URLSearchParams(location.search).get('recovery') === 'code') {
