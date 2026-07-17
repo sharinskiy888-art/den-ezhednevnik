@@ -7,7 +7,7 @@
   <meta name="description" content="Простой ежедневник, который работает офлайн на телефоне и Windows.">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=45">
+  <link rel="stylesheet" href="styles.css?v=46">
   <title>День — ежедневник</title>
   <script>
     (() => {
@@ -29,6 +29,7 @@
         <button class="nav-item active" data-view="today"><span>●</span>Сегодня</button>
         <button class="nav-item" data-view="upcoming"><span>→</span>Предстоящие</button>
         <button class="nav-item" data-view="completed"><span>✓</span>Выполнено</button>
+        <button type="button" class="nav-item shared-nav-entry" id="desktopSharedButton"><span>◎</span>Совместные<i class="shared-badge" id="desktopSharedBadge" hidden></i></button>
         <button type="button" class="nav-item" id="desktopPlansButton"><span>▦</span>Планы</button>
       </nav>
       <div class="sidebar-footer">
@@ -129,6 +130,7 @@
 
     <nav class="bottom-nav" aria-label="Мобильная навигация">
       <button class="mobile-nav active" data-view="today"><span>◉</span><small>Сегодня</small></button>
+      <button class="mobile-nav shared-nav-entry" id="mobileSharedButton"><span>◎</span><small>Совместные</small><i class="shared-badge" id="mobileSharedBadge" hidden></i></button>
       <button class="mobile-add" id="mobileAddButton" aria-label="Добавить задачу">+</button>
       <button class="mobile-nav" id="mobilePlansButton"><span>▦</span><small>Планы</small></button>
     </nav>
@@ -150,6 +152,24 @@
         <button type="button" class="close-button" id="closeDialog" aria-label="Закрыть">×</button>
       </div>
       <input type="hidden" id="taskId">
+      <input type="hidden" id="taskSource" value="personal">
+      <div class="task-type-switch" id="taskTypeSwitch" role="group" aria-label="Тип задачи">
+        <button type="button" class="active" data-task-type="personal">Личная</button>
+        <button type="button" data-task-type="shared">Совместная</button>
+      </div>
+      <section class="shared-task-fields" id="sharedTaskFields" hidden>
+        <label>Пригласить участников
+          <textarea id="sharedEmails" rows="2" maxlength="500" placeholder="email@example.com — каждый адрес с новой строки"></textarea>
+        </label>
+        <small class="shared-field-hint">Участник увидит приглашение в разделе «Совместные» после входа с указанной почтой.</small>
+        <label>Статус выполнения
+          <select id="sharedTaskStatus">
+            <option value="open">В работе</option>
+            <option value="review">На проверке</option>
+            <option value="completed">Принято и завершено</option>
+          </select>
+        </label>
+      </section>
       <label>Название
         <span class="voice-field"><input id="taskTitle" maxlength="80" placeholder="Например, подготовить отчёт" required><button type="button" class="field-voice-button" id="voiceTitleButton" aria-label="Продиктовать название">🎙</button></span>
       </label>
@@ -203,6 +223,23 @@
         <button type="submit" class="primary-button">Сохранить</button>
       </div>
     </form>
+  </dialog>
+
+  <dialog id="sharedDialog" class="shared-dialog">
+    <div class="shared-panel">
+      <div class="dialog-header">
+        <div><span class="card-label">Общая работа</span><h2>Совместные</h2></div>
+        <button type="button" class="close-button" id="closeShared" aria-label="Закрыть">×</button>
+      </div>
+      <div class="shared-tabs" role="tablist">
+        <button type="button" class="active" data-shared-tab="tasks">Задачи</button>
+        <button type="button" data-shared-tab="people">Участники</button>
+        <button type="button" data-shared-tab="invites">Приглашения <i id="sharedInviteCount" hidden></i></button>
+      </div>
+      <div class="shared-summary" id="sharedSummary"></div>
+      <div class="shared-content" id="sharedContent"></div>
+      <button type="button" class="primary-button shared-add-button" id="sharedAddButton">＋ Новая совместная задача</button>
+    </div>
   </dialog>
 
   <dialog id="reminderDialog" class="reminder-dialog">
@@ -378,8 +415,8 @@
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastAction" hidden></button></div>
-  <script src="sync-config.js?v=45"></script>
-  <script src="sync.js?v=45"></script>
-  <script src="app.js?v=45"></script>
+  <script src="sync-config.js?v=46"></script>
+  <script src="sync.js?v=46"></script>
+  <script src="app.js?v=46"></script>
 </body>
 </html>
