@@ -8,7 +8,7 @@ const PIN_KEY = 'day-planner-pin-v1';
 const PIN_UNLOCKED_AT_KEY = 'day-planner-pin-unlocked-at-v1';
 const PIN_RELOCK_MS = 30 * 60 * 1000;
 const NOTIFICATION_KEY = 'day-planner-notifications-v1';
-const APP_VERSION = '49';
+const APP_VERSION = '50';
 const UPDATE_SEEN_KEY = 'day-planner-update-seen-v1';
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -312,7 +312,7 @@ function renderConnectionState() {
 }
 function openProfile() {
   pendingProfilePhoto = profile.photo || ''; $('#profileName').value = profile.name || '';
-  $('#profileEmail').textContent = window.DaySync?.user()?.email || 'Не выполнен вход'; renderProfile(); $('#profileDialog').showModal();
+  renderProfile(); $('#profileDialog').showModal();
 }
 function prepareProfilePhoto(file) {
   if (!file?.type?.startsWith('image/')) { toast('Выберите фотографию'); return; }
@@ -709,8 +709,6 @@ function toast(message, actionLabel = '', action = null) {
 }
 
 function setSyncStatus(status, title, text) {
-  const button = $('#syncButton'); button.classList.remove('connected', 'syncing', 'error');
-  if (status) button.classList.add(status);
   $('#syncStateTitle').textContent = title; $('#syncStateText').textContent = text;
 }
 function refreshSyncUi() {
@@ -1073,7 +1071,7 @@ $('#sharedInvitePromptAccept').addEventListener('click', () => answerSharedInvit
 $$('[data-shared-tab]').forEach(button => button.addEventListener('click', () => { currentSharedTab = button.dataset.sharedTab; renderSharedDialog(); }));
 $$('[data-planning-view]').forEach(button => button.addEventListener('click', () => { currentPlanningView = button.dataset.planningView; renderPlanningDialog(); })); $('#planForm').addEventListener('submit', addPeriodPlans);
 $('#planPeriodPrev').addEventListener('click', () => movePlanningPeriod(-1)); $('#planPeriodNext').addEventListener('click', () => movePlanningPeriod(1));
-$('#syncButton').addEventListener('click', openSyncDialog); $('#closeSync').addEventListener('click', () => $('#syncDialog').close());
+$('#closeSync').addEventListener('click', () => $('#syncDialog').close());
 $('#accountEntryButton').addEventListener('click', openSyncDialog);
 $('#profileButton').addEventListener('click', openProfile); $('#closeProfile').addEventListener('click', () => $('#profileDialog').close()); $('#profileForm').addEventListener('submit', saveProfileForm);
 $('#chooseProfilePhoto').addEventListener('click', () => $('#profilePhotoInput').click()); $('#profileGalleryButton').addEventListener('click', () => $('#profilePhotoInput').click()); $('#profileCameraButton').addEventListener('click', () => $('#profileCameraInput').click());
@@ -1088,7 +1086,7 @@ $('#periodPrev').addEventListener('click', () => movePeriod(-1)); $('#periodNext
 $$('[data-view]').forEach(b => b.addEventListener('click', () => { if (b.dataset.view === 'settings') { toast('Все данные, фото и планы хранятся только на этом устройстве'); return; } currentView = b.dataset.view; if (currentView === 'today') selectedDate = todayKey; syncNav(); render(); }));
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; $('#installButton').hidden = false; });
 $('#installButton').addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('#installButton').hidden = true; });
-if ('serviceWorker' in navigator) window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=49'); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
+if ('serviceWorker' in navigator) window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=50'); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
 
 async function initializeAccount() {
   if (new URLSearchParams(location.search).get('recovery') === 'code') {

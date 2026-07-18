@@ -7,7 +7,7 @@
   <meta name="description" content="Простой ежедневник, который работает офлайн на телефоне и Windows.">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=49">
+  <link rel="stylesheet" href="styles.css?v=50">
   <title>День — ежедневник</title>
   <script>
     (() => {
@@ -420,16 +420,15 @@
           <input type="file" id="profileCameraInput" accept="image/*" capture="user" hidden>
         </div>
         <label>Как к вам обращаться<input id="profileName" maxlength="40" placeholder="Например, Александр"></label>
-        <div class="profile-account-row"><span>Email аккаунта</span><strong id="profileEmail">Не выполнен вход</strong></div>
-        <p class="profile-note">На главном экране останутся только имя, фото, дата и количество дел — без лишних личных данных.</p>
-        <div class="profile-actions"><button type="button" class="secondary-button profile-sync-button sync-button" id="syncButton">Аккаунт и синхронизация<span id="syncDot"></span></button><button type="submit" class="primary-button">Сохранить</button></div>
+        <p class="profile-note">Здесь можно изменить имя и фотографию профиля.</p>
+        <div class="profile-actions"><button type="submit" class="primary-button">Сохранить</button></div>
       </form>
     </div>
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastAction" hidden></button></div>
-  <script src="sync-config.js?v=49"></script>
-  <script src="sync.js?v=49"></script>
-  <script src="app.js?v=49"></script>
+  <script src="sync-config.js?v=50"></script>
+  <script src="sync.js?v=50"></script>
+  <script src="app.js?v=50"></script>
 </body>
 </html>
