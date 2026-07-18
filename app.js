@@ -8,7 +8,7 @@ const PIN_KEY = 'day-planner-pin-v1';
 const PIN_UNLOCKED_AT_KEY = 'day-planner-pin-unlocked-at-v1';
 const PIN_RELOCK_MS = 30 * 60 * 1000;
 const NOTIFICATION_KEY = 'day-planner-notifications-v1';
-const APP_VERSION = '48';
+const APP_VERSION = '49';
 const UPDATE_SEEN_KEY = 'day-planner-update-seen-v1';
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -302,6 +302,13 @@ function renderProfile() {
   const preview = $('#profilePreviewImage'); if (preview) { preview.hidden = !pendingProfilePhoto; if (pendingProfilePhoto) preview.src = pendingProfilePhoto; else preview.removeAttribute('src'); }
   if (previewInitial) previewInitial.hidden = !!pendingProfilePhoto; const remove = $('#removeProfilePhoto'); if (remove) remove.hidden = !pendingProfilePhoto;
   $('#profileButton').title = name ? `Профиль: ${name}` : 'Настроить личный профиль';
+}
+function renderConnectionState() {
+  const avatar = $('#profileButton'); if (!avatar) return;
+  const online = navigator.onLine;
+  avatar.classList.toggle('connection-online', online);
+  avatar.classList.toggle('connection-offline', !online);
+  avatar.setAttribute('aria-label', `Открыть профиль — ${online ? 'в сети' : 'нет соединения'}`);
 }
 function openProfile() {
   pendingProfilePhoto = profile.photo || ''; $('#profileName').value = profile.name || '';
@@ -1081,7 +1088,7 @@ $('#periodPrev').addEventListener('click', () => movePeriod(-1)); $('#periodNext
 $$('[data-view]').forEach(b => b.addEventListener('click', () => { if (b.dataset.view === 'settings') { toast('Все данные, фото и планы хранятся только на этом устройстве'); return; } currentView = b.dataset.view; if (currentView === 'today') selectedDate = todayKey; syncNav(); render(); }));
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; $('#installButton').hidden = false; });
 $('#installButton').addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('#installButton').hidden = true; });
-if ('serviceWorker' in navigator) window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=48'); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
+if ('serviceWorker' in navigator) window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=49'); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
 
 async function initializeAccount() {
   if (new URLSearchParams(location.search).get('recovery') === 'code') {
@@ -1101,11 +1108,12 @@ async function initializeAccount() {
   refreshSyncUi();
   if (window.DaySync?.user()) { await maybeLockApp(); await performSync(false); }
 }
-window.addEventListener('online', () => performSync(false));
+window.addEventListener('online', () => { renderConnectionState(); performSync(false); });
+window.addEventListener('offline', renderConnectionState);
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) { appHiddenAt = Date.now(); return; }
   if (appHiddenAt && Date.now() - appHiddenAt >= PIN_RELOCK_MS) { pinUnlocked = false; maybeLockApp(); } performSync(false);
 });
 setInterval(() => { if (document.visibilityState === 'visible' && navigator.onLine) performSync(false); }, 15000);
 
-runAutoCarry(); save(); render(); renderProfile(); refreshUpdateIndicator(); initializeAccount(); checkReminders(); setInterval(checkReminders, 30000);
+runAutoCarry(); save(); render(); renderProfile(); renderConnectionState(); refreshUpdateIndicator(); initializeAccount(); checkReminders(); setInterval(checkReminders, 30000);
