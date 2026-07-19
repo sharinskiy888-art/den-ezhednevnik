@@ -7,7 +7,7 @@
   <meta name="description" content="Простой ежедневник, который работает офлайн на телефоне и Windows.">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=50">
+  <link rel="stylesheet" href="styles.css?v=51">
   <title>День — ежедневник</title>
   <script>
     (() => {
@@ -159,6 +159,19 @@
     </div>
   </aside>
 
+  <aside class="reminder-alert" id="reminderAlert" role="alertdialog" aria-modal="true" aria-labelledby="reminderAlertTitle" hidden>
+    <span class="reminder-alert-icon" aria-hidden="true">🔔</span>
+    <div class="reminder-alert-copy">
+      <span>Напоминание</span>
+      <strong id="reminderAlertTitle">Пора выполнить задачу</strong>
+      <small id="reminderAlertText"></small>
+    </div>
+    <div class="reminder-alert-actions">
+      <button type="button" class="secondary-button" id="reminderAlertDismiss">Позже</button>
+      <button type="button" class="primary-button" id="reminderAlertOpen">Открыть задачу</button>
+    </div>
+  </aside>
+
   <dialog id="taskDialog">
     <form id="taskForm" method="dialog">
       <div class="dialog-header">
@@ -172,6 +185,7 @@
         <button type="button" data-task-type="shared">Совместная</button>
       </div>
       <section class="shared-task-fields" id="sharedTaskFields" hidden>
+        <div class="shared-task-presence" id="sharedTaskPresence" hidden></div>
         <label>Пригласить участников
           <textarea id="sharedEmails" rows="2" maxlength="500" placeholder="email@example.com — каждый адрес с новой строки"></textarea>
         </label>
@@ -427,8 +441,8 @@
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastAction" hidden></button></div>
-  <script src="sync-config.js?v=50"></script>
-  <script src="sync.js?v=50"></script>
-  <script src="app.js?v=50"></script>
+  <script src="sync-config.js?v=51"></script>
+  <script src="sync.js?v=51"></script>
+  <script src="app.js?v=51"></script>
 </body>
 </html>

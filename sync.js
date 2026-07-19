@@ -127,5 +127,53 @@
     const result = await request('/rest/v1/rpc/answer_shared_invite', { method: 'POST', body: JSON.stringify({ task_id: id, accept_invite: !!accepted }) });
     return Array.isArray(result) ? result[0] : result;
   }
-  window.DaySync = { getSession, user, signUp, signIn, signOut, resetPassword, verifyRecoveryCode, consumeRecoveryFromUrl, updatePassword, sync, loadSharedTasks, saveSharedTask, deleteSharedTask, answerSharedInvite };
+  async function touchPresence(locale = 'ru') {
+    if (!user()) return;
+    await request('/rest/v1/rpc/touch_presence', {
+      method: 'POST',
+      body: JSON.stringify({ account_locale: locale === 'en' ? 'en' : 'ru' })
+    });
+  }
+  async function loadSharedPresence() {
+    if (!user()) return [];
+    return await request('/rest/v1/rpc/get_shared_presence', { method: 'POST', body: '{}' }) || [];
+  }
+  async function savePushSubscription(subscription, locale = 'ru', settings = {}) {
+    const sessionUser = user();
+    if (!sessionUser || !subscription?.endpoint) throw new Error('Authentication required');
+    const json = subscription.toJSON ? subscription.toJSON() : subscription;
+    const row = {
+      endpoint: json.endpoint,
+      user_id: sessionUser.id,
+      p256dh: json.keys?.p256dh || '',
+      auth: json.keys?.auth || '',
+      locale: locale === 'en' ? 'en' : 'ru',
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Moscow',
+      notification_settings: {
+        exact: settings.exact !== false,
+        daily: settings.daily !== false,
+        dailyTime: settings.dailyTime || '09:00',
+        overdue: settings.overdue !== false
+      },
+      updated_at: new Date().toISOString()
+    };
+    await request('/rest/v1/push_subscriptions?on_conflict=endpoint', {
+      method: 'POST',
+      headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify(row)
+    });
+    return row;
+  }
+  async function deletePushSubscription(endpoint) {
+    if (!endpoint) return;
+    await request(`/rest/v1/push_subscriptions?endpoint=eq.${encodeURIComponent(endpoint)}`, {
+      method: 'DELETE',
+      headers: { Prefer: 'return=minimal' }
+    });
+  }
+  async function deleteAccount() {
+    await request('/rest/v1/rpc/delete_own_account', { method: 'POST', body: '{}' });
+    setSession(null);
+  }
+  window.DaySync = { getSession, user, signUp, signIn, signOut, resetPassword, verifyRecoveryCode, consumeRecoveryFromUrl, updatePassword, sync, loadSharedTasks, saveSharedTask, deleteSharedTask, answerSharedInvite, touchPresence, loadSharedPresence, savePushSubscription, deletePushSubscription, deleteAccount };
 })();

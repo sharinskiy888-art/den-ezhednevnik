@@ -8,7 +8,7 @@ const PIN_KEY = 'day-planner-pin-v1';
 const PIN_UNLOCKED_AT_KEY = 'day-planner-pin-unlocked-at-v1';
 const PIN_RELOCK_MS = 30 * 60 * 1000;
 const NOTIFICATION_KEY = 'day-planner-notifications-v1';
-const APP_VERSION = '50';
+const APP_VERSION = '51';
 const UPDATE_SEEN_KEY = 'day-planner-update-seen-v1';
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -49,6 +49,9 @@ let appStateUpdatedAt = localStorage.getItem(stateUpdatedStorageKey()) || new Da
 let currentPlanningView = 'week';
 let planningAnchorDate = selectedDate;
 let feedbackPhoto = null;
+let pushSubscriptionActive = false;
+let pushSubscriptionRegisteredAt = 0;
+let pendingNotificationTaskId = '';
 const defaultNotificationSettings = { exact: true, daily: true, dailyTime: '09:00', overdue: true };
 function loadNotificationSettings() { try { return { ...defaultNotificationSettings, ...JSON.parse(localStorage.getItem(notificationStorageKey()) || '{}') }; } catch { return { ...defaultNotificationSettings }; } }
 let notificationSettings = loadNotificationSettings();
@@ -57,6 +60,7 @@ let appHiddenAt = 0;
 let latestAppVersion = APP_VERSION;
 let latestUpdateNotes = ['Центр обновлений и ручная установка новой версии.'];
 let sharedTasks = [];
+let sharedPresence = new Map();
 let currentSharedTab = 'tasks';
 let sharedLoading = false;
 let activeSharedInviteId = '';
@@ -411,6 +415,7 @@ function openDialog(id = null, source = 'personal') {
   $('#sharedTaskStatus').value = task?.status || 'open';
   const ownsSharedTask = source !== 'shared' || !task || task.ownerId === window.DaySync?.user()?.id;
   $('#sharedEmails').disabled = !ownsSharedTask;
+  renderSharedTaskPresence(task);
   $('#taskTitle').value = task?.title || ''; $('#taskDate').value = task?.date || selectedDate; $('#taskTime').value = task?.time || '';
   $('#taskTimeMode').value = task?.time ? 'exact' : 'anytime'; updateTimeMode();
   $('#taskPriority').value = task?.priority || 'normal'; $('#taskNote').value = task?.note || '';
@@ -429,7 +434,8 @@ async function handleSubmit(event) {
   const source = $('#taskSource').value; const existing = source === 'shared' ? sharedTasks.find(t => t.id === id) : tasks.find(t => t.id === id); const previousSubtasks = existing?.subtasks || [];
   const subtasks = $('#taskSubtasks').value.split(/\r?\n/).map(x => x.trim()).filter(Boolean).map(title => ({ title, done: previousSubtasks.find(s => s.title === title)?.done || false, doneBy: previousSubtasks.find(s => s.title === title)?.doneBy || '', doneAt: previousSubtasks.find(s => s.title === title)?.doneAt || '' }));
   const attachmentChanged = pendingAttachment?.data !== existing?.attachment?.data && pendingAttachment?.data !== existing?.photo;
-  const data = { title: $('#taskTitle').value.trim(), date: $('#taskDate').value, time: $('#taskTimeMode').value === 'exact' ? $('#taskTime').value : '', priority: $('#taskPriority').value, note: $('#taskNote').value.trim(), autoCarry: $('#taskAutoCarry').checked, reminder: $('#taskReminder').value, repeat: $('#taskRepeat').value, subtasks, proofNote: $('#taskProofNote').value.trim(), notified: false, photo: pendingPhoto, attachment: pendingAttachment, photoCapturedAt: pendingAttachment && attachmentChanged ? new Date().toISOString() : existing?.photoCapturedAt || '', updatedAt: new Date().toISOString() };
+  const reminder = $('#taskReminder').value;
+  const data = { title: $('#taskTitle').value.trim(), date: $('#taskDate').value, time: $('#taskTimeMode').value === 'exact' ? $('#taskTime').value : '', priority: $('#taskPriority').value, note: $('#taskNote').value.trim(), autoCarry: $('#taskAutoCarry').checked, reminder, reminderUtc: reminder ? new Date(reminder).toISOString() : '', repeat: $('#taskRepeat').value, subtasks, proofNote: $('#taskProofNote').value.trim(), notified: false, photo: pendingPhoto, attachment: pendingAttachment, photoCapturedAt: pendingAttachment && attachmentChanged ? new Date().toISOString() : existing?.photoCapturedAt || '', updatedAt: new Date().toISOString() };
   if (!data.title) return;
   if (source === 'shared') {
     const account = window.DaySync?.user();
@@ -526,7 +532,7 @@ function applyVoiceText(targetId, text, parseTask) {
   target.focus();
 }
 async function startVoiceForField(targetId, buttonId, options = {}) {
-  if (activeRecognition) { try { activeRecognition.stop(); } catch {} toast('Голосовой ввод остановлен'); return; }
+  if (activeRecognition) return;
   if (options.openTask) { openDialog(); $('#dialogTitle').textContent = 'Новая задача голосом'; $('#taskAutoCarry').checked = true; }
   const target = $('#' + targetId); if (!target) { toast('Поле для голосового ввода не найдено'); return; } target.focus();
   const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -552,6 +558,34 @@ async function startVoiceForField(targetId, buttonId, options = {}) {
   }
 }
 function startVoiceInput() { return startVoiceForField('taskTitle', 'voiceButton', { openTask: true, parseTask: true, prompt: 'Слушаю… Назовите задачу, дату и время', success: 'Задача распознана. Проверьте и сохраните' }); }
+function stopVoiceInput() {
+  if (!activeRecognition) return;
+  try { activeRecognition.stop(); } catch {}
+}
+function bindHoldToTalk(buttonId, starter) {
+  const button = $('#' + buttonId); if (!button) return;
+  let holding = false;
+  const start = event => {
+    if (event.type === 'keydown' && ![' ', 'Enter'].includes(event.key)) return;
+    if (event.type === 'keydown' && event.repeat) return;
+    event.preventDefault(); holding = true;
+    if (event.pointerId != null) { try { button.setPointerCapture(event.pointerId); } catch {} }
+    starter();
+  };
+  const stop = event => {
+    if (!holding) return;
+    if (event.type === 'keyup' && ![' ', 'Enter'].includes(event.key)) return;
+    event.preventDefault(); holding = false; stopVoiceInput();
+  };
+  button.addEventListener('pointerdown', start);
+  button.addEventListener('pointerup', stop);
+  button.addEventListener('pointercancel', stop);
+  button.addEventListener('lostpointercapture', stop);
+  button.addEventListener('keydown', start);
+  button.addEventListener('keyup', stop);
+  button.addEventListener('contextmenu', event => event.preventDefault());
+  button.title = 'Удерживайте, пока говорите';
+}
 
 function renderMiniTasks() {
   const today = tasks.filter(t => t.date === todayKey && !t.completed).sort((a, b) => (a.time || '99:99').localeCompare(b.time || '99:99'));
@@ -597,15 +631,62 @@ function addPeriodPlans(event) {
   if (!savePeriodPlans()) return; if (plannedDate) planningAnchorDate = plannedDate; $('#planInput').value = ''; $('#planDate').value = ''; renderPlanningDialog(); $('#planInput').focus(); toast(items.length === 1 ? 'План добавлен — можно записать следующий' : `Добавлено планов: ${items.length}`);
 }
 
+function urlBase64ToUint8Array(value = '') {
+  const padding = '='.repeat((4 - value.length % 4) % 4);
+  const base64 = (value + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64); return Uint8Array.from([...raw].map(char => char.charCodeAt(0)));
+}
+async function ensurePushSubscription(forceSave = false) {
+  if (!window.DaySync?.user() || !window.DaySync?.savePushSubscription || !('serviceWorker' in navigator) || !('PushManager' in window) || Notification.permission !== 'granted') {
+    pushSubscriptionActive = false; return false;
+  }
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    let subscription = await registration.pushManager.getSubscription();
+    if (!subscription) {
+      const publicKey = window.SUPABASE_CONFIG?.vapidPublicKey;
+      if (!publicKey) throw new Error('Push key is missing');
+      subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(publicKey) });
+      forceSave = true;
+    }
+    if (forceSave || Date.now() - pushSubscriptionRegisteredAt > 10 * 60 * 1000) {
+      await window.DaySync.savePushSubscription(subscription, document.documentElement.lang || 'ru', notificationSettings);
+      pushSubscriptionRegisteredAt = Date.now();
+    }
+    pushSubscriptionActive = true; return true;
+  } catch {
+    pushSubscriptionActive = false; return false;
+  }
+}
+function showReminderAlert(taskId, title, text) {
+  pendingNotificationTaskId = taskId || '';
+  $('#reminderAlertTitle').textContent = title || 'Пора выполнить задачу';
+  $('#reminderAlertText').textContent = text || '';
+  $('#reminderAlert').hidden = false;
+}
+function hideReminderAlert() { $('#reminderAlert').hidden = true; pendingNotificationTaskId = ''; }
+function openNotificationTask(taskId = pendingNotificationTaskId) {
+  hideReminderAlert(); if (!taskId) return;
+  const personal = tasks.find(task => task.id === taskId);
+  const shared = sharedTasks.find(task => task.id === taskId);
+  if (personal) { selectedDate = personal.date; render(); openDialog(taskId, 'personal'); }
+  else if (shared) { selectedDate = shared.date; openDialog(taskId, 'shared'); }
+  else toast('Задача уже выполнена или удалена');
+}
 async function enableNotifications() {
   if (!('Notification' in window)) { toast('Уведомления не поддерживаются'); return; }
   const permission = await Notification.requestPermission(); renderMiniTasks(); renderNotificationSettings();
-  if (permission === 'granted') { toast('Уведомления включены'); await showAppNotification('День — уведомления включены', { body: 'Напоминания о делах будут появляться на этом устройстве.', tag: 'notification-enabled' }); }
+  if (permission === 'granted') {
+    const pushReady = await ensurePushSubscription(true);
+    toast(pushReady ? 'Фоновые уведомления включены' : 'Уведомления включены. Для фоновых напоминаний войдите в аккаунт');
+    await showAppNotification('День — уведомления включены', { body: 'Напоминания будут приходить на это устройство.', tag: 'notification-enabled', requireInteraction: true });
+  }
   else toast('Уведомления не разрешены. Разрешите их в настройках устройства.');
 }
 async function showAppNotification(title, options = {}) {
   if (!('Notification' in window) || Notification.permission !== 'granted') return false;
-  const payload = { icon: 'assets/icon-192.png', badge: 'assets/icon-192.png', data: { url: './', ...(options.data || {}) }, ...options };
+  const taskId = options.data?.taskId || '';
+  const payload = { icon: 'assets/icon-192.png', badge: 'assets/icon-192.png', requireInteraction: true, silent: false, vibrate: [220, 90, 220, 90, 320], data: { url: taskId ? `./?openTask=${encodeURIComponent(taskId)}` : './', ...(options.data || {}) }, ...options };
   try { const registration = await navigator.serviceWorker?.ready; if (registration) await registration.showNotification(title, payload); else new Notification(title, payload); return true; } catch { return false; }
 }
 function notificationStampKey(type) { return `day-notification-${type}:${accountSuffix()}:${todayKey}`; }
@@ -619,7 +700,10 @@ async function checkReminders() {
   for (const task of due) {
     task.notified = true;
     task.updatedAt = new Date().toISOString();
-    if (notificationSettings.exact) await showAppNotification('День — пора выполнить задачу', { body: task.title, tag: `task-${task.id}`, data: { taskId: task.id } });
+    if (notificationSettings.exact) {
+      showReminderAlert(task.id, 'Пора выполнить задачу', task.title);
+      await showAppNotification('День — пора выполнить задачу', { body: task.title, tag: `task-${task.id}`, data: { taskId: task.id } });
+    }
   }
   if (due.length) { save(); if (notificationSettings.exact && $('#reminderDialog').open === false) toast(`Напоминание: ${due[0].title}`); }
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
@@ -638,10 +722,10 @@ function renderNotificationSettings() {
   notificationSettings = loadNotificationSettings(); $('#notifyExact').checked = notificationSettings.exact; $('#notifyDaily').checked = notificationSettings.daily; $('#notifyDailyTime').value = notificationSettings.dailyTime; $('#notifyOverdue').checked = notificationSettings.overdue;
   const state = $('#notificationPermissionState'); const supported = 'Notification' in window; const permission = supported ? Notification.permission : 'unsupported';
   state.className = `permission-state ${permission === 'granted' ? 'allowed' : permission === 'denied' ? 'blocked' : ''}`;
-  state.textContent = permission === 'granted' ? '✓ Системные уведомления разрешены на этом устройстве.' : permission === 'denied' ? 'Уведомления заблокированы. Разрешите их в настройках браузера или телефона.' : supported ? 'Сначала разрешите приложению показывать уведомления.' : 'Это устройство или браузер не поддерживает системные уведомления.';
+  state.textContent = permission === 'granted' ? (pushSubscriptionActive ? '✓ Фоновые push-уведомления подключены на этом устройстве.' : '✓ Системные уведомления разрешены. Войдите в аккаунт для работы при закрытом приложении.') : permission === 'denied' ? 'Уведомления заблокированы. Разрешите их в настройках браузера или телефона.' : supported ? 'Сначала разрешите приложению показывать уведомления.' : 'Это устройство или браузер не поддерживает системные уведомления.';
 }
 async function openNotificationDialog() { $('#updateDialog').close(); renderNotificationSettings(); $('#notificationDialog').showModal(); if ('Notification' in window && Notification.permission === 'default') await enableNotifications(); }
-function saveNotificationSettings(event) { event.preventDefault(); notificationSettings = { exact: $('#notifyExact').checked, daily: $('#notifyDaily').checked, dailyTime: $('#notifyDailyTime').value || '09:00', overdue: $('#notifyOverdue').checked }; localStorage.setItem(notificationStorageKey(), JSON.stringify(notificationSettings)); $('#notificationDialog').close(); checkReminders(); toast('Настройки уведомлений сохранены'); }
+async function saveNotificationSettings(event) { event.preventDefault(); notificationSettings = { exact: $('#notifyExact').checked, daily: $('#notifyDaily').checked, dailyTime: $('#notifyDailyTime').value || '09:00', overdue: $('#notifyOverdue').checked }; localStorage.setItem(notificationStorageKey(), JSON.stringify(notificationSettings)); await ensurePushSubscription(true); $('#notificationDialog').close(); checkReminders(); toast('Настройки уведомлений сохранены на этом устройстве'); }
 async function testNotification() { if (!('Notification' in window) || Notification.permission !== 'granted') { await enableNotifications(); return; } const shown = await showAppNotification('Проверка — День', { body: 'Уведомления работают правильно.', tag: 'notification-test' }); toast(shown ? 'Проверочное уведомление отправлено' : 'Не удалось показать уведомление'); }
 
 function resetFeedbackForm() { $('#feedbackForm').reset(); const accountEmail = window.DaySync?.user()?.email || ''; $('#feedbackReplyEmail').value = accountEmail; feedbackPhoto = null; $('#feedbackFile').hidden = true; $('#feedbackFileName').textContent = ''; }
@@ -755,7 +839,8 @@ async function performSync(showMessage = true) {
       localStorage.setItem(planStorageKey(), JSON.stringify(periodPlans));
       localStorage.setItem(stateUpdatedStorageKey(), appStateUpdatedAt);
     }
-    suppressSync = true; save(); suppressSync = false; render(); renderProfile(); await loadSharedTasks(false);
+    suppressSync = true; save(); suppressSync = false; render(); renderProfile(); await loadSharedTasks(false); await refreshSharedPresence(); await ensurePushSubscription(false);
+    if ($('#sharedDialog')?.open) renderSharedDialog();
     setSyncStatus('connected', 'Синхронизировано', `Задач в облаке: ${tasks.length}`);
     if (showMessage) toast('Данные синхронизированы');
   } catch (error) {
@@ -920,6 +1005,30 @@ function sharedMembers(task) {
   ];
   return [...new Map(entries.filter(item => item.email).map(item => [item.email, item])).values()];
 }
+function isMemberOnline(email = '') {
+  const lastSeen = sharedPresence.get(email.toLocaleLowerCase());
+  return !!lastSeen && Date.now() - new Date(lastSeen).getTime() < 90 * 1000;
+}
+function renderSharedTaskPresence(task) {
+  const container = $('#sharedTaskPresence'); if (!container) return;
+  if (!task) { container.hidden = true; container.innerHTML = ''; return; }
+  const members = sharedMembers(task);
+  container.innerHTML = members.map(member => {
+    const online = isMemberOnline(member.email);
+    return `<span class="presence-person ${online ? 'online' : 'offline'}"><i class="presence-dot"></i>${escapeHtml(member.email === currentAccountEmail() ? 'Вы' : member.email.split('@')[0])} · ${online ? 'в сети' : 'не в сети'}</span>`;
+  }).join('');
+  container.hidden = !members.length;
+}
+async function refreshSharedPresence() {
+  if (!window.DaySync?.user() || !window.DaySync?.touchPresence || !window.DaySync?.loadSharedPresence) {
+    sharedPresence = new Map(); return;
+  }
+  try {
+    await window.DaySync.touchPresence(document.documentElement.lang || 'ru');
+    const rows = await window.DaySync.loadSharedPresence();
+    sharedPresence = new Map((rows || []).map(row => [String(row.email || '').toLocaleLowerCase(), row.last_seen]));
+  } catch {}
+}
 function memberInitial(email = '') { return (email.split('@')[0] || '?').charAt(0).toLocaleUpperCase('ru'); }
 function sharedProgress(task) {
   const subtasks = task.subtasks || [];
@@ -988,7 +1097,7 @@ function renderSharedTaskCard(task) {
   return `<article class="shared-task-card">
     <button type="button" class="shared-card-open" data-open-shared="${task.id}"><div><h3>${escapeHtml(task.title)}</h3><p>${formatShortDate(task.date)} · ${task.time || 'В течение дня'} · прогресс ${progress}%</p>
     <div class="shared-card-tags">${sharedStatusLabel(task)}<span>☑ ${(task.subtasks || []).filter(item => item.done).length}/${(task.subtasks || []).length}</span>${task.ownerId === window.DaySync?.user()?.id ? '<span>Вы организатор</span>' : `<span>Организатор: ${escapeHtml(task.ownerEmail || '')}</span>`}</div></div>
-    <div class="shared-avatar-stack">${members.slice(0, 4).map(member => `<span class="shared-avatar" title="${escapeHtml(member.email)}">${memberInitial(member.email)}</span>`).join('')}</div></button>
+    <div class="shared-avatar-stack">${members.slice(0, 4).map(member => { const online = isMemberOnline(member.email); return `<span class="shared-avatar ${online ? 'online' : 'offline'}" title="${escapeHtml(member.email)} — ${online ? 'в сети' : 'не в сети'}">${memberInitial(member.email)}</span>`; }).join('')}</div></button>
     ${(task.subtasks || []).length ? `<div class="shared-subtasks">${task.subtasks.map((item, index) => `<button type="button" class="${item.done ? 'done' : ''}" data-shared-subtask="${task.id}" data-shared-index="${index}"><i>${item.done ? '✓' : ''}</i><span>${escapeHtml(item.title)}</span>${item.doneBy ? `<small>${escapeHtml(item.doneBy.split('@')[0])}</small>` : ''}</button>`).join('')}</div>` : ''}
   </article>`;
 }
@@ -1002,7 +1111,8 @@ function renderSharedPeople() {
   if (!people.size) return '<div class="shared-empty"><strong>Участников пока нет</strong>Создайте совместную задачу и пригласите человека по почте.</div>';
   return [...people.values()].map(person => {
     const percent = person.tasks ? Math.round(person.completed / person.tasks * 100) : 0;
-    return `<article class="member-card"><div class="member-ring" style="--p:${percent}"><span>${percent}%</span></div><div><strong>${escapeHtml(person.email === currentAccountEmail() ? 'Вы' : person.email.split('@')[0])}</strong><small>${person.tasks} задач · выполнено ${person.completed} · отмечено подзадач ${person.contributions}</small></div><span class="member-role">${person.roles.has('Организатор') ? 'Организатор' : 'Участник'}</span></article>`;
+    const online = isMemberOnline(person.email);
+    return `<article class="member-card"><div class="member-ring" style="--p:${percent}"><span>${percent}%</span></div><div><strong>${escapeHtml(person.email === currentAccountEmail() ? 'Вы' : person.email.split('@')[0])}</strong><small><span class="presence-person ${online ? 'online' : 'offline'}"><i class="presence-dot"></i>${online ? 'В сети' : 'Не в сети'}</span>${person.tasks} задач · выполнено ${person.completed} · отмечено подзадач ${person.contributions}</small></div><span class="member-role">${person.roles.has('Организатор') ? 'Организатор' : 'Участник'}</span></article>`;
   }).join('');
 }
 function renderSharedInvites() {
@@ -1047,10 +1157,10 @@ $('#quickForm').addEventListener('submit', e => { e.preventDefault(); addQuickTa
 $('#quickInput').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addQuickTask(e.currentTarget.value); } });
 $('#taskSearch').addEventListener('input', e => { searchQuery = e.currentTarget.value.trim().toLocaleLowerCase('ru'); renderHeader(); renderTasks(); renderStats(); });
 $('#weekOverviewButton').addEventListener('click', () => { currentView = 'today'; currentPeriod = 'week'; syncNav(); render(); });
-$('#voiceButton').addEventListener('click', startVoiceInput);
-$('#voiceTitleButton').addEventListener('click', () => startVoiceForField('taskTitle', 'voiceTitleButton', { parseTask: true, prompt: 'Слушаю название, дату и время', success: 'Название задачи добавлено' }));
-$('#voiceSubtasksButton').addEventListener('click', () => startVoiceForField('taskSubtasks', 'voiceSubtasksButton', { prompt: 'Продиктуйте одну подзадачу', success: 'Подзадача добавлена новой строкой' }));
-$('#voiceNoteButton').addEventListener('click', () => startVoiceForField('taskNote', 'voiceNoteButton', { prompt: 'Продиктуйте заметку', success: 'Заметка добавлена' }));
+bindHoldToTalk('voiceButton', startVoiceInput);
+bindHoldToTalk('voiceTitleButton', () => startVoiceForField('taskTitle', 'voiceTitleButton', { parseTask: true, prompt: 'Слушаю название, дату и время', success: 'Название задачи добавлено' }));
+bindHoldToTalk('voiceSubtasksButton', () => startVoiceForField('taskSubtasks', 'voiceSubtasksButton', { prompt: 'Продиктуйте одну подзадачу', success: 'Подзадача добавлена новой строкой' }));
+bindHoldToTalk('voiceNoteButton', () => startVoiceForField('taskNote', 'voiceNoteButton', { prompt: 'Продиктуйте заметку', success: 'Заметка добавлена' }));
 $('#addButton').addEventListener('click', () => openDialog()); $('#mobileAddButton').addEventListener('click', () => openDialog()); $('#mobileNewTaskButton').addEventListener('click', () => openDialog()); $('#emptyAddButton').addEventListener('click', () => openDialog());
 $$('[data-task-type]').forEach(button => button.addEventListener('click', () => setTaskType(button.dataset.taskType)));
 $('#closeDialog').addEventListener('click', closeDialog); $('#cancelDialog').addEventListener('click', closeDialog); $('#taskForm').addEventListener('submit', handleSubmit); $('#deleteTask').addEventListener('click', deleteCurrent);
@@ -1061,7 +1171,8 @@ $('#taskTimeMode').addEventListener('change', updateTimeMode);
 $('#updateButton').addEventListener('click', async () => { renderUpdateCenter(); $('#updateDialog').showModal(); await checkForAppUpdate(false); }); $('#closeUpdate').addEventListener('click', () => $('#updateDialog').close()); $('#applyUpdateButton').addEventListener('click', applyAppUpdate);
 $('#promptApplyUpdate').addEventListener('click', applyPromptedUpdate);
 $('#openNotificationSettings').addEventListener('click', openNotificationDialog); $('#closeNotificationSettings').addEventListener('click', () => $('#notificationDialog').close()); $('#notificationForm').addEventListener('submit', saveNotificationSettings); $('#testNotification').addEventListener('click', testNotification);
-$('#openFeedback').addEventListener('click', () => { $('#updateDialog').close(); resetFeedbackForm(); $('#feedbackDialog').showModal(); }); $('#closeFeedback').addEventListener('click', () => $('#feedbackDialog').close()); $('#feedbackVoiceButton').addEventListener('click', () => startVoiceForField('feedbackText', 'feedbackVoiceButton', { prompt: 'Слушаю описание проблемы', success: 'Текст обратной связи добавлен' })); $('#chooseFeedbackPhoto').addEventListener('click', () => $('#feedbackPhotoInput').click()); $('#feedbackPhotoInput').addEventListener('change', event => { chooseFeedbackPhoto(event.target.files[0]); event.target.value = ''; }); $('#removeFeedbackPhoto').addEventListener('click', () => { feedbackPhoto = null; $('#feedbackFile').hidden = true; $('#feedbackFileName').textContent = ''; }); $('#feedbackForm').addEventListener('submit', submitFeedback);
+$('#reminderAlertDismiss').addEventListener('click', hideReminderAlert); $('#reminderAlertOpen').addEventListener('click', () => openNotificationTask());
+$('#openFeedback').addEventListener('click', () => { $('#updateDialog').close(); resetFeedbackForm(); $('#feedbackDialog').showModal(); }); $('#closeFeedback').addEventListener('click', () => $('#feedbackDialog').close()); bindHoldToTalk('feedbackVoiceButton', () => startVoiceForField('feedbackText', 'feedbackVoiceButton', { prompt: 'Слушаю описание проблемы', success: 'Текст обратной связи добавлен' })); $('#chooseFeedbackPhoto').addEventListener('click', () => $('#feedbackPhotoInput').click()); $('#feedbackPhotoInput').addEventListener('change', event => { chooseFeedbackPhoto(event.target.files[0]); event.target.value = ''; }); $('#removeFeedbackPhoto').addEventListener('click', () => { feedbackPhoto = null; $('#feedbackFile').hidden = true; $('#feedbackFileName').textContent = ''; }); $('#feedbackForm').addEventListener('submit', submitFeedback);
 $('#closeReminders').addEventListener('click', () => $('#reminderDialog').close()); $('#enableNotifications').addEventListener('click', enableNotifications);
 function openPlansDialog() { currentPlanningView = 'week'; planningAnchorDate = selectedDate; renderPlanningDialog(); $('#reminderDialog').showModal(); }
 $('#mobilePlansButton').addEventListener('click', openPlansDialog);
@@ -1086,7 +1197,20 @@ $('#periodPrev').addEventListener('click', () => movePeriod(-1)); $('#periodNext
 $$('[data-view]').forEach(b => b.addEventListener('click', () => { if (b.dataset.view === 'settings') { toast('Все данные, фото и планы хранятся только на этом устройстве'); return; } currentView = b.dataset.view; if (currentView === 'today') selectedDate = todayKey; syncNav(); render(); }));
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; $('#installButton').hidden = false; });
 $('#installButton').addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('#installButton').hidden = true; });
-if ('serviceWorker' in navigator) window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=50'); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=51'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
+  navigator.serviceWorker.addEventListener('message', event => {
+    if (event.data?.type !== 'DAY_PUSH') return;
+    showReminderAlert(event.data.taskId || '', event.data.title || 'Новое уведомление', event.data.body || '');
+  });
+}
+
+function handleOpenTaskFromUrl() {
+  const params = new URLSearchParams(location.search); const taskId = params.get('openTask');
+  if (!taskId) return;
+  history.replaceState(null, '', location.pathname);
+  openNotificationTask(taskId);
+}
 
 async function initializeAccount() {
   if (new URLSearchParams(location.search).get('recovery') === 'code') {
@@ -1105,6 +1229,7 @@ async function initializeAccount() {
   }
   refreshSyncUi();
   if (window.DaySync?.user()) { await maybeLockApp(); await performSync(false); }
+  handleOpenTaskFromUrl();
 }
 window.addEventListener('online', () => { renderConnectionState(); performSync(false); });
 window.addEventListener('offline', renderConnectionState);
