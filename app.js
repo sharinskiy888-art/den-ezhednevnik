@@ -8,7 +8,7 @@ const PIN_KEY = 'day-planner-pin-v1';
 const PIN_UNLOCKED_AT_KEY = 'day-planner-pin-unlocked-at-v1';
 const PIN_RELOCK_MS = 30 * 60 * 1000;
 const NOTIFICATION_KEY = 'day-planner-notifications-v1';
-const APP_VERSION = '52';
+const APP_VERSION = '53';
 const UPDATE_SEEN_KEY = 'day-planner-update-seen-v1';
 const UPDATE_APPLIED_KEY = 'day-planner-update-applied-v1';
 const $ = (selector) => document.querySelector(selector);
@@ -68,6 +68,7 @@ let sharedPresence = new Map();
 let currentSharedTab = 'tasks';
 let sharedLoading = false;
 let activeSharedInviteId = '';
+let sharedPresenceBusy = false;
 
 function loadTasks() {
   try {
@@ -1056,7 +1057,9 @@ function sharedMembers(task) {
   return [...new Map(entries.filter(item => item.email).map(item => [item.email, item])).values()];
 }
 function isMemberOnline(email = '') {
-  const lastSeen = sharedPresence.get(email.toLocaleLowerCase());
+  const normalizedEmail = email.toLocaleLowerCase();
+  if (normalizedEmail && normalizedEmail === currentAccountEmail() && navigator.onLine && document.visibilityState === 'visible') return true;
+  const lastSeen = sharedPresence.get(normalizedEmail);
   return !!lastSeen && Date.now() - new Date(lastSeen).getTime() < 90 * 1000;
 }
 function renderSharedTaskPresence(task) {
@@ -1070,14 +1073,24 @@ function renderSharedTaskPresence(task) {
   container.hidden = !members.length;
 }
 async function refreshSharedPresence() {
+  if (sharedPresenceBusy) return;
   if (!window.DaySync?.user() || !window.DaySync?.touchPresence || !window.DaySync?.loadSharedPresence) {
     sharedPresence = new Map(); return;
   }
+  sharedPresenceBusy = true;
   try {
     await window.DaySync.touchPresence(document.documentElement.lang || 'ru');
     const rows = await window.DaySync.loadSharedPresence();
     sharedPresence = new Map((rows || []).map(row => [String(row.email || '').toLocaleLowerCase(), row.last_seen]));
-  } catch {}
+    sharedPresence.set(currentAccountEmail(), new Date().toISOString());
+    if ($('#sharedDialog')?.open) renderSharedDialog();
+    const openedSharedTaskId = $('#taskSource')?.value === 'shared' ? $('#taskId')?.value : '';
+    if ($('#taskDialog')?.open && openedSharedTaskId) renderSharedTaskPresence(sharedTasks.find(task => task.id === openedSharedTaskId));
+  } catch {
+    if (currentAccountEmail() && navigator.onLine && document.visibilityState === 'visible') sharedPresence.set(currentAccountEmail(), new Date().toISOString());
+  } finally {
+    sharedPresenceBusy = false;
+  }
 }
 function memberInitial(email = '') { return (email.split('@')[0] || '?').charAt(0).toLocaleUpperCase('ru'); }
 function sharedProgress(task) {
@@ -1124,9 +1137,9 @@ async function loadSharedTasks(showErrors = false) {
   if (!window.DaySync?.user() || !window.DaySync?.loadSharedTasks || sharedLoading) { renderSharedBadges(); return sharedTasks; }
   sharedLoading = true;
   try {
-    const previousInvites = sharedInvites().map(task => task.id);
+    const previousInvites = new Map(sharedInvites().map(task => [task.id, task.inviteReminderAt || '']));
     sharedTasks = await window.DaySync.loadSharedTasks();
-    const newInvites = sharedInvites().filter(task => !previousInvites.includes(task.id));
+    const newInvites = sharedInvites().filter(task => !previousInvites.has(task.id) || previousInvites.get(task.id) !== (task.inviteReminderAt || ''));
     renderSharedBadges();
     renderSharedInvitePrompt();
     if (newInvites.length && Notification.permission === 'granted') showAppNotification('Новое приглашение', { body: newInvites[0].title, tag: `shared-${newInvites[0].id}` });
@@ -1144,11 +1157,13 @@ function sharedStatusLabel(task) {
 }
 function renderSharedTaskCard(task) {
   const members = sharedMembers(task); const progress = sharedProgress(task);
+  const canRepeatInvite = task.ownerId === window.DaySync?.user()?.id && (task.invitedEmails || []).length > 0;
   return `<article class="shared-task-card">
     <button type="button" class="shared-card-open" data-open-shared="${task.id}"><div><h3>${escapeHtml(task.title)}</h3><p>${formatShortDate(task.date)} · ${task.time || 'В течение дня'} · прогресс ${progress}%</p>
     <div class="shared-card-tags">${sharedStatusLabel(task)}<span>☑ ${(task.subtasks || []).filter(item => item.done).length}/${(task.subtasks || []).length}</span>${task.ownerId === window.DaySync?.user()?.id ? '<span>Вы организатор</span>' : `<span>Организатор: ${escapeHtml(task.ownerEmail || '')}</span>`}</div></div>
     <div class="shared-avatar-stack">${members.slice(0, 4).map(member => { const online = isMemberOnline(member.email); return `<span class="shared-avatar ${online ? 'online' : 'offline'}" title="${escapeHtml(member.email)} — ${online ? 'в сети' : 'не в сети'}">${memberInitial(member.email)}</span>`; }).join('')}</div></button>
     ${(task.subtasks || []).length ? `<div class="shared-subtasks">${task.subtasks.map((item, index) => `<button type="button" class="${item.done ? 'done' : ''}" data-shared-subtask="${task.id}" data-shared-index="${index}"><i>${item.done ? '✓' : ''}</i><span>${escapeHtml(item.title)}</span>${item.doneBy ? `<small>${escapeHtml(item.doneBy.split('@')[0])}</small>` : ''}</button>`).join('')}</div>` : ''}
+    ${canRepeatInvite ? `<button type="button" class="repeat-shared-invite" data-repeat-shared-invite="${task.id}">↻ Повторить приглашение</button>` : ''}
   </article>`;
 }
 function renderSharedPeople() {
@@ -1178,6 +1193,17 @@ function bindSharedContentActions() {
     try { await window.DaySync.answerSharedInvite(button.dataset.answerInvite, button.dataset.accept === '1'); await loadSharedTasks(false); renderSharedDialog(); toast(button.dataset.accept === '1' ? 'Приглашение принято' : 'Приглашение отклонено'); }
     catch (error) { button.disabled = false; toast(sharedErrorText(error)); }
   }));
+  $$('[data-repeat-shared-invite]').forEach(button => button.addEventListener('click', async () => {
+    button.disabled = true;
+    try {
+      await repeatSharedInvite(button.dataset.repeatSharedInvite);
+      button.textContent = '✓ Приглашение повторено';
+      setTimeout(() => { if (button.isConnected) { button.disabled = false; button.textContent = '↻ Повторить приглашение'; } }, 1800);
+    } catch (error) {
+      button.disabled = false;
+      toast(sharedErrorText(error));
+    }
+  }));
 }
 function renderSharedDialog() {
   if (!$('#sharedDialog')) return;
@@ -1201,6 +1227,16 @@ async function toggleSharedSubtask(taskId, index) {
   const item = task.subtasks[index]; item.done = !item.done; item.doneBy = item.done ? currentAccountEmail() : ''; item.doneAt = item.done ? new Date().toISOString() : '';
   task.updatedAt = new Date().toISOString();
   try { await window.DaySync.saveSharedTask(task); renderSharedDialog(); } catch (error) { item.done = !item.done; toast(sharedErrorText(error)); }
+}
+async function repeatSharedInvite(taskId) {
+  const task = sharedTasks.find(item => item.id === taskId);
+  if (!task || task.ownerId !== window.DaySync?.user()?.id) throw new Error('Повторить приглашение может только организатор');
+  if (!(task.invitedEmails || []).length) throw new Error('Все приглашения уже обработаны');
+  task.inviteReminderAt = new Date().toISOString();
+  task.inviteReminderNumber = Number(task.inviteReminderNumber || 0) + 1;
+  task.updatedAt = task.inviteReminderAt;
+  await window.DaySync.saveSharedTask(task);
+  toast('Запрос повторён. Участник увидит приглашение при следующей проверке приложения');
 }
 
 $('#quickForm').addEventListener('submit', e => { e.preventDefault(); addQuickTask($('#quickInput').value); });
@@ -1249,7 +1285,7 @@ window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); instal
 $('#installButton').addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('#installButton').hidden = true; });
 showUpdatedNoticeIfNeeded();
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=52'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
+  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=53'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
   navigator.serviceWorker.addEventListener('message', event => {
     if (event.data?.type !== 'DAY_PUSH') return;
     showReminderAlert(event.data.taskId || '', event.data.title || 'Новое уведомление', event.data.body || '');
@@ -1286,8 +1322,11 @@ window.addEventListener('online', () => { renderConnectionState(); performSync(f
 window.addEventListener('offline', renderConnectionState);
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) { appHiddenAt = Date.now(); return; }
-  if (appHiddenAt && Date.now() - appHiddenAt >= PIN_RELOCK_MS) { pinUnlocked = false; maybeLockApp(); } performSync(false);
+  if (appHiddenAt && Date.now() - appHiddenAt >= PIN_RELOCK_MS) { pinUnlocked = false; maybeLockApp(); }
+  refreshSharedPresence();
+  performSync(false);
 });
 setInterval(() => { if (document.visibilityState === 'visible' && navigator.onLine) performSync(false); }, 15000);
+setInterval(() => { if (document.visibilityState === 'visible' && navigator.onLine) refreshSharedPresence(); }, 30000);
 
 runAutoCarry(); save(); render(); renderProfile(); renderConnectionState(); refreshUpdateIndicator(); initializeAccount(); checkReminders(); setInterval(checkReminders, 30000);
