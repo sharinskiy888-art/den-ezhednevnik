@@ -8,7 +8,7 @@ const PIN_KEY = 'day-planner-pin-v1';
 const PIN_UNLOCKED_AT_KEY = 'day-planner-pin-unlocked-at-v1';
 const PIN_RELOCK_MS = 30 * 60 * 1000;
 const NOTIFICATION_KEY = 'day-planner-notifications-v1';
-const APP_VERSION = '53';
+const APP_VERSION = '54';
 const UPDATE_SEEN_KEY = 'day-planner-update-seen-v1';
 const UPDATE_APPLIED_KEY = 'day-planner-update-applied-v1';
 const $ = (selector) => document.querySelector(selector);
@@ -855,7 +855,11 @@ async function performSync(showMessage = true) {
 async function handleSyncLogin(event) {
   event.preventDefault(); const email = $('#syncEmail').value.trim(); const password = $('#syncPassword').value;
   setSyncStatus('syncing', 'Выполняется вход…', email);
-  try { await window.DaySync.signIn(email, password); markPinUnlocked(); $('#syncPassword').value = ''; switchAccountData(); await performSync(); }
+  try {
+    await window.DaySync.signIn(email, password); markPinUnlocked(); $('#syncPassword').value = ''; switchAccountData(); await performSync();
+    if ($('#syncDialog').open) $('#syncDialog').close();
+    renderSharedInvitePrompt();
+  }
   catch (error) { setSyncStatus('error', 'Не удалось войти', error.message); }
 }
 async function handleSyncSignUp() {
@@ -872,7 +876,11 @@ async function handleSyncSignUp() {
   try {
     const result = await window.DaySync.signUp(email, password); $('#syncPassword').value = '';
     signUpCooldownUntil = Date.now() + 35000;
-    if (result.access_token) { markPinUnlocked(); switchAccountData(); await performSync(); }
+    if (result.access_token) {
+      markPinUnlocked(); switchAccountData(); await performSync();
+      if ($('#syncDialog').open) $('#syncDialog').close();
+      renderSharedInvitePrompt();
+    }
     else setSyncStatus('connected', 'Регистрация создана', 'Проверьте почту и откройте самое новое письмо подтверждения. После подтверждения нажмите «Войти».');
   } catch (error) {
     const limited = error.status === 429 || /35 seconds|security purposes|rate limit/i.test(error.message);
@@ -1285,7 +1293,7 @@ window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); instal
 $('#installButton').addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('#installButton').hidden = true; });
 showUpdatedNoticeIfNeeded();
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=53'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
+  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=54'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
   navigator.serviceWorker.addEventListener('message', event => {
     if (event.data?.type !== 'DAY_PUSH') return;
     showReminderAlert(event.data.taskId || '', event.data.title || 'Новое уведомление', event.data.body || '');
@@ -1306,7 +1314,10 @@ async function initializeAccount() {
   }
   try {
     const recovery = await window.DaySync?.consumeRecoveryFromUrl?.();
-    if (recovery) {
+    if (recovery === 'signup') {
+      markPinUnlocked(); switchAccountData(); refreshSyncUi(); await performSync(false); toast('Почта подтверждена. Аккаунт подключён'); return;
+    }
+    if (recovery === 'recovery') {
       markPinUnlocked(); refreshSyncUi(); $('#syncAuthForm').hidden = true; $('#syncConnected').hidden = true; $('#syncResetForm').hidden = false; $('#syncDialog').showModal();
       setSyncStatus('connected', 'Ссылка подтверждена', 'Теперь задайте новый пароль.'); return;
     }

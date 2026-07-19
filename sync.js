@@ -28,7 +28,8 @@
     const text = await response.text(); return text ? JSON.parse(text) : null;
   }
   async function signUp(email, password) {
-    const result = await request('/auth/v1/signup', { method: 'POST', body: JSON.stringify({ email, password }) }, false);
+    const redirect = new URL('./', location.href).href;
+    const result = await request(`/auth/v1/signup?redirect_to=${encodeURIComponent(redirect)}`, { method: 'POST', body: JSON.stringify({ email, password }) }, false);
     if (result.access_token) setSession(result);
     return result;
   }
@@ -50,12 +51,20 @@
     const error = hash.get('error_description') || query.get('error_description') || hash.get('error') || query.get('error');
     if (error) throw new Error(error.replace(/\+/g, ' '));
     const type = hash.get('type') || query.get('type'); const accessToken = hash.get('access_token') || query.get('access_token');
-    const recoveryIntent = type === 'recovery' || query.get('recovery') === '1' || !!accessToken;
+    const recoveryIntent = type === 'recovery' || query.get('recovery') === '1';
+    const signupIntent = type === 'signup' && !!accessToken;
+    if (signupIntent) {
+      const session = { access_token: accessToken, refresh_token: hash.get('refresh_token') || query.get('refresh_token') || '', token_type: hash.get('token_type') || query.get('token_type') || 'bearer', expires_at: Math.floor(Date.now() / 1000) + Number(hash.get('expires_in') || query.get('expires_in') || 3600), user: null };
+      const account = await request('/auth/v1/user', { headers: { Authorization: `Bearer ${accessToken}` } }, false);
+      session.user = account; setSession(session);
+      history.replaceState(null, '', location.pathname);
+      return 'signup';
+    }
     if (!recoveryIntent) return false;
     if (!accessToken) throw new Error('Ссылка не содержит кода восстановления. Запросите новое письмо.');
     const session = { access_token: accessToken, refresh_token: hash.get('refresh_token') || query.get('refresh_token') || '', token_type: hash.get('token_type') || query.get('token_type') || 'bearer', expires_at: Math.floor(Date.now() / 1000) + Number(hash.get('expires_in') || query.get('expires_in') || 3600), user: null };
     setSession(session);
-    history.replaceState(null, '', `${location.pathname}?recovery=1`); return true;
+    history.replaceState(null, '', `${location.pathname}?recovery=1`); return 'recovery';
   }
   async function updatePassword(password) {
     const account = await request('/auth/v1/user', { method: 'PUT', body: JSON.stringify({ password }) });
@@ -104,7 +113,8 @@
       ownerEmail: row.owner_email,
       invitedEmails: (row.invited_emails || []).map(email => String(email).trim().toLocaleLowerCase()),
       acceptedEmails: (row.accepted_emails || []).map(email => String(email).trim().toLocaleLowerCase()),
-      updatedAt: row.payload?.updatedAt || row.updated_at
+      updatedAt: row.payload?.updatedAt || row.updated_at,
+      __remote: true
     };
   }
   async function loadSharedTasks() {
@@ -118,10 +128,17 @@
     const ownerEmail = (task.ownerEmail || sessionUser.email || '').toLocaleLowerCase();
     const invitedEmails = [...new Set((task.invitedEmails || []).map(email => String(email).trim().toLocaleLowerCase()).filter(Boolean))];
     const acceptedEmails = [...new Set((task.acceptedEmails || []).map(email => String(email).trim().toLocaleLowerCase()).filter(Boolean))];
-    const { id, ownerId: _ownerId, ownerEmail: _ownerEmail, invitedEmails: _invited, acceptedEmails: _accepted, ...payload } = task;
+    const { id, ownerId: _ownerId, ownerEmail: _ownerEmail, invitedEmails: _invited, acceptedEmails: _accepted, __remote, ...payload } = task;
     const row = { id, owner_id: ownerId, owner_email: ownerEmail, invited_emails: invitedEmails, accepted_emails: acceptedEmails, payload, updated_at: task.updatedAt || new Date().toISOString() };
-    await request('/rest/v1/shared_tasks?on_conflict=id', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify(row) });
-    return { ...task, ownerId, ownerEmail, invitedEmails, acceptedEmails };
+    if (__remote) {
+      const isOwner = ownerId === sessionUser.id;
+      const patch = isOwner ? { ...row } : { payload, updated_at: row.updated_at };
+      delete patch.id;
+      await request(`/rest/v1/shared_tasks?id=eq.${encodeURIComponent(id)}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(patch) });
+    } else {
+      await request('/rest/v1/shared_tasks?on_conflict=id', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify(row) });
+    }
+    return { ...task, ownerId, ownerEmail, invitedEmails, acceptedEmails, __remote: true };
   }
   async function deleteSharedTask(id) {
     await request(`/rest/v1/shared_tasks?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE', headers: { Prefer: 'return=minimal' } });
