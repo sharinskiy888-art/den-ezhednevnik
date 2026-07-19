@@ -7,7 +7,7 @@
   <meta name="description" content="Простой ежедневник, который работает офлайн на телефоне и Windows.">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=51">
+  <link rel="stylesheet" href="styles.css?v=52">
   <title>День — ежедневник</title>
   <script>
     (() => {
@@ -139,7 +139,7 @@
   <aside class="update-prompt" id="updatePrompt" role="status" aria-live="polite" hidden>
     <span class="update-prompt-icon" aria-hidden="true">↻</span>
     <div class="update-prompt-copy">
-      <strong>Доступно обновление</strong>
+      <strong id="updatePromptTitle">Доступно обновление</strong>
       <small id="updatePromptText">Новая версия ежедневника готова</small>
     </div>
     <button type="button" id="promptApplyUpdate">Обновить</button>
@@ -339,7 +339,7 @@
       <label class="setting-toggle"><span><strong>Просроченные дела</strong><small>Один раз в день, если остались незавершённые задачи</small></span><input type="checkbox" id="notifyOverdue" checked></label>
       <button type="button" class="secondary-button notification-test" id="testNotification">Проверить уведомление</button>
       <button type="submit" class="primary-button notification-save">Сохранить настройки</button>
-      <p class="settings-hint">На iPhone уведомления работают для ежедневника, добавленного на экран «Домой». Точные уведомления приходят, пока приложение запущено; для полностью закрытого приложения потребуется серверная push-служба.</p>
+      <p class="settings-hint">На iPhone уведомления работают для ежедневника, добавленного на экран «Домой». После входа в аккаунт серверные push-уведомления приходят и при закрытом приложении.</p>
     </form>
   </dialog>
 
@@ -441,8 +441,8 @@
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastAction" hidden></button></div>
-  <script src="sync-config.js?v=51"></script>
-  <script src="sync.js?v=51"></script>
-  <script src="app.js?v=51"></script>
+  <script src="sync-config.js?v=52"></script>
+  <script src="sync.js?v=52"></script>
+  <script src="app.js?v=52"></script>
 </body>
 </html>

@@ -8,8 +8,9 @@ const PIN_KEY = 'day-planner-pin-v1';
 const PIN_UNLOCKED_AT_KEY = 'day-planner-pin-unlocked-at-v1';
 const PIN_RELOCK_MS = 30 * 60 * 1000;
 const NOTIFICATION_KEY = 'day-planner-notifications-v1';
-const APP_VERSION = '51';
+const APP_VERSION = '52';
 const UPDATE_SEEN_KEY = 'day-planner-update-seen-v1';
+const UPDATE_APPLIED_KEY = 'day-planner-update-applied-v1';
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 const pad = (n) => String(n).padStart(2, '0');
@@ -59,6 +60,9 @@ let pinUnlocked = false;
 let appHiddenAt = 0;
 let latestAppVersion = APP_VERSION;
 let latestUpdateNotes = ['Центр обновлений и ручная установка новой версии.'];
+let updateInProgress = false;
+let signUpBusy = false;
+let signUpCooldownUntil = 0;
 let sharedTasks = [];
 let sharedPresence = new Map();
 let currentSharedTab = 'tasks';
@@ -855,13 +859,39 @@ async function handleSyncLogin(event) {
 }
 async function handleSyncSignUp() {
   const form = $('#syncAuthForm'); if (!form.reportValidity()) return;
+  const button = $('#syncSignUp');
+  const waitSeconds = Math.ceil((signUpCooldownUntil - Date.now()) / 1000);
+  if (signUpBusy || waitSeconds > 0) {
+    setSyncStatus('', 'Запрос уже отправлен', `Подождите ${Math.max(1, waitSeconds)} сек. и проверьте письмо. Повторно нажимать регистрацию не нужно.`);
+    return;
+  }
   const email = $('#syncEmail').value.trim(); const password = $('#syncPassword').value;
+  signUpBusy = true; button.disabled = true; button.textContent = 'Отправляем…';
   setSyncStatus('syncing', 'Создаём аккаунт…', email);
   try {
     const result = await window.DaySync.signUp(email, password); $('#syncPassword').value = '';
+    signUpCooldownUntil = Date.now() + 35000;
     if (result.access_token) { markPinUnlocked(); switchAccountData(); await performSync(); }
-    else setSyncStatus('', 'Подтвердите email', 'Откройте письмо Supabase, затем войдите здесь.');
-  } catch (error) { setSyncStatus('error', 'Не удалось зарегистрироваться', error.message); }
+    else setSyncStatus('connected', 'Регистрация создана', 'Проверьте почту и откройте самое новое письмо подтверждения. После подтверждения нажмите «Войти».');
+  } catch (error) {
+    const limited = error.status === 429 || /35 seconds|security purposes|rate limit/i.test(error.message);
+    const exists = /already registered|already exists|user_already_exists/i.test(error.message);
+    if (limited) {
+      signUpCooldownUntil = Date.now() + Math.max(35000, (error.retryAfter || 0) * 1000);
+      setSyncStatus('', 'Запрос уже отправлен', 'Сервер получил регистрацию. Подождите 35 секунд, проверьте почту и не нажимайте кнопку несколько раз подряд.');
+    } else if (exists) setSyncStatus('', 'Email уже зарегистрирован', 'Нажмите «Войти» или воспользуйтесь восстановлением пароля.');
+    else setSyncStatus('error', 'Не удалось зарегистрироваться', error.message);
+  } finally {
+    signUpBusy = false;
+    const restoreButton = () => {
+      const remaining = Math.ceil((signUpCooldownUntil - Date.now()) / 1000);
+      if (remaining > 0) {
+        button.disabled = true; button.textContent = `Подождите ${remaining} с`;
+        setTimeout(restoreButton, 1000);
+      } else { button.disabled = false; button.textContent = 'Регистрация'; }
+    };
+    restoreButton();
+  }
 }
 async function handleForgotPassword() {
   const email = $('#syncEmail').value.trim();
@@ -939,8 +969,20 @@ function refreshUpdateIndicator() {
 function showUpdatePromptIfNeeded() {
   const available = compareAppVersions(latestAppVersion, APP_VERSION) > 0;
   if (!available) { $('#updatePrompt').hidden = true; return; }
+  $('#updatePromptTitle').textContent = 'Доступно обновление';
   $('#updatePromptText').textContent = `Версия ${latestAppVersion} готова к установке`;
+  $('#promptApplyUpdate').hidden = false;
   $('#updatePrompt').hidden = false;
+}
+function showUpdatedNoticeIfNeeded() {
+  const applied = localStorage.getItem(UPDATE_APPLIED_KEY);
+  if (applied !== APP_VERSION) return;
+  localStorage.removeItem(UPDATE_APPLIED_KEY);
+  $('#updatePromptTitle').textContent = 'Приложение обновлено';
+  $('#updatePromptText').textContent = `Установлена версия ${APP_VERSION}`;
+  $('#promptApplyUpdate').hidden = true;
+  $('#updatePrompt').hidden = false;
+  setTimeout(() => { if ($('#promptApplyUpdate').hidden) $('#updatePrompt').hidden = true; }, 3200);
 }
 function renderUpdateCenter() {
   const available = compareAppVersions(latestAppVersion, APP_VERSION) > 0;
@@ -952,23 +994,31 @@ function renderUpdateCenter() {
   $('#applyUpdateButton').disabled = !available;
   $('#applyUpdateButton').textContent = 'Установить обновление';
 }
-async function checkForAppUpdate(showFeedback = false, showPrompt = false) {
+async function checkForAppUpdate(showFeedback = false, autoInstall = false) {
   try {
     await new Promise((resolve, reject) => {
       $('#appVersionCheck')?.remove(); const script = document.createElement('script'); script.id = 'appVersionCheck'; script.src = `version.js?check=${Date.now()}`; script.onload = resolve; script.onerror = () => reject(new Error('Не удалось проверить версию')); document.head.append(script);
     });
     const release = window.DAY_APP_RELEASE || {}; latestAppVersion = String(release.version || APP_VERSION); latestUpdateNotes = Array.isArray(release.notes) && release.notes.length ? release.notes : latestUpdateNotes;
-    refreshUpdateIndicator(); renderUpdateCenter(); if (showPrompt) showUpdatePromptIfNeeded();
+    refreshUpdateIndicator(); renderUpdateCenter();
+    const available = compareAppVersions(latestAppVersion, APP_VERSION) > 0;
+    if (autoInstall && available) { await applyAppUpdate(true); return; }
     if (showFeedback) toast(compareAppVersions(latestAppVersion, APP_VERSION) > 0 ? `Доступна версия ${latestAppVersion}` : 'Установлена последняя версия');
   } catch { if (showFeedback) toast('Не удалось проверить обновление. Проверьте интернет.'); }
 }
-async function applyAppUpdate() {
-  const button = $('#applyUpdateButton'); button.disabled = true; button.textContent = 'Обновляем…';
+async function applyAppUpdate(automatic = false) {
+  if (updateInProgress) return;
+  updateInProgress = true;
+  const button = $('#applyUpdateButton'); button.disabled = true; button.textContent = automatic ? 'Обновляем автоматически…' : 'Обновляем…';
   localStorage.setItem(UPDATE_SEEN_KEY, latestAppVersion); refreshUpdateIndicator();
   try {
+    localStorage.setItem(UPDATE_APPLIED_KEY, latestAppVersion);
     const registration = await navigator.serviceWorker?.getRegistration(); if (registration) await registration.update();
     const url = new URL('./', location.href); url.searchParams.set('v', latestAppVersion); url.searchParams.set('updated', Date.now()); location.replace(url.href);
-  } catch { button.disabled = false; button.textContent = 'Повторить обновление'; toast('Не удалось обновить. Проверьте интернет.'); }
+  } catch {
+    updateInProgress = false; localStorage.removeItem(UPDATE_APPLIED_KEY); button.disabled = false; button.textContent = 'Повторить обновление';
+    showUpdatePromptIfNeeded(); toast('Автообновление не завершилось. Нажмите «Обновить» в меню.');
+  }
 }
 async function applyPromptedUpdate() {
   $('#updatePrompt').hidden = true;
@@ -1168,7 +1218,7 @@ $('#taskCameraButton').addEventListener('click', () => $('#taskCameraInput').cli
 ['taskCameraInput', 'taskGalleryInput', 'taskDocumentInput'].forEach(id => $('#' + id).addEventListener('change', e => { prepareAttachment(e.target.files[0]); e.target.value = ''; }));
 $('#removePhoto').addEventListener('click', () => { pendingPhoto = null; pendingAttachment = null; renderPhotoPreview(); });
 $('#taskTimeMode').addEventListener('change', updateTimeMode);
-$('#updateButton').addEventListener('click', async () => { renderUpdateCenter(); $('#updateDialog').showModal(); await checkForAppUpdate(false); }); $('#closeUpdate').addEventListener('click', () => $('#updateDialog').close()); $('#applyUpdateButton').addEventListener('click', applyAppUpdate);
+$('#updateButton').addEventListener('click', async () => { renderUpdateCenter(); $('#updateDialog').showModal(); await checkForAppUpdate(false); }); $('#closeUpdate').addEventListener('click', () => $('#updateDialog').close()); $('#applyUpdateButton').addEventListener('click', () => applyAppUpdate(false));
 $('#promptApplyUpdate').addEventListener('click', applyPromptedUpdate);
 $('#openNotificationSettings').addEventListener('click', openNotificationDialog); $('#closeNotificationSettings').addEventListener('click', () => $('#notificationDialog').close()); $('#notificationForm').addEventListener('submit', saveNotificationSettings); $('#testNotification').addEventListener('click', testNotification);
 $('#reminderAlertDismiss').addEventListener('click', hideReminderAlert); $('#reminderAlertOpen').addEventListener('click', () => openNotificationTask());
@@ -1197,8 +1247,9 @@ $('#periodPrev').addEventListener('click', () => movePeriod(-1)); $('#periodNext
 $$('[data-view]').forEach(b => b.addEventListener('click', () => { if (b.dataset.view === 'settings') { toast('Все данные, фото и планы хранятся только на этом устройстве'); return; } currentView = b.dataset.view; if (currentView === 'today') selectedDate = todayKey; syncNav(); render(); }));
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; $('#installButton').hidden = false; });
 $('#installButton').addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('#installButton').hidden = true; });
+showUpdatedNoticeIfNeeded();
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=51'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
+  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=52'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
   navigator.serviceWorker.addEventListener('message', event => {
     if (event.data?.type !== 'DAY_PUSH') return;
     showReminderAlert(event.data.taskId || '', event.data.title || 'Новое уведомление', event.data.body || '');

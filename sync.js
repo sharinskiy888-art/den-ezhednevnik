@@ -19,7 +19,10 @@
     if (!response.ok) {
       let message = `Ошибка облака: ${response.status}`;
       try { const body = await response.json(); message = body.msg || body.message || body.error_description || message; } catch {}
-      throw new Error(message);
+      const error = new Error(message);
+      error.status = response.status;
+      error.retryAfter = Number(response.headers.get('retry-after') || 0);
+      throw error;
     }
     if (response.status === 204 || response.headers.get('content-length') === '0') return null;
     const text = await response.text(); return text ? JSON.parse(text) : null;
