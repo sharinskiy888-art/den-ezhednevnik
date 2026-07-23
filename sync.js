@@ -49,22 +49,28 @@
   async function consumeRecoveryFromUrl() {
     const hash = new URLSearchParams(location.hash.replace(/^#/, '')); const query = new URLSearchParams(location.search);
     const error = hash.get('error_description') || query.get('error_description') || hash.get('error') || query.get('error');
-    if (error) throw new Error(error.replace(/\+/g, ' '));
     const type = hash.get('type') || query.get('type'); const accessToken = hash.get('access_token') || query.get('access_token');
     const recoveryIntent = type === 'recovery' || query.get('recovery') === '1';
     const signupIntent = type === 'signup' && !!accessToken;
-    if (signupIntent) {
+    if (!error && !recoveryIntent && !signupIntent) return false;
+    try {
+      if (error) throw new Error(error.replace(/\+/g, ' '));
+      if (signupIntent) {
+        const session = { access_token: accessToken, refresh_token: hash.get('refresh_token') || query.get('refresh_token') || '', token_type: hash.get('token_type') || query.get('token_type') || 'bearer', expires_at: Math.floor(Date.now() / 1000) + Number(hash.get('expires_in') || query.get('expires_in') || 3600), user: null };
+        const account = await request('/auth/v1/user', { headers: { Authorization: `Bearer ${accessToken}` } }, false);
+        session.user = account; setSession(session);
+        return 'signup';
+      }
+      if (!accessToken) throw new Error('Ссылка не содержит кода восстановления. Запросите новое письмо.');
       const session = { access_token: accessToken, refresh_token: hash.get('refresh_token') || query.get('refresh_token') || '', token_type: hash.get('token_type') || query.get('token_type') || 'bearer', expires_at: Math.floor(Date.now() / 1000) + Number(hash.get('expires_in') || query.get('expires_in') || 3600), user: null };
-      const account = await request('/auth/v1/user', { headers: { Authorization: `Bearer ${accessToken}` } }, false);
-      session.user = account; setSession(session);
-      history.replaceState(null, '', location.pathname);
-      return 'signup';
+      setSession(session);
+      history.replaceState(null, '', `${location.pathname}?recovery=1`);
+      return 'recovery';
+    } finally {
+      // Always clear one-time auth params from the URL — success or failure — so a stale/expired
+      // link saved as a home-screen shortcut can't keep re-triggering (and re-failing) on every launch.
+      if (location.pathname && !location.search.includes('recovery=1')) history.replaceState(null, '', location.pathname);
     }
-    if (!recoveryIntent) return false;
-    if (!accessToken) throw new Error('Ссылка не содержит кода восстановления. Запросите новое письмо.');
-    const session = { access_token: accessToken, refresh_token: hash.get('refresh_token') || query.get('refresh_token') || '', token_type: hash.get('token_type') || query.get('token_type') || 'bearer', expires_at: Math.floor(Date.now() / 1000) + Number(hash.get('expires_in') || query.get('expires_in') || 3600), user: null };
-    setSession(session);
-    history.replaceState(null, '', `${location.pathname}?recovery=1`); return 'recovery';
   }
   async function updatePassword(password) {
     const account = await request('/auth/v1/user', { method: 'PUT', body: JSON.stringify({ password }) });

@@ -45,6 +45,8 @@ h1 { margin: 0; font-size: clamp(29px, 4vw, 42px); letter-spacing: -.035em; }.su
 .focus-card, .stat-card { background: white; border-radius: 22px; box-shadow: var(--shadow); }
 .focus-card { min-height: 145px; padding: 27px 29px; overflow: hidden; display: flex; justify-content: space-between; align-items: center; background: linear-gradient(135deg,#fff 50%,#f0edff); }
 .focus-card.has-task { cursor: pointer; }
+.focus-card > div { transition: opacity .32s ease; }
+.focus-card.focus-fade > div { opacity: .15; }
 .focus-card h2 { margin: 0 0 8px; font-size: 20px; }.focus-card p { margin: 0; color: var(--muted); font-size: 13px; }.focus-illustration { width: 83px; height: 83px; border-radius: 30px; display:grid; place-items:center; color:white; font-size:34px; transform: rotate(10deg); background: linear-gradient(145deg,#8e81ff,#5d4bf3); box-shadow: 0 16px 30px rgba(109,93,252,.28); }
 .stat-card { padding: 24px; display:flex; align-items:center; gap: 15px; }.stat-icon { width: 43px; height: 43px; display:grid; place-items:center; border-radius:14px; font-weight:900; }.stat-icon.violet { background:var(--violet-soft); color:var(--violet); }.stat-icon.coral { background:#fff0ec; color:var(--coral); }
 .stat-card strong,.stat-card small { display:block; }.stat-card strong { font-size:24px; }.stat-card small { color:var(--muted); font-size:12px; }

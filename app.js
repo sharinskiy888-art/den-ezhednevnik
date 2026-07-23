@@ -8,7 +8,7 @@ const PIN_KEY = 'day-planner-pin-v1';
 const PIN_UNLOCKED_AT_KEY = 'day-planner-pin-unlocked-at-v1';
 const PIN_RELOCK_MS = 30 * 60 * 1000;
 const NOTIFICATION_KEY = 'day-planner-notifications-v1';
-const APP_VERSION = '57';
+const APP_VERSION = '58';
 const UPDATE_SEEN_KEY = 'day-planner-update-seen-v1';
 const UPDATE_APPLIED_KEY = 'day-planner-update-applied-v1';
 const $ = (selector) => document.querySelector(selector);
@@ -292,6 +292,11 @@ function renderFocusCard(day) {
   focusTaskIds = urgent.map(t => t.id);
   clearInterval(focusRotateTimer);
   const card = $('#focusCard');
+  const applyFade = () => {
+    card.classList.add('focus-fade');
+    setTimeout(() => card.classList.remove('focus-fade'), 320);
+  };
+  applyFade();
   if (urgent.length) {
     if (focusIndex >= urgent.length) focusIndex = 0;
     const focus = urgent[focusIndex];
@@ -1321,7 +1326,7 @@ window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); instal
 $('#installButton').addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('#installButton').hidden = true; });
 showUpdatedNoticeIfNeeded();
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=57'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
+  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=58'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
   navigator.serviceWorker.addEventListener('message', event => {
     if (event.data?.type !== 'DAY_PUSH') return;
     showReminderAlert(event.data.taskId || '', event.data.title || 'Новое уведомление', event.data.body || '');
@@ -1350,7 +1355,8 @@ async function initializeAccount() {
       setSyncStatus('connected', 'Ссылка подтверждена', 'Теперь задайте новый пароль.'); return;
     }
   } catch (error) {
-    await window.DaySync?.signOut?.(); refreshSyncUi(); const email = localStorage.getItem('day-password-recovery-email') || ''; $('#syncEmail').value = email; $('#syncRecoveryEmail').value = email; $('#syncAuthForm').hidden = true; $('#syncRecoveryCodeForm').hidden = false; $('#syncDialog').showModal();
+    if (!window.DaySync?.user()) { await window.DaySync?.signOut?.(); }
+    refreshSyncUi(); const email = localStorage.getItem('day-password-recovery-email') || ''; $('#syncEmail').value = email; $('#syncRecoveryEmail').value = email; $('#syncAuthForm').hidden = true; $('#syncRecoveryCodeForm').hidden = false; $('#syncDialog').showModal();
     setSyncStatus('error', 'Старая ссылка недействительна', 'Вернитесь ко входу и запросите новое письмо. Открывайте только самое новое письмо.'); return;
   }
   refreshSyncUi();
