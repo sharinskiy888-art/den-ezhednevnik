@@ -7,7 +7,7 @@
   <meta name="description" content="Простой ежедневник, который работает офлайн на телефоне и Windows.">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=55">
+  <link rel="stylesheet" href="styles.css?v=57">
   <title>День — ежедневник</title>
   <script>
     (() => {
@@ -74,7 +74,7 @@
       <section class="calendar-overview" id="calendarOverview" hidden></section>
 
       <section class="overview" aria-label="Сводка">
-        <article class="focus-card">
+        <article class="focus-card" id="focusCard">
           <div>
             <span class="card-label">Фокус дня</span>
             <h2 id="focusTitle">Добавьте первую задачу</h2>
@@ -220,12 +220,18 @@
         <select id="taskRepeat"><option value="none">Не повторять</option><option value="daily">Каждый день</option><option value="weekdays">По будням</option><option value="weekly">Каждую неделю</option><option value="monthly">Каждый месяц</option></select>
       </label>
       <label>Напомнить<input type="datetime-local" id="taskReminder"></label>
-      <label>Подзадачи
-        <span class="voice-field voice-field-textarea"><textarea id="taskSubtasks" rows="3" maxlength="600" placeholder="Каждый пункт с новой строки"></textarea><button type="button" class="field-voice-button" id="voiceSubtasksButton" aria-label="Продиктовать подзадачу">🎙</button></span>
-      </label>
-      <label>Заметка
-        <span class="voice-field voice-field-textarea"><textarea id="taskNote" rows="3" maxlength="600" placeholder="Необязательные детали"></textarea><button type="button" class="field-voice-button" id="voiceNoteButton" aria-label="Продиктовать заметку">🎙</button></span>
-      </label>
+      <fieldset class="notes-subtasks-field">
+        <legend>Подзадачи и заметка</legend>
+        <label class="sub-field subtasks-sub-field">
+          <span class="sub-field-title">☑ Подзадачи <small>— чек-лист внутри задачи, каждый пункт с новой строки</small></span>
+          <span class="voice-field voice-field-textarea"><textarea id="taskSubtasks" rows="3" maxlength="600" placeholder="Например:&#10;Купить материалы&#10;Позвонить клиенту"></textarea><button type="button" class="field-voice-button" id="voiceSubtasksButton" aria-label="Продиктовать подзадачу">🎙</button></span>
+        </label>
+        <div class="sub-field-divider" aria-hidden="true"></div>
+        <label class="sub-field note-sub-field">
+          <span class="sub-field-title">📝 Заметка <small>— просто текст, не чек-лист</small></span>
+          <span class="voice-field voice-field-textarea"><textarea id="taskNote" rows="3" maxlength="600" placeholder="Необязательные детали, комментарии, адрес и т.п."></textarea><button type="button" class="field-voice-button" id="voiceNoteButton" aria-label="Продиктовать заметку">🎙</button></span>
+        </label>
+      </fieldset>
       <fieldset class="attachment-field">
         <legend>Вложение</legend>
         <div class="attachment-actions">
@@ -441,8 +447,8 @@
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastAction" hidden></button></div>
-  <script src="sync-config.js?v=55"></script>
-  <script src="sync.js?v=55"></script>
-  <script src="app.js?v=55"></script>
+  <script src="sync-config.js?v=57"></script>
+  <script src="sync.js?v=57"></script>
+  <script src="app.js?v=57"></script>
 </body>
 </html>

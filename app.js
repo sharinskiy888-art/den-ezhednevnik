@@ -8,7 +8,7 @@ const PIN_KEY = 'day-planner-pin-v1';
 const PIN_UNLOCKED_AT_KEY = 'day-planner-pin-unlocked-at-v1';
 const PIN_RELOCK_MS = 30 * 60 * 1000;
 const NOTIFICATION_KEY = 'day-planner-notifications-v1';
-const APP_VERSION = '54';
+const APP_VERSION = '57';
 const UPDATE_SEEN_KEY = 'day-planner-update-seen-v1';
 const UPDATE_APPLIED_KEY = 'day-planner-update-applied-v1';
 const $ = (selector) => document.querySelector(selector);
@@ -61,6 +61,9 @@ let appHiddenAt = 0;
 let latestAppVersion = APP_VERSION;
 let latestUpdateNotes = ['Центр обновлений и ручная установка новой версии.'];
 let updateInProgress = false;
+let focusIndex = 0;
+let focusTaskIds = [];
+let focusRotateTimer = null;
 let signUpBusy = false;
 let signUpCooldownUntil = 0;
 let sharedTasks = [];
@@ -277,11 +280,33 @@ function renderStats() {
   const percent = day.length ? Math.round(done / day.length * 100) : 0;
   $('#doneCount').textContent = done; $('#plannedCount').textContent = planned; $('#progressPercent').textContent = `${percent}%`;
   $('#progressRing').style.setProperty('--p', percent); $('#progressCaption').textContent = percent === 100 ? 'Отличный день!' : percent > 0 ? 'Так держать' : 'Начните с малого';
-  const focus = day.find(t => !t.completed && t.priority === 'high') || day.find(t => !t.completed);
-  $('#focusTitle').textContent = focus ? focus.title : 'Все дела завершены';
-  $('#focusMeta').textContent = focus ? (focus.time ? `В ${focus.time}` : focus.autoCarry ? 'Переносится до выполнения' : 'В удобное время') : 'Можно спокойно отдохнуть';
+  renderFocusCard(day);
   const periodList = visibleTasks(); const periodDone = periodList.filter(t => t.completed).length;
   $('#taskSummary').textContent = periodList.length ? `${periodDone} из ${periodList.length} выполнено` : 'Пока всё свободно';
+}
+
+function renderFocusCard(day) {
+  const urgent = day.filter(t => !t.completed && t.priority === 'high');
+  const ids = urgent.map(t => t.id).join(',');
+  if (ids !== focusTaskIds.join(',')) focusIndex = 0;
+  focusTaskIds = urgent.map(t => t.id);
+  clearInterval(focusRotateTimer);
+  const card = $('#focusCard');
+  if (urgent.length) {
+    if (focusIndex >= urgent.length) focusIndex = 0;
+    const focus = urgent[focusIndex];
+    $('#focusTitle').textContent = focus.title;
+    $('#focusMeta').textContent = focus.time ? `В ${focus.time}` : focus.autoCarry ? 'Переносится до выполнения' : 'В удобное время';
+    $('#focusIllustration').textContent = urgent.length > 1 ? `${focusIndex + 1}/${urgent.length}` : '★';
+    card.dataset.focusTask = focus.id; card.classList.toggle('has-task', true);
+    if (urgent.length > 1) focusRotateTimer = setInterval(() => { focusIndex = (focusIndex + 1) % urgent.length; renderFocusCard(tasks.filter(t => t.date === selectedDate)); }, 5000);
+  } else {
+    const hasOpen = day.some(t => !t.completed);
+    $('#focusTitle').textContent = hasOpen ? 'Срочных дел нет' : 'Все дела завершены';
+    $('#focusMeta').textContent = hasOpen ? 'Важные задачи не отмечены — остальные дела ждут своей очереди' : 'Можно спокойно отдохнуть';
+    $('#focusIllustration').textContent = hasOpen ? '—' : '✓';
+    delete card.dataset.focusTask; card.classList.toggle('has-task', false);
+  }
 }
 
 function renderHeader() {
@@ -982,6 +1007,8 @@ function showUpdatePromptIfNeeded() {
   $('#updatePromptText').textContent = `Версия ${latestAppVersion} готова к установке`;
   $('#promptApplyUpdate').hidden = false;
   $('#updatePrompt').hidden = false;
+  clearTimeout(showUpdatePromptIfNeeded.timer);
+  showUpdatePromptIfNeeded.timer = setTimeout(() => { $('#updatePrompt').hidden = true; }, 10000);
 }
 function showUpdatedNoticeIfNeeded() {
   const applied = localStorage.getItem(UPDATE_APPLIED_KEY);
@@ -1264,6 +1291,7 @@ $('#removePhoto').addEventListener('click', () => { pendingPhoto = null; pending
 $('#taskTimeMode').addEventListener('change', updateTimeMode);
 $('#updateButton').addEventListener('click', async () => { renderUpdateCenter(); $('#updateDialog').showModal(); await checkForAppUpdate(false); }); $('#closeUpdate').addEventListener('click', () => $('#updateDialog').close()); $('#applyUpdateButton').addEventListener('click', () => applyAppUpdate(false));
 $('#promptApplyUpdate').addEventListener('click', applyPromptedUpdate);
+$('#focusCard').addEventListener('click', () => { const id = $('#focusCard').dataset.focusTask; if (id) openDialog(id); });
 $('#openNotificationSettings').addEventListener('click', openNotificationDialog); $('#closeNotificationSettings').addEventListener('click', () => $('#notificationDialog').close()); $('#notificationForm').addEventListener('submit', saveNotificationSettings); $('#testNotification').addEventListener('click', testNotification);
 $('#reminderAlertDismiss').addEventListener('click', hideReminderAlert); $('#reminderAlertOpen').addEventListener('click', () => openNotificationTask());
 $('#openFeedback').addEventListener('click', () => { $('#updateDialog').close(); resetFeedbackForm(); $('#feedbackDialog').showModal(); }); $('#closeFeedback').addEventListener('click', () => $('#feedbackDialog').close()); bindHoldToTalk('feedbackVoiceButton', () => startVoiceForField('feedbackText', 'feedbackVoiceButton', { prompt: 'Слушаю описание проблемы', success: 'Текст обратной связи добавлен' })); $('#chooseFeedbackPhoto').addEventListener('click', () => $('#feedbackPhotoInput').click()); $('#feedbackPhotoInput').addEventListener('change', event => { chooseFeedbackPhoto(event.target.files[0]); event.target.value = ''; }); $('#removeFeedbackPhoto').addEventListener('click', () => { feedbackPhoto = null; $('#feedbackFile').hidden = true; $('#feedbackFileName').textContent = ''; }); $('#feedbackForm').addEventListener('submit', submitFeedback);
@@ -1293,7 +1321,7 @@ window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); instal
 $('#installButton').addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('#installButton').hidden = true; });
 showUpdatedNoticeIfNeeded();
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=54'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
+  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=57'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
   navigator.serviceWorker.addEventListener('message', event => {
     if (event.data?.type !== 'DAY_PUSH') return;
     showReminderAlert(event.data.taskId || '', event.data.title || 'Новое уведомление', event.data.body || '');
