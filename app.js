@@ -8,7 +8,7 @@ const PIN_KEY = 'day-planner-pin-v1';
 const PIN_UNLOCKED_AT_KEY = 'day-planner-pin-unlocked-at-v1';
 const PIN_RELOCK_MS = 30 * 60 * 1000;
 const NOTIFICATION_KEY = 'day-planner-notifications-v1';
-const APP_VERSION = '60';
+const APP_VERSION = '63';
 const UPDATE_SEEN_KEY = 'day-planner-update-seen-v1';
 const UPDATE_APPLIED_KEY = 'day-planner-update-applied-v1';
 const $ = (selector) => document.querySelector(selector);
@@ -298,24 +298,28 @@ function renderFocusCard(day) {
   paintFocusCard(urgent, day);
 }
 function paintFocusCard(urgentParam, dayParam) {
-  const day = dayParam || tasks.filter(t => t.date === selectedDate);
-  const urgent = urgentParam || day.filter(t => !t.completed && t.priority === 'high');
   const card = $('#focusCard');
-  card.classList.add('focus-fade'); setTimeout(() => card.classList.remove('focus-fade'), 320);
-  if (urgent.length) {
-    if (focusIndex >= urgent.length) focusIndex = 0;
-    const focus = urgent[focusIndex];
-    $('#focusTitle').textContent = focus.title;
-    $('#focusMeta').textContent = focus.time ? `В ${focus.time}` : focus.autoCarry ? 'Переносится до выполнения' : 'В удобное время';
-    $('#focusIllustration').textContent = urgent.length > 1 ? `${focusIndex + 1}/${urgent.length}` : '★';
-    card.dataset.focusTask = focus.id; card.classList.toggle('has-task', true);
-  } else {
-    const hasOpen = day.some(t => !t.completed);
-    $('#focusTitle').textContent = hasOpen ? 'Срочных дел нет' : 'Все дела завершены';
-    $('#focusMeta').textContent = hasOpen ? 'Важные задачи не отмечены — остальные дела ждут своей очереди' : 'Можно спокойно отдохнуть';
-    $('#focusIllustration').textContent = hasOpen ? '—' : '✓';
-    delete card.dataset.focusTask; card.classList.toggle('has-task', false);
-  }
+  const apply = () => {
+    const day = dayParam || tasks.filter(t => t.date === selectedDate);
+    const urgent = urgentParam || day.filter(t => !t.completed && t.priority === 'high');
+    if (urgent.length) {
+      if (focusIndex >= urgent.length) focusIndex = 0;
+      const focus = urgent[focusIndex];
+      $('#focusTitle').textContent = focus.title;
+      $('#focusMeta').textContent = focus.time ? `В ${focus.time}` : focus.autoCarry ? 'Переносится до выполнения' : 'В удобное время';
+      $('#focusIllustration').textContent = urgent.length > 1 ? `${focusIndex + 1}/${urgent.length}` : '★';
+      card.dataset.focusTask = focus.id; card.classList.toggle('has-task', true);
+    } else {
+      const hasOpen = day.some(t => !t.completed);
+      $('#focusTitle').textContent = hasOpen ? 'Срочных дел нет' : 'Все дела завершены';
+      $('#focusMeta').textContent = hasOpen ? 'Важные задачи не отмечены — остальные дела ждут своей очереди' : 'Можно спокойно отдохнуть';
+      $('#focusIllustration').textContent = hasOpen ? '—' : '✓';
+      delete card.dataset.focusTask; card.classList.toggle('has-task', false);
+    }
+  };
+  clearTimeout(paintFocusCard.timer);
+  card.classList.add('focus-fade');
+  paintFocusCard.timer = setTimeout(() => { apply(); card.classList.remove('focus-fade'); }, 260);
 }
 
 function renderHeader() {
@@ -1330,7 +1334,7 @@ window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); instal
 $('#installButton').addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('#installButton').hidden = true; });
 showUpdatedNoticeIfNeeded();
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=60'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
+  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=63'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
   navigator.serviceWorker.addEventListener('message', event => {
     if (event.data?.type !== 'DAY_PUSH') return;
     showReminderAlert(event.data.taskId || '', event.data.title || 'Новое уведомление', event.data.body || '');
