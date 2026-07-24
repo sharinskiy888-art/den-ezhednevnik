@@ -53,6 +53,12 @@
     const recoveryIntent = type === 'recovery' || query.get('recovery') === '1';
     const signupIntent = type === 'signup' && !!accessToken;
     if (!error && !recoveryIntent && !signupIntent) return false;
+    // A home-screen shortcut can permanently re-launch at the exact URL it was created from —
+    // including one-time tokens in the hash/query. If we already tried (and failed on) this
+    // exact link, don't attempt it again or nag the user every single time the app opens.
+    const signature = `${hash.toString()}|${query.toString()}`;
+    const HANDLED_KEY = 'day-auth-link-handled';
+    if (localStorage.getItem(HANDLED_KEY) === signature) return false;
     try {
       if (error) throw new Error(error.replace(/\+/g, ' '));
       if (signupIntent) {
@@ -66,6 +72,8 @@
       setSession(session);
       history.replaceState(null, '', `${location.pathname}?recovery=1`);
       return 'recovery';
+    } catch (err) {
+      localStorage.setItem(HANDLED_KEY, signature); throw err;
     } finally {
       // Always clear one-time auth params from the URL — success or failure — so a stale/expired
       // link saved as a home-screen shortcut can't keep re-triggering (and re-failing) on every launch.

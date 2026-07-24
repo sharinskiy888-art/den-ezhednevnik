@@ -8,7 +8,7 @@ const PIN_KEY = 'day-planner-pin-v1';
 const PIN_UNLOCKED_AT_KEY = 'day-planner-pin-unlocked-at-v1';
 const PIN_RELOCK_MS = 30 * 60 * 1000;
 const NOTIFICATION_KEY = 'day-planner-notifications-v1';
-const APP_VERSION = '58';
+const APP_VERSION = '60';
 const UPDATE_SEEN_KEY = 'day-planner-update-seen-v1';
 const UPDATE_APPLIED_KEY = 'day-planner-update-applied-v1';
 const $ = (selector) => document.querySelector(selector);
@@ -288,15 +288,20 @@ function renderStats() {
 function renderFocusCard(day) {
   const urgent = day.filter(t => !t.completed && t.priority === 'high');
   const ids = urgent.map(t => t.id).join(',');
-  if (ids !== focusTaskIds.join(',')) focusIndex = 0;
+  const listChanged = ids !== focusTaskIds.join(',');
   focusTaskIds = urgent.map(t => t.id);
-  clearInterval(focusRotateTimer);
+  if (listChanged) {
+    if (focusIndex >= urgent.length) focusIndex = 0;
+    clearInterval(focusRotateTimer);
+    if (urgent.length > 1) focusRotateTimer = setInterval(() => { focusIndex = (focusIndex + 1) % focusTaskIds.length; paintFocusCard(); }, 5000);
+  }
+  paintFocusCard(urgent, day);
+}
+function paintFocusCard(urgentParam, dayParam) {
+  const day = dayParam || tasks.filter(t => t.date === selectedDate);
+  const urgent = urgentParam || day.filter(t => !t.completed && t.priority === 'high');
   const card = $('#focusCard');
-  const applyFade = () => {
-    card.classList.add('focus-fade');
-    setTimeout(() => card.classList.remove('focus-fade'), 320);
-  };
-  applyFade();
+  card.classList.add('focus-fade'); setTimeout(() => card.classList.remove('focus-fade'), 320);
   if (urgent.length) {
     if (focusIndex >= urgent.length) focusIndex = 0;
     const focus = urgent[focusIndex];
@@ -304,7 +309,6 @@ function renderFocusCard(day) {
     $('#focusMeta').textContent = focus.time ? `В ${focus.time}` : focus.autoCarry ? 'Переносится до выполнения' : 'В удобное время';
     $('#focusIllustration').textContent = urgent.length > 1 ? `${focusIndex + 1}/${urgent.length}` : '★';
     card.dataset.focusTask = focus.id; card.classList.toggle('has-task', true);
-    if (urgent.length > 1) focusRotateTimer = setInterval(() => { focusIndex = (focusIndex + 1) % urgent.length; renderFocusCard(tasks.filter(t => t.date === selectedDate)); }, 5000);
   } else {
     const hasOpen = day.some(t => !t.completed);
     $('#focusTitle').textContent = hasOpen ? 'Срочных дел нет' : 'Все дела завершены';
@@ -1326,7 +1330,7 @@ window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); instal
 $('#installButton').addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('#installButton').hidden = true; });
 showUpdatedNoticeIfNeeded();
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=58'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
+  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=60'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
   navigator.serviceWorker.addEventListener('message', event => {
     if (event.data?.type !== 'DAY_PUSH') return;
     showReminderAlert(event.data.taskId || '', event.data.title || 'Новое уведомление', event.data.body || '');
