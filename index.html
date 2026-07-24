@@ -7,7 +7,7 @@
   <meta name="description" content="Простой ежедневник, который работает офлайн на телефоне и Windows.">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=64">
+  <link rel="stylesheet" href="styles.css?v=67">
   <title>День — ежедневник</title>
   <script>
     (() => {
@@ -22,7 +22,7 @@
   <div class="app-shell">
     <aside class="sidebar" aria-label="Основная навигация">
       <a class="brand" href="#" aria-label="День — главная">
-        <span class="brand-mark">Д</span>
+        <span class="brand-mark">D</span>
         <span>День</span>
       </a>
       <nav class="side-nav">
@@ -49,7 +49,6 @@
           </div>
         </div>
         <div class="top-actions">
-          <button type="button" class="account-entry-button" id="accountEntryButton"><span id="accountEntryText">Войти</span><small>или регистрация</small></button>
           <button type="button" class="icon-button update-button" id="updateButton" title="Обновления" aria-label="Обновления">≡<span class="update-badge" id="updateBadge" hidden></span></button>
           <button class="icon-button" id="installButton" title="Установить приложение" hidden>⇩</button>
         </div>
@@ -326,6 +325,7 @@
       </div>
       <p class="update-hint">Задачи, фотографии и настройки при обновлении не удаляются.</p>
       <div class="menu-tools" aria-label="Дополнительные возможности">
+        <button type="button" class="menu-tool" id="openAccountFromMenu"><span>👤</span><div><strong id="accountMenuTitle">Аккаунт</strong><small id="accountMenuSubtitle">Войти или зарегистрироваться</small></div><b>›</b></button>
         <button type="button" class="menu-tool" id="openNotificationSettings"><span>🔔</span><div><strong>Уведомления</strong><small>Напоминания и сводка дел</small></div><b>›</b></button>
         <button type="button" class="menu-tool" id="openFeedback"><span>✉</span><div><strong>Обратная связь</strong><small>Сообщить о проблеме, приложить фото</small></div><b>›</b></button>
       </div>
@@ -447,8 +447,8 @@
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastAction" hidden></button></div>
-  <script src="sync-config.js?v=64"></script>
-  <script src="sync.js?v=64"></script>
-  <script src="app.js?v=64"></script>
+  <script src="sync-config.js?v=67"></script>
+  <script src="sync.js?v=67"></script>
+  <script src="app.js?v=67"></script>
 </body>
 </html>
