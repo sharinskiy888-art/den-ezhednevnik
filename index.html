@@ -7,7 +7,7 @@
   <meta name="description" content="Простой ежедневник, который работает офлайн на телефоне и Windows.">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=69">
+  <link rel="stylesheet" href="styles.css?v=70">
   <title>День — ежедневник</title>
   <script>
     (() => {
@@ -48,12 +48,17 @@
             <p class="subtitle" id="pageSubtitle">Спокойный план — продуктивный день.</p>
           </div>
         </div>
+        <div class="app-tabs" role="group" aria-label="Раздел приложения">
+          <button type="button" class="app-tab active" id="tabPlanner" aria-pressed="true">Ежедневник</button>
+          <button type="button" class="app-tab" id="tabFinance" aria-pressed="false">Финансы</button>
+        </div>
         <div class="top-actions">
           <button type="button" class="icon-button update-button" id="updateButton" title="Обновления" aria-label="Обновления">≡<span class="update-badge" id="updateBadge" hidden></span></button>
           <button class="icon-button" id="installButton" title="Установить приложение" hidden>⇩</button>
         </div>
       </header>
 
+      <div id="plannerView">
       <section class="period-bar" aria-label="Масштаб планирования">
         <div class="period-switch" role="group" aria-label="Период">
           <button class="period-button active" data-period="day">День</button>
@@ -123,6 +128,51 @@
           <button class="text-button" id="emptyAddButton">+ Добавить задачу</button>
         </div>
       </section>
+      </div>
+
+      <div id="financeView" hidden>
+        <section class="finance-summary" aria-label="Сводка по финансам">
+          <article class="stat-card">
+            <span class="stat-icon green">↓</span>
+            <div><strong id="financeIncomeTotal">0 ₽</strong><small>доход за месяц</small></div>
+          </article>
+          <article class="stat-card">
+            <span class="stat-icon coral">↑</span>
+            <div><strong id="financeExpenseTotal">0 ₽</strong><small>расход за месяц</small></div>
+          </article>
+          <article class="stat-card">
+            <span class="stat-icon violet">=</span>
+            <div><strong id="financeBalanceTotal">0 ₽</strong><small>баланс</small></div>
+          </article>
+        </section>
+
+        <section class="tasks-section">
+          <div class="finance-kind-switch" role="group" aria-label="Тип операции">
+            <button type="button" class="finance-kind-button active" data-kind="expense">Расход</button>
+            <button type="button" class="finance-kind-button" data-kind="income">Доход</button>
+          </div>
+          <form class="finance-capture" id="financeQuickForm">
+            <textarea id="financeQuickInput" rows="1" maxlength="200" placeholder="Например: кофе 250"></textarea>
+            <select id="financeCategory" aria-label="Категория"></select>
+            <button type="submit" class="finance-submit">Добавить</button>
+          </form>
+        </section>
+
+        <section class="tasks-section">
+          <div class="section-heading">
+            <div>
+              <h2>История операций</h2>
+              <p id="financeHistorySummary">Пока записей нет</p>
+            </div>
+          </div>
+          <div class="task-list" id="financeList"></div>
+          <div class="empty-state" id="financeEmptyState" hidden>
+            <div class="empty-icon">₽</div>
+            <h3>Записей пока нет</h3>
+            <p>Добавьте первую операцию текстом выше — например «кофе 250».</p>
+          </div>
+        </section>
+      </div>
     </main>
 
     <button class="fab" id="addButton" aria-label="Добавить задачу"><span>+</span><b>Новая задача</b></button>
@@ -449,8 +499,8 @@
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastAction" hidden></button></div>
-  <script src="sync-config.js?v=69"></script>
-  <script src="sync.js?v=69"></script>
-  <script src="app.js?v=69"></script>
+  <script src="sync-config.js?v=70"></script>
+  <script src="sync.js?v=70"></script>
+  <script src="app.js?v=70"></script>
 </body>
 </html>

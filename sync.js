@@ -93,31 +93,35 @@
     setSession(null);
   }
   function user() { return getSession()?.user || null; }
-  async function removeRemote(ids) {
-    for (const id of ids) await request(`/rest/v1/planner_tasks?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE', headers: { Prefer: 'return=minimal' } });
+  async function removeRemote(table, ids) {
+    for (const id of ids) await request(`/rest/v1/${table}?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE', headers: { Prefer: 'return=minimal' } });
   }
-  async function sync(localTasks, deletedIds = [], localState = null) {
+  async function sync(table, localItems, deletedIds = [], localState = null) {
     const sessionUser = user(); if (!sessionUser) throw new Error('Сначала войдите в облако');
-    if (deletedIds.length) await removeRemote(deletedIds);
-    const remoteRows = await request('/rest/v1/planner_tasks?select=id,payload,updated_at', { method: 'GET' });
+    if (deletedIds.length) await removeRemote(table, deletedIds);
+    const remoteRows = await request(`/rest/v1/${table}?select=id,payload,updated_at`, { method: 'GET' });
     const merged = new Map();
-    localTasks.forEach(task => merged.set(task.id, task));
+    localItems.forEach(item => merged.set(item.id, item));
     let remoteState = null;
     (remoteRows || []).forEach(row => {
       if (row.id === STATE_ID || row.payload?.__type === 'app_state') { remoteState = row.payload; return; }
-      const remoteTask = { ...row.payload, id: row.id, updatedAt: row.payload.updatedAt || row.updated_at };
-      const localTask = merged.get(row.id);
-      if (!localTask || new Date(remoteTask.updatedAt || 0) > new Date(localTask.updatedAt || 0)) merged.set(row.id, remoteTask);
+      const remoteItem = { ...row.payload, id: row.id, updatedAt: row.payload.updatedAt || row.updated_at };
+      const localItem = merged.get(row.id);
+      if (!localItem || new Date(remoteItem.updatedAt || 0) > new Date(localItem.updatedAt || 0)) merged.set(row.id, remoteItem);
     });
     const result = [...merged.values()];
     const localUpdated = new Date(localState?.updatedAt || 0); const remoteUpdated = new Date(remoteState?.updatedAt || 0);
     const appState = remoteState && remoteUpdated > localUpdated ? remoteState : localState ? { __type: 'app_state', ...localState } : remoteState;
     if (result.length || appState) {
-      const rows = result.map(task => ({ user_id: sessionUser.id, id: task.id, payload: task, updated_at: task.updatedAt || new Date(0).toISOString() }));
+      const rows = result.map(item => ({ user_id: sessionUser.id, id: item.id, payload: item, updated_at: item.updatedAt || new Date(0).toISOString() }));
       if (appState) rows.push({ user_id: sessionUser.id, id: STATE_ID, payload: appState, updated_at: appState.updatedAt || new Date(0).toISOString() });
-      await request('/rest/v1/planner_tasks?on_conflict=user_id,id', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify(rows) });
+      await request(`/rest/v1/${table}?on_conflict=user_id,id`, { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify(rows) });
     }
     return { tasks: result, appState };
+  }
+  async function syncExpenses(localExpenses, deletedIds = []) {
+    const { tasks } = await sync('planner_expenses', localExpenses, deletedIds, null);
+    return tasks;
   }
   function sharedTaskFromRow(row) {
     return {
@@ -209,5 +213,5 @@
     await request('/rest/v1/rpc/delete_own_account', { method: 'POST', body: '{}' });
     setSession(null);
   }
-  window.DaySync = { getSession, user, signUp, signIn, signOut, resetPassword, verifyRecoveryCode, consumeRecoveryFromUrl, updatePassword, sync, loadSharedTasks, saveSharedTask, deleteSharedTask, answerSharedInvite, touchPresence, loadSharedPresence, savePushSubscription, deletePushSubscription, deleteAccount };
+  window.DaySync = { getSession, user, signUp, signIn, signOut, resetPassword, verifyRecoveryCode, consumeRecoveryFromUrl, updatePassword, sync, syncExpenses, loadSharedTasks, saveSharedTask, deleteSharedTask, answerSharedInvite, touchPresence, loadSharedPresence, savePushSubscription, deletePushSubscription, deleteAccount };
 })();

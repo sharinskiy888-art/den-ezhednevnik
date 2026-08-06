@@ -8,7 +8,9 @@ const PIN_KEY = 'day-planner-pin-v1';
 const PIN_UNLOCKED_AT_KEY = 'day-planner-pin-unlocked-at-v1';
 const PIN_RELOCK_MS = 30 * 60 * 1000;
 const NOTIFICATION_KEY = 'day-planner-notifications-v1';
-const APP_VERSION = '69';
+const EXPENSES_KEY = 'day-planner-expenses-v1';
+const DELETED_EXPENSES_KEY = 'day-planner-deleted-expenses-v1';
+const APP_VERSION = '70';
 const UPDATE_SEEN_KEY = 'day-planner-update-seen-v1';
 const UPDATE_APPLIED_KEY = 'day-planner-update-applied-v1';
 const $ = (selector) => document.querySelector(selector);
@@ -28,6 +30,8 @@ const stateUpdatedStorageKey = () => `${STATE_UPDATED_KEY}:${accountSuffix()}`;
 const pinStorageKey = () => `${PIN_KEY}:${accountSuffix()}`;
 const pinUnlockedAtStorageKey = () => `${PIN_UNLOCKED_AT_KEY}:${accountSuffix()}`;
 const notificationStorageKey = () => `${NOTIFICATION_KEY}:${accountSuffix()}`;
+const expensesStorageKey = () => `${EXPENSES_KEY}:${accountSuffix()}`;
+const deletedExpensesStorageKey = () => `${DELETED_EXPENSES_KEY}:${accountSuffix()}`;
 
 let tasks = loadTasks();
 let selectedDate = todayKey;
@@ -72,6 +76,10 @@ let currentSharedTab = 'tasks';
 let sharedLoading = false;
 let activeSharedInviteId = '';
 let sharedPresenceBusy = false;
+let expenses = loadExpenses();
+let deletedExpenseIds = loadDeletedExpenseIds();
+let activeTab = 'planner';
+let financeKind = 'expense';
 
 function loadTasks() {
   try {
@@ -90,6 +98,12 @@ function loadTasks() {
 
 function loadDeletedIds() {
   try { return JSON.parse(localStorage.getItem(deletedStorageKey()) || '[]'); } catch { return []; }
+}
+function loadExpenses() {
+  try { return JSON.parse(localStorage.getItem(expensesStorageKey()) || '[]'); } catch { return []; }
+}
+function loadDeletedExpenseIds() {
+  try { return JSON.parse(localStorage.getItem(deletedExpensesStorageKey()) || '[]'); } catch { return []; }
 }
 function loadProfile() {
   try { return { name: '', photo: '', ...JSON.parse(localStorage.getItem(profileStorageKey()) || '{}') }; }
@@ -131,7 +145,7 @@ function greetingText() {
 function taskWord(count) { const n = Math.abs(count) % 100; const n1 = n % 10; return n > 10 && n < 20 ? 'задач' : n1 === 1 ? 'задача' : n1 > 1 && n1 < 5 ? 'задачи' : 'задач'; }
 
 function switchAccountData() {
-  tasks = loadTasks(); deletedIds = loadDeletedIds(); profile = loadProfile(); pendingProfilePhoto = profile.photo || ''; periodPlans = loadPeriodPlans(); appStateUpdatedAt = localStorage.getItem(stateUpdatedStorageKey()) || new Date(0).toISOString(); sharedTasks = []; runAutoCarry(); render(); refreshSyncUi(); renderProfile(); loadSharedTasks(false);
+  tasks = loadTasks(); deletedIds = loadDeletedIds(); profile = loadProfile(); pendingProfilePhoto = profile.photo || ''; periodPlans = loadPeriodPlans(); appStateUpdatedAt = localStorage.getItem(stateUpdatedStorageKey()) || new Date(0).toISOString(); sharedTasks = []; expenses = loadExpenses(); deletedExpenseIds = loadDeletedExpenseIds(); runAutoCarry(); render(); renderFinance(); refreshSyncUi(); renderProfile(); loadSharedTasks(false);
 }
 
 function seedTasks() {
@@ -141,6 +155,11 @@ function seedTasks() {
 function save() {
   try { localStorage.setItem(taskStorageKey(), JSON.stringify(tasks)); if (!suppressSync) queueCloudSync(); return true; }
   catch { toast('Не хватает памяти. Удалите несколько больших вложений.'); return false; }
+}
+
+function saveExpenses() {
+  try { localStorage.setItem(expensesStorageKey(), JSON.stringify(expenses)); if (!suppressSync) queueCloudSync(); return true; }
+  catch { toast('Не хватает памяти для сохранения операций.'); return false; }
 }
 
 function runAutoCarry() {
@@ -156,6 +175,92 @@ function runAutoCarry() {
     }
   });
   if (changed) save();
+}
+
+function expenseWord(count) { const n = Math.abs(count) % 100; const n1 = n % 10; return n > 10 && n < 20 ? 'операций' : n1 === 1 ? 'операция' : n1 > 1 && n1 < 5 ? 'операции' : 'операций'; }
+const EXPENSE_CATEGORIES = [['groceries', 'Продукты'], ['transport', 'Транспорт'], ['utilities', 'ЖКХ'], ['health', 'Здоровье'], ['education', 'Учёба'], ['cafe', 'Кафе'], ['clothes', 'Одежда'], ['travel', 'Путешествия'], ['other', 'Другое']];
+const INCOME_CATEGORIES = [['salary', 'Зарплата'], ['gift', 'Подарок'], ['other', 'Другое']];
+const EXPENSE_CATEGORY_KEYWORDS = {
+  groceries: ['продукт', 'магазин', 'молок', 'хлеб', 'супермаркет'],
+  transport: ['бензин', 'азс', 'такси', 'метро', 'автобус', 'парковк'],
+  utilities: ['жкх', 'электр', 'вода', 'газ', 'интернет', 'связь'],
+  health: ['аптек', 'врач', 'лекарств', 'клиник'],
+  education: ['курс', 'книг', 'учёб', 'школ'],
+  cafe: ['кафе', 'кофе', 'ресторан', 'обед'],
+  clothes: ['одежд', 'обувь'],
+  travel: ['отел', 'билет', 'путешеств', 'самолёт']
+};
+function detectFinanceCategory(text, kind) {
+  if (kind === 'income') return 'other';
+  const lower = text.toLocaleLowerCase('ru');
+  const found = Object.entries(EXPENSE_CATEGORY_KEYWORDS).find(([, words]) => words.some(w => lower.includes(w)));
+  return found ? found[0] : 'other';
+}
+function financeCategoryLabel(kind, id) {
+  const list = kind === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+  return list.find(([categoryId]) => categoryId === id)?.[1] || 'Другое';
+}
+function formatMoney(amount) { return new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }).format(amount); }
+function parseFinanceAmount(text, kind) {
+  const matches = [...text.matchAll(/(\d[\d\s]*(?:[.,]\d{1,2})?)/g)];
+  const raw = matches.at(-1)?.[0] || '';
+  const amount = Number(raw.replace(/\s/g, '').replace(',', '.'));
+  if (!(amount > 0)) return null;
+  const title = text.replace(raw, '').replace(/[-—:₽р.]+$/, '').trim() || (kind === 'income' ? 'Доход' : 'Расход');
+  return { title, amount };
+}
+function populateFinanceCategories() {
+  const list = financeKind === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+  $('#financeCategory').innerHTML = list.map(([id, label]) => `<option value="${id}">${label}</option>`).join('');
+}
+function renderFinance() {
+  populateFinanceCategories();
+  const now = new Date(); const monthKey = `${now.getFullYear()}-${pad(now.getMonth() + 1)}`;
+  const monthly = expenses.filter(e => (e.occurredAt || '').slice(0, 7) === monthKey);
+  const income = monthly.filter(e => e.kind === 'income').reduce((sum, e) => sum + e.amount, 0);
+  const spent = monthly.filter(e => e.kind === 'expense').reduce((sum, e) => sum + e.amount, 0);
+  $('#financeIncomeTotal').textContent = formatMoney(income);
+  $('#financeExpenseTotal').textContent = formatMoney(spent);
+  $('#financeBalanceTotal').textContent = formatMoney(income - spent);
+  const sorted = [...expenses].sort((a, b) => (b.occurredAt || '').localeCompare(a.occurredAt || ''));
+  $('#financeHistorySummary').textContent = expenses.length ? `${expenses.length} ${expenseWord(expenses.length)}` : 'Пока записей нет';
+  $('#financeList').innerHTML = sorted.map(e => `
+    <article class="task finance-row">
+      <div class="finance-row-main">
+        <b>${escapeHtml(e.title)}</b>
+        <small>${financeCategoryLabel(e.kind, e.category)} · ${fromKey((e.occurredAt || '').slice(0, 10) || todayKey).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}</small>
+      </div>
+      <strong class="finance-amount ${e.kind}">${e.kind === 'income' ? '+' : '−'}${formatMoney(e.amount)}</strong>
+      <button type="button" class="finance-delete" data-delete-expense="${e.id}" aria-label="Удалить операцию">×</button>
+    </article>`).join('');
+  $('#financeEmptyState').hidden = !!expenses.length;
+  $('#financeList').hidden = !expenses.length;
+}
+function addFinanceEntry(event) {
+  event.preventDefault();
+  const input = $('#financeQuickInput');
+  const parsed = parseFinanceAmount(input.value.trim(), financeKind);
+  if (!parsed) { toast('Укажите сумму, например «кофе 250»'); return; }
+  const category = $('#financeCategory').value || detectFinanceCategory(input.value, financeKind);
+  const now = new Date().toISOString();
+  expenses.push({ id: crypto.randomUUID(), kind: financeKind, title: parsed.title, amount: parsed.amount, category, occurredAt: now, updatedAt: now });
+  saveExpenses(); renderFinance();
+  input.value = '';
+  toast(financeKind === 'income' ? 'Доход добавлен' : 'Расход добавлен');
+}
+function deleteExpense(id) {
+  expenses = expenses.filter(e => e.id !== id);
+  if (!deletedExpenseIds.includes(id)) deletedExpenseIds.push(id);
+  localStorage.setItem(deletedExpensesStorageKey(), JSON.stringify(deletedExpenseIds));
+  saveExpenses(); renderFinance(); toast('Операция удалена');
+}
+function setActiveTab(tab) {
+  activeTab = tab;
+  $('#tabPlanner').classList.toggle('active', tab === 'planner'); $('#tabPlanner').setAttribute('aria-pressed', String(tab === 'planner'));
+  $('#tabFinance').classList.toggle('active', tab === 'finance'); $('#tabFinance').setAttribute('aria-pressed', String(tab === 'finance'));
+  $('#plannerView').hidden = tab !== 'planner';
+  $('#financeView').hidden = tab !== 'finance';
+  if (tab === 'finance') { if ($('#taskDialog')?.open) closeDialog(); renderFinance(); }
 }
 
 function formatLong(key) { return fromKey(key).toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' }); }
@@ -879,7 +984,7 @@ async function performSync(showMessage = true) {
   syncInFlight = true;
   setSyncStatus('syncing', 'Синхронизация…', 'Обмениваемся изменениями с облаком');
   try {
-    const result = await window.DaySync.sync(tasks, deletedIds, { profile, periodPlans, updatedAt: appStateUpdatedAt });
+    const result = await window.DaySync.sync('planner_tasks', tasks, deletedIds, { profile, periodPlans, updatedAt: appStateUpdatedAt });
     tasks = result.tasks || []; deletedIds = []; localStorage.setItem(deletedStorageKey(), '[]');
     const remoteState = result.appState;
     if (remoteState && new Date(remoteState.updatedAt || 0) > new Date(appStateUpdatedAt || 0)) {
@@ -891,7 +996,9 @@ async function performSync(showMessage = true) {
       localStorage.setItem(planStorageKey(), JSON.stringify(periodPlans));
       localStorage.setItem(stateUpdatedStorageKey(), appStateUpdatedAt);
     }
-    suppressSync = true; save(); suppressSync = false; render(); renderProfile(); await loadSharedTasks(false); await refreshSharedPresence(); await ensurePushSubscription(false);
+    expenses = await window.DaySync.syncExpenses(expenses, deletedExpenseIds);
+    deletedExpenseIds = []; localStorage.setItem(deletedExpensesStorageKey(), '[]');
+    suppressSync = true; save(); saveExpenses(); suppressSync = false; render(); renderFinance(); renderProfile(); await loadSharedTasks(false); await refreshSharedPresence(); await ensurePushSubscription(false);
     if ($('#sharedDialog')?.open) renderSharedDialog();
     setSyncStatus('connected', 'Синхронизировано', `Задач в облаке: ${tasks.length}`);
     if (showMessage) toast('Данные синхронизированы');
@@ -1322,6 +1429,16 @@ $('#closeReminders').addEventListener('click', () => $('#reminderDialog').close(
 function openPlansDialog() { currentPlanningView = 'week'; planningAnchorDate = selectedDate; renderPlanningDialog(); $('#reminderDialog').showModal(); }
 $('#mobilePlansButton').addEventListener('click', openPlansDialog);
 $('#desktopPlansButton').addEventListener('click', openPlansDialog);
+$('#tabPlanner').addEventListener('click', () => setActiveTab('planner'));
+$('#tabFinance').addEventListener('click', () => setActiveTab('finance'));
+$('#financeQuickForm').addEventListener('submit', addFinanceEntry);
+$('#financeQuickInput').addEventListener('input', e => { $('#financeCategory').value = detectFinanceCategory(e.currentTarget.value, financeKind); });
+$('#financeList').addEventListener('click', e => { const button = e.target.closest('[data-delete-expense]'); if (button) deleteExpense(button.dataset.deleteExpense); });
+$$('.finance-kind-button').forEach(button => button.addEventListener('click', () => {
+  financeKind = button.dataset.kind;
+  $$('.finance-kind-button').forEach(b => b.classList.toggle('active', b === button));
+  populateFinanceCategories();
+}));
 $('#mobileSharedButton').addEventListener('click', openSharedDialog); $('#desktopSharedButton').addEventListener('click', openSharedDialog); $('#closeShared').addEventListener('click', () => $('#sharedDialog').close()); $('#sharedAddButton').addEventListener('click', () => { $('#sharedDialog').close(); openDialog(null, 'shared'); });
 $('#sharedInvitePromptAccept').addEventListener('click', () => answerSharedInvitePrompt(true)); $('#sharedInvitePromptDecline').addEventListener('click', () => answerSharedInvitePrompt(false));
 $$('[data-shared-tab]').forEach(button => button.addEventListener('click', () => { currentSharedTab = button.dataset.sharedTab; renderSharedDialog(); }));
@@ -1344,7 +1461,7 @@ window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); instal
 $('#installButton').addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('#installButton').hidden = true; });
 showUpdatedNoticeIfNeeded();
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=69'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
+  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=70'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
   navigator.serviceWorker.addEventListener('message', event => {
     if (event.data?.type !== 'DAY_PUSH') return;
     showReminderAlert(event.data.taskId || '', event.data.title || 'Новое уведомление', event.data.body || '');
