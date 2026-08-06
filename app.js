@@ -8,7 +8,7 @@ const PIN_KEY = 'day-planner-pin-v1';
 const PIN_UNLOCKED_AT_KEY = 'day-planner-pin-unlocked-at-v1';
 const PIN_RELOCK_MS = 30 * 60 * 1000;
 const NOTIFICATION_KEY = 'day-planner-notifications-v1';
-const APP_VERSION = '68';
+const APP_VERSION = '69';
 const UPDATE_SEEN_KEY = 'day-planner-update-seen-v1';
 const UPDATE_APPLIED_KEY = 'day-planner-update-applied-v1';
 const $ = (selector) => document.querySelector(selector);
@@ -384,7 +384,13 @@ function nextRepeatDate(task) {
   if (task.repeat === 'daily') date.setDate(date.getDate() + 1);
   else if (task.repeat === 'weekdays') { do { date.setDate(date.getDate() + 1); } while ([0, 6].includes(date.getDay())); }
   else if (task.repeat === 'weekly') date.setDate(date.getDate() + 7);
-  else if (task.repeat === 'monthly') date.setMonth(date.getMonth() + 1);
+  else if (task.repeat === 'monthly') {
+    const day = date.getDate();
+    date.setDate(1);
+    date.setMonth(date.getMonth() + 1);
+    const lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+    date.setDate(Math.min(day, lastDay));
+  }
   return toKey(date);
 }
 function createNextRepeat(task) {
@@ -447,6 +453,7 @@ function setTaskType(type = 'personal', locked = false) {
   const shared = type === 'shared';
   $('#taskSource').value = shared ? 'shared' : 'personal';
   $('#sharedTaskFields').hidden = !shared;
+  $('#personalOnlyFields').hidden = shared;
   $$('[data-task-type]').forEach(button => { button.classList.toggle('active', button.dataset.taskType === type); button.disabled = locked; });
 }
 function openDialog(id = null, source = 'personal') {
@@ -478,7 +485,8 @@ async function handleSubmit(event) {
   const subtasks = $('#taskSubtasks').value.split(/\r?\n/).map(x => x.trim()).filter(Boolean).map(title => ({ title, done: previousSubtasks.find(s => s.title === title)?.done || false, doneBy: previousSubtasks.find(s => s.title === title)?.doneBy || '', doneAt: previousSubtasks.find(s => s.title === title)?.doneAt || '' }));
   const attachmentChanged = pendingAttachment?.data !== existing?.attachment?.data && pendingAttachment?.data !== existing?.photo;
   const reminder = $('#taskReminder').value;
-  const data = { title: $('#taskTitle').value.trim(), date: $('#taskDate').value, time: $('#taskTimeMode').value === 'exact' ? $('#taskTime').value : '', priority: $('#taskPriority').value, note: $('#taskNote').value.trim(), autoCarry: $('#taskAutoCarry').checked, reminder, reminderUtc: reminder ? new Date(reminder).toISOString() : '', repeat: $('#taskRepeat').value, subtasks, proofNote: $('#taskProofNote').value.trim(), notified: false, photo: pendingPhoto, attachment: pendingAttachment, photoCapturedAt: pendingAttachment && attachmentChanged ? new Date().toISOString() : existing?.photoCapturedAt || '', updatedAt: new Date().toISOString() };
+  const notified = reminder !== (existing?.reminder || '') ? false : (existing?.notified || false);
+  const data = { title: $('#taskTitle').value.trim(), date: $('#taskDate').value, time: $('#taskTimeMode').value === 'exact' ? $('#taskTime').value : '', priority: $('#taskPriority').value, note: $('#taskNote').value.trim(), autoCarry: $('#taskAutoCarry').checked, reminder, reminderUtc: reminder ? new Date(reminder).toISOString() : '', repeat: $('#taskRepeat').value, subtasks, proofNote: $('#taskProofNote').value.trim(), notified, photo: pendingPhoto, attachment: pendingAttachment, photoCapturedAt: pendingAttachment && attachmentChanged ? new Date().toISOString() : existing?.photoCapturedAt || '', updatedAt: new Date().toISOString() };
   if (!data.title) return;
   if (source === 'shared') {
     const account = window.DaySync?.user();
@@ -488,10 +496,11 @@ async function handleSubmit(event) {
     const isOwner = !existing || existing.ownerId === account.id;
     const accepted = isOwner ? (existing?.acceptedEmails || []).filter(email => requestedEmails.includes(email)) : (existing?.acceptedEmails || []);
     const invited = isOwner ? requestedEmails.filter(email => !accepted.includes(email)) : (existing?.invitedEmails || []);
+    const { autoCarry, priority, repeat, reminder: personalReminder, reminderUtc, notified: personalNotified, ...sharedData } = data;
     const sharedTask = {
       ...(existing || {}),
       id: existing?.id || crypto.randomUUID(),
-      ...data,
+      ...sharedData,
       ownerId: existing?.ownerId || account.id,
       ownerEmail: existing?.ownerEmail || account.email?.toLocaleLowerCase(),
       invitedEmails: invited,
@@ -1272,9 +1281,10 @@ async function openSharedDialog() {
 }
 async function toggleSharedSubtask(taskId, index) {
   const task = sharedTasks.find(item => item.id === taskId); if (!task?.subtasks?.[index]) return;
-  const item = task.subtasks[index]; item.done = !item.done; item.doneBy = item.done ? currentAccountEmail() : ''; item.doneAt = item.done ? new Date().toISOString() : '';
+  const item = task.subtasks[index]; const previous = { done: item.done, doneBy: item.doneBy, doneAt: item.doneAt };
+  item.done = !item.done; item.doneBy = item.done ? currentAccountEmail() : ''; item.doneAt = item.done ? new Date().toISOString() : '';
   task.updatedAt = new Date().toISOString();
-  try { await window.DaySync.saveSharedTask(task); renderSharedDialog(); } catch (error) { item.done = !item.done; toast(sharedErrorText(error)); }
+  try { await window.DaySync.saveSharedTask(task); renderSharedDialog(); } catch (error) { Object.assign(item, previous); toast(sharedErrorText(error)); }
 }
 async function repeatSharedInvite(taskId) {
   const task = sharedTasks.find(item => item.id === taskId);
@@ -1334,7 +1344,7 @@ window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); instal
 $('#installButton').addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('#installButton').hidden = true; });
 showUpdatedNoticeIfNeeded();
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=68'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
+  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=69'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
   navigator.serviceWorker.addEventListener('message', event => {
     if (event.data?.type !== 'DAY_PUSH') return;
     showReminderAlert(event.data.taskId || '', event.data.title || 'Новое уведомление', event.data.body || '');

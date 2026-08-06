@@ -7,7 +7,7 @@
   <meta name="description" content="Простой ежедневник, который работает офлайн на телефоне и Windows.">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=68">
+  <link rel="stylesheet" href="styles.css?v=69">
   <title>День — ежедневник</title>
   <script>
     (() => {
@@ -211,14 +211,16 @@
         </label>
       </div>
       <p class="completion-help">Завершите дело галочкой в списке — название автоматически перечеркнётся.</p>
-      <label class="check-label"><input type="checkbox" id="taskAutoCarry"> Автоматически переносить на следующий день, пока задача не выполнена</label>
-      <label>Приоритет
-        <select id="taskPriority"><option value="normal">Обычный</option><option value="high">Высокий</option><option value="low">Низкий</option></select>
-      </label>
-      <label>Повторение
-        <select id="taskRepeat"><option value="none">Не повторять</option><option value="daily">Каждый день</option><option value="weekdays">По будням</option><option value="weekly">Каждую неделю</option><option value="monthly">Каждый месяц</option></select>
-      </label>
-      <label>Напомнить<input type="datetime-local" id="taskReminder"></label>
+      <div id="personalOnlyFields">
+        <label class="check-label"><input type="checkbox" id="taskAutoCarry"> Автоматически переносить на следующий день, пока задача не выполнена</label>
+        <label>Приоритет
+          <select id="taskPriority"><option value="normal">Обычный</option><option value="high">Высокий</option><option value="low">Низкий</option></select>
+        </label>
+        <label>Повторение
+          <select id="taskRepeat"><option value="none">Не повторять</option><option value="daily">Каждый день</option><option value="weekdays">По будням</option><option value="weekly">Каждую неделю</option><option value="monthly">Каждый месяц</option></select>
+        </label>
+        <label>Напомнить<input type="datetime-local" id="taskReminder"></label>
+      </div>
       <fieldset class="notes-subtasks-field">
         <legend>Подзадачи и заметка</legend>
         <label class="sub-field subtasks-sub-field">
@@ -447,8 +449,8 @@
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastAction" hidden></button></div>
-  <script src="sync-config.js?v=68"></script>
-  <script src="sync.js?v=68"></script>
-  <script src="app.js?v=68"></script>
+  <script src="sync-config.js?v=69"></script>
+  <script src="sync.js?v=69"></script>
+  <script src="app.js?v=69"></script>
 </body>
 </html>
