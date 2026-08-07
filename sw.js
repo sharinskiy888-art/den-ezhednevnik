@@ -1,11 +1,11 @@
-const CACHE='day-planner-v75';
-const ASSETS=['./?v=75','index.html?v=75','styles.css?v=75','sync-config.js?v=75','sync.js?v=75','app.js?v=75','reset.html?v=75','version.js?v=75','version.json?v=75','manifest.webmanifest','assets/icon.svg','assets/icon-192.png','assets/icon-512.png'];
+const CACHE='day-planner-v76';
+const ASSETS=['./?v=76','index.html?v=76','styles.css?v=76','sync-config.js?v=76','sync.js?v=76','app.js?v=76','reset.html?v=76','version.js?v=76','version.json?v=76','manifest.webmanifest','assets/icon.svg','assets/icon-192.png','assets/icon-512.png'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',event=>{
   if(event.request.method!=='GET')return;
   if(event.request.mode==='navigate'){
-    event.respondWith(fetch(event.request).then(response=>{const copy=response.clone();caches.open(CACHE).then(cache=>cache.put(event.request,copy));return response;}).catch(()=>caches.match(event.request).then(cached=>cached||caches.match('./?v=75'))));
+    event.respondWith(fetch(event.request).then(response=>{const copy=response.clone();caches.open(CACHE).then(cache=>cache.put(event.request,copy));return response;}).catch(()=>caches.match(event.request).then(cached=>cached||caches.match('./?v=76'))));
     return;
   }
   event.respondWith(fetch(event.request).then(response=>{const copy=response.clone();caches.open(CACHE).then(cache=>cache.put(event.request,copy));return response;}).catch(()=>caches.match(event.request)));

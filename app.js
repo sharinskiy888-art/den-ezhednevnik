@@ -10,7 +10,7 @@ const PIN_RELOCK_MS = 30 * 60 * 1000;
 const NOTIFICATION_KEY = 'day-planner-notifications-v1';
 const EXPENSES_KEY = 'day-planner-expenses-v1';
 const DELETED_EXPENSES_KEY = 'day-planner-deleted-expenses-v1';
-const APP_VERSION = '75';
+const APP_VERSION = '76';
 const UPDATE_SEEN_KEY = 'day-planner-update-seen-v1';
 const UPDATE_APPLIED_KEY = 'day-planner-update-applied-v1';
 const $ = (selector) => document.querySelector(selector);
@@ -47,6 +47,7 @@ let syncTimer = null;
 let syncInFlight = false;
 let activeRecognition = null;
 let activeVoiceButton = null;
+const HAS_SPEECH_RECOGNITION = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
 let profile = loadProfile();
 let pendingProfilePhoto = profile.photo || '';
 let periodPlans = loadPeriodPlans();
@@ -769,7 +770,8 @@ function resetVoiceButton() {
   if (!button) return; button.classList.remove('listening'); button.textContent = '🎙'; button.title = 'Голосовой ввод';
 }
 function voiceFallback(targetId, message) {
-  const target = $('#' + targetId); setTimeout(() => { target?.focus(); toast(message || 'Нажмите микрофон на клавиатуре и продиктуйте текст'); }, 120);
+  const target = $('#' + targetId); target?.focus(); toast(message || 'Нажмите микрофон на клавиатуре и продиктуйте текст', '', null, 5000);
+  setTimeout(() => { target?.focus(); }, 120);
 }
 function applyVoiceText(targetId, text, parseTask) {
   const target = $('#' + targetId); if (!target) return;
@@ -1036,10 +1038,10 @@ function movePeriod(direction) {
   else d.setFullYear(d.getFullYear() + direction);
   selectedDate = toKey(d); render();
 }
-function toast(message, actionLabel = '', action = null) {
+function toast(message, actionLabel = '', action = null, duration = 0) {
   const el = $('#toast'); const button = $('#toastAction'); $('#toastText').textContent = message;
   button.hidden = !actionLabel; button.textContent = actionLabel; button.onclick = action ? () => { action(); el.classList.remove('show'); } : null;
-  el.classList.add('show'); clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.remove('show'), actionLabel ? 5000 : 2400);
+  el.classList.add('show'); clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.remove('show'), duration || (actionLabel ? 5000 : 2400));
 }
 
 function setSyncStatus(status, title, text) {
@@ -1528,6 +1530,7 @@ $('#financeQuickForm').addEventListener('submit', addFinanceEntry);
 $('#financeQuickInput').addEventListener('input', e => { if (!/\r?\n/.test(e.currentTarget.value)) { selectedFinanceCategory = detectFinanceCategory(e.currentTarget.value, financeKind); renderFinanceCategoryGrid(); } });
 $('#financeCategoryGrid').addEventListener('click', e => { const button = e.target.closest('[data-category]'); if (!button) return; selectedFinanceCategory = button.dataset.category; renderFinanceCategoryGrid(); });
 bindHoldToTalk('financeVoiceButton', () => startVoiceForField('financeQuickInput', 'financeVoiceButton', { prompt: 'Слушаю… Назовите покупку и сумму', success: 'Текст добавлен' }));
+if (!HAS_SPEECH_RECOGNITION) $('#financeVoiceHint').textContent = 'Нажмите 🎙 — откроется поле, затем нажмите значок микрофона на клавиатуре и продиктуйте покупку и сумму';
 $('#financeList').addEventListener('click', e => { const button = e.target.closest('[data-delete-expense]'); if (button) deleteExpense(button.dataset.deleteExpense); });
 $$('.finance-kind-button').forEach(button => button.addEventListener('click', () => {
   financeKind = button.dataset.kind;
@@ -1565,7 +1568,7 @@ window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); instal
 $('#installButton').addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('#installButton').hidden = true; });
 showUpdatedNoticeIfNeeded();
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=75'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
+  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=76'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
   navigator.serviceWorker.addEventListener('message', event => {
     if (event.data?.type !== 'DAY_PUSH') return;
     showReminderAlert(event.data.taskId || '', event.data.title || 'Новое уведомление', event.data.body || '');
