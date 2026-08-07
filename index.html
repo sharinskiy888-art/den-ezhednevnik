@@ -7,7 +7,7 @@
   <meta name="description" content="Простой ежедневник, который работает офлайн на телефоне и Windows.">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=71">
+  <link rel="stylesheet" href="styles.css?v=72">
   <title>День — ежедневник</title>
   <script>
     (() => {
@@ -131,14 +131,29 @@
       </div>
 
       <div id="financeView" hidden>
+        <section class="period-bar" aria-label="Период финансов">
+          <div class="period-switch" role="group" aria-label="Период">
+            <button class="period-button" data-finance-period="day">День</button>
+            <button class="period-button" data-finance-period="week">Неделя</button>
+            <button class="period-button active" data-finance-period="month">Месяц</button>
+            <button class="period-button" data-finance-period="year">Год</button>
+          </div>
+          <div class="period-nav">
+            <button id="financePeriodPrev" aria-label="Предыдущий период">‹</button>
+            <button id="financePeriodToday">Сегодня</button>
+            <button id="financePeriodNext" aria-label="Следующий период">›</button>
+          </div>
+        </section>
+        <p class="finance-period-label" id="financePeriodLabel"></p>
+
         <section class="finance-summary" aria-label="Сводка по финансам">
           <article class="stat-card">
             <span class="stat-icon green">↓</span>
-            <div><strong id="financeIncomeTotal">0 ₽</strong><small>доход за месяц</small></div>
+            <div><strong id="financeIncomeTotal">0 ₽</strong><small>доход</small></div>
           </article>
           <article class="stat-card">
             <span class="stat-icon coral">↑</span>
-            <div><strong id="financeExpenseTotal">0 ₽</strong><small>расход за месяц</small></div>
+            <div><strong id="financeExpenseTotal">0 ₽</strong><small>расход</small></div>
           </article>
           <article class="stat-card">
             <span class="stat-icon violet">=</span>
@@ -157,6 +172,17 @@
               <button type="button" class="field-voice-button" id="financeVoiceButton" aria-label="Продиктовать расход">🎙</button>
             </span>
             <div class="finance-category-grid" id="financeCategoryGrid"></div>
+            <div class="finance-photo-actions">
+              <button type="button" class="attachment-button" id="financeCameraButton">📷 Сфотографировать чек</button>
+              <button type="button" class="attachment-button" id="financeGalleryButton">▧ Из галереи</button>
+            </div>
+            <input type="file" id="financeCameraInput" accept="image/*" capture="environment" hidden>
+            <input type="file" id="financeGalleryInput" accept="image/*" hidden>
+            <div class="finance-photo-preview" id="financePhotoPreview" hidden>
+              <img id="financePhotoPreviewImage" alt="Чек">
+              <span>Чек прикреплён к операции</span>
+              <button type="button" id="removeExpensePhoto" aria-label="Удалить фото">×</button>
+            </div>
             <button type="submit" class="finance-submit">Добавить</button>
           </form>
         </section>
@@ -165,14 +191,14 @@
           <div class="section-heading">
             <div>
               <h2>По категориям</h2>
-              <p>Куда уходят деньги в этом месяце</p>
+              <p>Куда уходят деньги за выбранный период</p>
             </div>
           </div>
           <div class="finance-breakdown" id="financeBreakdown"></div>
           <div class="empty-state" id="financeBreakdownEmpty" hidden>
             <div class="empty-icon">◐</div>
             <h3>Пока нечего показать</h3>
-            <p>Разбивка по категориям появится после первой операции в этом месяце.</p>
+            <p>Разбивка по категориям появится после первой операции за этот период.</p>
           </div>
         </section>
 
@@ -517,8 +543,8 @@
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastAction" hidden></button></div>
-  <script src="sync-config.js?v=71"></script>
-  <script src="sync.js?v=71"></script>
-  <script src="app.js?v=71"></script>
+  <script src="sync-config.js?v=72"></script>
+  <script src="sync.js?v=72"></script>
+  <script src="app.js?v=72"></script>
 </body>
 </html>

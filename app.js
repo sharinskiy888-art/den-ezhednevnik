@@ -10,7 +10,7 @@ const PIN_RELOCK_MS = 30 * 60 * 1000;
 const NOTIFICATION_KEY = 'day-planner-notifications-v1';
 const EXPENSES_KEY = 'day-planner-expenses-v1';
 const DELETED_EXPENSES_KEY = 'day-planner-deleted-expenses-v1';
-const APP_VERSION = '71';
+const APP_VERSION = '72';
 const UPDATE_SEEN_KEY = 'day-planner-update-seen-v1';
 const UPDATE_APPLIED_KEY = 'day-planner-update-applied-v1';
 const $ = (selector) => document.querySelector(selector);
@@ -197,6 +197,49 @@ const EXPENSE_CATEGORY_KEYWORDS = {
   travel: ['отел', 'билет', 'путешеств', 'самолёт']
 };
 let selectedFinanceCategory = 'groceries';
+let financePeriod = 'month';
+let financeSelectedDate = todayKey;
+let pendingExpensePhoto = null;
+function financePeriodBounds() {
+  const d = fromKey(financeSelectedDate);
+  if (financePeriod === 'day') return [financeSelectedDate, financeSelectedDate];
+  if (financePeriod === 'week') return weekBounds(financeSelectedDate);
+  if (financePeriod === 'month') return [toKey(new Date(d.getFullYear(), d.getMonth(), 1)), toKey(new Date(d.getFullYear(), d.getMonth() + 1, 0))];
+  return [`${d.getFullYear()}-01-01`, `${d.getFullYear()}-12-31`];
+}
+function financePeriodLabel() {
+  const d = fromKey(financeSelectedDate);
+  if (financePeriod === 'day') return formatLong(financeSelectedDate);
+  if (financePeriod === 'week') return formatWeekRange(financeSelectedDate);
+  if (financePeriod === 'month') { const text = d.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' }); return text.charAt(0).toLocaleUpperCase('ru') + text.slice(1); }
+  return String(d.getFullYear());
+}
+function moveFinancePeriod(direction) {
+  const d = fromKey(financeSelectedDate);
+  if (financePeriod === 'day') d.setDate(d.getDate() + direction);
+  else if (financePeriod === 'week') d.setDate(d.getDate() + direction * 7);
+  else if (financePeriod === 'month') d.setMonth(d.getMonth() + direction);
+  else d.setFullYear(d.getFullYear() + direction);
+  financeSelectedDate = toKey(d); renderFinance();
+}
+async function prepareExpensePhoto(file) {
+  if (!file) return;
+  if (file.size > 4 * 1024 * 1024) { toast('Файл слишком большой. Максимальный размер — 4 МБ'); return; }
+  const url = URL.createObjectURL(file); const image = new Image();
+  image.onload = () => {
+    const max = 1280; const scale = Math.min(1, max / Math.max(image.width, image.height));
+    const canvas = document.createElement('canvas'); canvas.width = Math.round(image.width * scale); canvas.height = Math.round(image.height * scale);
+    canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
+    pendingExpensePhoto = canvas.toDataURL('image/jpeg', .76);
+    URL.revokeObjectURL(url); renderExpensePhotoPreview(); toast('Чек прикреплён');
+  };
+  image.onerror = () => { URL.revokeObjectURL(url); toast('Не удалось прочитать фотографию'); };
+  image.src = url;
+}
+function renderExpensePhotoPreview() {
+  $('#financePhotoPreview').hidden = !pendingExpensePhoto;
+  $('#financePhotoPreviewImage').src = pendingExpensePhoto || '';
+}
 function detectFinanceCategory(text, kind) {
   if (kind === 'income') return 'other';
   const lower = text.toLocaleLowerCase('ru');
@@ -234,13 +277,16 @@ function renderFinanceCategoryGrid() {
       <i>${icon}</i>${escapeHtml(label)}
     </button>`).join('');
 }
+function expensesInPeriod() {
+  const [start, end] = financePeriodBounds();
+  return expenses.filter(e => { const d = (e.occurredAt || '').slice(0, 10); return d >= start && d <= end; });
+}
 function financeCategoryBreakdown() {
-  const now = new Date(); const monthKey = `${now.getFullYear()}-${pad(now.getMonth() + 1)}`;
   const list = financeKind === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
-  const monthly = expenses.filter(e => e.kind === financeKind && (e.occurredAt || '').slice(0, 7) === monthKey);
-  const total = monthly.reduce((sum, e) => sum + e.amount, 0);
+  const periodEntries = expensesInPeriod().filter(e => e.kind === financeKind);
+  const total = periodEntries.reduce((sum, e) => sum + e.amount, 0);
   return list.map(([id, label, icon, color]) => {
-    const amount = monthly.filter(e => e.category === id).reduce((sum, e) => sum + e.amount, 0);
+    const amount = periodEntries.filter(e => e.category === id).reduce((sum, e) => sum + e.amount, 0);
     return { id, label, icon, color, amount, pct: total ? Math.round(amount / total * 100) : 0 };
   }).filter(row => row.amount > 0).sort((a, b) => b.amount - a.amount);
 }
@@ -256,31 +302,32 @@ function renderFinanceBreakdown() {
   $('#financeBreakdown').hidden = !rows.length;
 }
 function renderFinance() {
+  $$('[data-finance-period]').forEach(b => b.classList.toggle('active', b.dataset.financePeriod === financePeriod));
+  $('#financePeriodLabel').textContent = financePeriodLabel();
   renderFinanceCategoryGrid(); renderFinanceBreakdown();
-  const now = new Date(); const monthKey = `${now.getFullYear()}-${pad(now.getMonth() + 1)}`;
-  const monthly = expenses.filter(e => (e.occurredAt || '').slice(0, 7) === monthKey);
-  const income = monthly.filter(e => e.kind === 'income').reduce((sum, e) => sum + e.amount, 0);
-  const spent = monthly.filter(e => e.kind === 'expense').reduce((sum, e) => sum + e.amount, 0);
+  const periodEntries = expensesInPeriod();
+  const income = periodEntries.filter(e => e.kind === 'income').reduce((sum, e) => sum + e.amount, 0);
+  const spent = periodEntries.filter(e => e.kind === 'expense').reduce((sum, e) => sum + e.amount, 0);
   $('#financeIncomeTotal').textContent = formatMoney(income);
   $('#financeExpenseTotal').textContent = formatMoney(spent);
   $('#financeBalanceTotal').textContent = formatMoney(income - spent);
-  const sorted = [...expenses].sort((a, b) => (b.occurredAt || '').localeCompare(a.occurredAt || ''));
-  $('#financeHistorySummary').textContent = expenses.length ? `${expenses.length} ${expenseWord(expenses.length)}` : 'Пока записей нет';
+  const sorted = [...periodEntries].sort((a, b) => (b.occurredAt || '').localeCompare(a.occurredAt || ''));
+  $('#financeHistorySummary').textContent = periodEntries.length ? `${periodEntries.length} ${expenseWord(periodEntries.length)}` : 'Пока записей нет';
   $('#financeList').innerHTML = sorted.map(e => {
     const [, label, icon, color] = financeCategoryMeta(e.kind, e.category);
     return `
     <article class="task finance-row">
       <i class="finance-row-icon" style="background:${color}">${icon}</i>
       <div class="finance-row-main">
-        <b>${escapeHtml(e.title)}</b>
+        <b>${escapeHtml(e.title)}${e.photo ? ` <a class="finance-photo-flag" href="${e.photo}" target="_blank" rel="noopener" aria-label="Открыть фото чека" title="Есть фото чека">📷</a>` : ''}</b>
         <small>${escapeHtml(label)} · ${fromKey((e.occurredAt || '').slice(0, 10) || todayKey).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}</small>
       </div>
       <strong class="finance-amount ${e.kind}">${e.kind === 'income' ? '+' : '−'}${formatMoney(e.amount)}</strong>
       <button type="button" class="finance-delete" data-delete-expense="${e.id}" aria-label="Удалить операцию">×</button>
     </article>`;
   }).join('');
-  $('#financeEmptyState').hidden = !!expenses.length;
-  $('#financeList').hidden = !expenses.length;
+  $('#financeEmptyState').hidden = !!periodEntries.length;
+  $('#financeList').hidden = !periodEntries.length;
 }
 function addFinanceEntry(event) {
   event.preventDefault();
@@ -288,9 +335,9 @@ function addFinanceEntry(event) {
   const rows = parseFinanceLines(input.value, financeKind, selectedFinanceCategory);
   if (!rows.length) { toast('Укажите сумму, например «кофе 250»'); return; }
   const now = new Date().toISOString();
-  rows.forEach(row => expenses.push({ id: crypto.randomUUID(), kind: financeKind, title: row.title, amount: row.amount, category: row.category, occurredAt: now, updatedAt: now }));
+  rows.forEach(row => expenses.push({ id: crypto.randomUUID(), kind: financeKind, title: row.title, amount: row.amount, category: row.category, photo: pendingExpensePhoto, occurredAt: now, updatedAt: now }));
   saveExpenses(); renderFinance();
-  input.value = '';
+  input.value = ''; pendingExpensePhoto = null; renderExpensePhotoPreview();
   toast(rows.length > 1 ? `Добавлено операций: ${rows.length}` : (financeKind === 'income' ? 'Доход добавлен' : 'Расход добавлен'));
 }
 function deleteExpense(id) {
@@ -1487,6 +1534,14 @@ $$('.finance-kind-button').forEach(button => button.addEventListener('click', ()
   $$('.finance-kind-button').forEach(b => b.classList.toggle('active', b === button));
   renderFinanceCategoryGrid(); renderFinanceBreakdown();
 }));
+$$('[data-finance-period]').forEach(button => button.addEventListener('click', () => { financePeriod = button.dataset.financePeriod; renderFinance(); }));
+$('#financePeriodPrev').addEventListener('click', () => moveFinancePeriod(-1));
+$('#financePeriodNext').addEventListener('click', () => moveFinancePeriod(1));
+$('#financePeriodToday').addEventListener('click', () => { financeSelectedDate = todayKey; renderFinance(); });
+$('#financeCameraButton').addEventListener('click', () => $('#financeCameraInput').click());
+$('#financeGalleryButton').addEventListener('click', () => $('#financeGalleryInput').click());
+['financeCameraInput', 'financeGalleryInput'].forEach(id => $('#' + id).addEventListener('change', e => { prepareExpensePhoto(e.target.files[0]); e.target.value = ''; }));
+$('#removeExpensePhoto').addEventListener('click', () => { pendingExpensePhoto = null; renderExpensePhotoPreview(); });
 $('#mobileSharedButton').addEventListener('click', openSharedDialog); $('#desktopSharedButton').addEventListener('click', openSharedDialog); $('#closeShared').addEventListener('click', () => $('#sharedDialog').close()); $('#sharedAddButton').addEventListener('click', () => { $('#sharedDialog').close(); openDialog(null, 'shared'); });
 $('#sharedInvitePromptAccept').addEventListener('click', () => answerSharedInvitePrompt(true)); $('#sharedInvitePromptDecline').addEventListener('click', () => answerSharedInvitePrompt(false));
 $$('[data-shared-tab]').forEach(button => button.addEventListener('click', () => { currentSharedTab = button.dataset.sharedTab; renderSharedDialog(); }));
@@ -1509,7 +1564,7 @@ window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); instal
 $('#installButton').addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('#installButton').hidden = true; });
 showUpdatedNoticeIfNeeded();
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=71'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
+  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=72'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
   navigator.serviceWorker.addEventListener('message', event => {
     if (event.data?.type !== 'DAY_PUSH') return;
     showReminderAlert(event.data.taskId || '', event.data.title || 'Новое уведомление', event.data.body || '');

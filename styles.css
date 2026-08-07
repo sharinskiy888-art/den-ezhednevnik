@@ -189,6 +189,14 @@ dialog { border-radius:12px;box-shadow:0 20px 55px rgba(25,41,57,.22); }.close-b
 .finance-breakdown-row span small { color:var(--muted);font-weight:600;font-size:11px; }
 .finance-breakdown-row b { font-size:13px;font-weight:800;white-space:nowrap; }
 .finance-row-icon { width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-style:normal;font-size:14px;flex-shrink:0; }
+.finance-photo-flag { text-decoration:none;font-size:12px; }
+.finance-period-label { margin:-6px 0 16px;color:var(--muted);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.03em; }
+.finance-photo-actions { display:flex;gap:8px;flex-wrap:wrap; }
+.finance-photo-actions .attachment-button { flex:1 1 160px; }
+.finance-photo-preview { display:flex;align-items:center;gap:10px;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:8px 10px; }
+.finance-photo-preview img { width:40px;height:40px;border-radius:8px;object-fit:cover; }
+.finance-photo-preview span { flex:1;font-size:12px;color:var(--muted);font-weight:600; }
+.finance-photo-preview button { border:0;background:transparent;color:var(--muted);font-size:18px;border-radius:9px;padding:4px 8px; }
 #financeCategory { width:auto;min-width:130px; }
 .finance-row { grid-template-columns:auto 1fr auto auto; }
 .finance-row-main { display:grid;gap:3px;min-width:0; }
