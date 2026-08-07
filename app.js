@@ -10,7 +10,7 @@ const PIN_RELOCK_MS = 30 * 60 * 1000;
 const NOTIFICATION_KEY = 'day-planner-notifications-v1';
 const EXPENSES_KEY = 'day-planner-expenses-v1';
 const DELETED_EXPENSES_KEY = 'day-planner-deleted-expenses-v1';
-const APP_VERSION = '70';
+const APP_VERSION = '71';
 const UPDATE_SEEN_KEY = 'day-planner-update-seen-v1';
 const UPDATE_APPLIED_KEY = 'day-planner-update-applied-v1';
 const $ = (selector) => document.querySelector(selector);
@@ -178,28 +178,36 @@ function runAutoCarry() {
 }
 
 function expenseWord(count) { const n = Math.abs(count) % 100; const n1 = n % 10; return n > 10 && n < 20 ? 'операций' : n1 === 1 ? 'операция' : n1 > 1 && n1 < 5 ? 'операции' : 'операций'; }
-const EXPENSE_CATEGORIES = [['groceries', 'Продукты'], ['transport', 'Транспорт'], ['utilities', 'ЖКХ'], ['health', 'Здоровье'], ['education', 'Учёба'], ['cafe', 'Кафе'], ['clothes', 'Одежда'], ['travel', 'Путешествия'], ['other', 'Другое']];
-const INCOME_CATEGORIES = [['salary', 'Зарплата'], ['gift', 'Подарок'], ['other', 'Другое']];
+const EXPENSE_CATEGORIES = [
+  ['home', 'Дом', '⌂', '#8e6c55'], ['transport', 'Транспорт', '◇', '#4c7185'], ['health', 'Аптека', '+', '#5d8b78'],
+  ['utilities', 'ЖКХ', '▥', '#99704f'], ['groceries', 'Продукты', '◒', '#758c55'], ['clothes', 'Одежда', '♢', '#87658c'],
+  ['education', 'Учёба', '□', '#5f7196'], ['cafe', 'Кафе', '☕', '#ae6b55'], ['travel', 'Путешествия', '✈', '#537f83'],
+  ['other', 'Другое', '•', '#8a8996']
+];
+const INCOME_CATEGORIES = [['salary', 'Зарплата', '₽', '#3f7a5c'], ['gift', 'Подарок', '♥', '#a06b8f'], ['other', 'Другое', '•', '#8a8996']];
 const EXPENSE_CATEGORY_KEYWORDS = {
-  groceries: ['продукт', 'магазин', 'молок', 'хлеб', 'супермаркет'],
-  transport: ['бензин', 'азс', 'такси', 'метро', 'автобус', 'парковк'],
-  utilities: ['жкх', 'электр', 'вода', 'газ', 'интернет', 'связь'],
+  home: ['дом', 'мебел', 'ремонт'],
+  transport: ['бензин', 'азс', 'такси', 'метро', 'автобус', 'парковк', 'авто'],
   health: ['аптек', 'врач', 'лекарств', 'клиник'],
+  utilities: ['жкх', 'электр', 'вода', 'газ', 'интернет', 'связь'],
+  groceries: ['продукт', 'магазин', 'молок', 'хлеб', 'супермаркет'],
+  clothes: ['одежд', 'обувь'],
   education: ['курс', 'книг', 'учёб', 'школ'],
   cafe: ['кафе', 'кофе', 'ресторан', 'обед'],
-  clothes: ['одежд', 'обувь'],
   travel: ['отел', 'билет', 'путешеств', 'самолёт']
 };
+let selectedFinanceCategory = 'groceries';
 function detectFinanceCategory(text, kind) {
   if (kind === 'income') return 'other';
   const lower = text.toLocaleLowerCase('ru');
   const found = Object.entries(EXPENSE_CATEGORY_KEYWORDS).find(([, words]) => words.some(w => lower.includes(w)));
   return found ? found[0] : 'other';
 }
-function financeCategoryLabel(kind, id) {
+function financeCategoryMeta(kind, id) {
   const list = kind === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
-  return list.find(([categoryId]) => categoryId === id)?.[1] || 'Другое';
+  return list.find(([categoryId]) => categoryId === id) || list[list.length - 1];
 }
+function financeCategoryLabel(kind, id) { return financeCategoryMeta(kind, id)[1]; }
 function formatMoney(amount) { return new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }).format(amount); }
 function parseFinanceAmount(text, kind) {
   const matches = [...text.matchAll(/(\d[\d\s]*(?:[.,]\d{1,2})?)/g)];
@@ -209,12 +217,46 @@ function parseFinanceAmount(text, kind) {
   const title = text.replace(raw, '').replace(/[-—:₽р.]+$/, '').trim() || (kind === 'income' ? 'Доход' : 'Расход');
   return { title, amount };
 }
-function populateFinanceCategories() {
+function parseFinanceLines(text, kind, manualCategory) {
+  const isMulti = /\r?\n/.test(text.trim());
+  return text.split(/\r?\n/).map(line => line.trim()).filter(Boolean).map(line => {
+    const parsed = parseFinanceAmount(line, kind);
+    if (!parsed) return null;
+    const category = kind === 'income' ? (manualCategory || 'other') : (isMulti ? detectFinanceCategory(line, kind) : (manualCategory || detectFinanceCategory(line, kind)));
+    return { ...parsed, category };
+  }).filter(Boolean);
+}
+function renderFinanceCategoryGrid() {
   const list = financeKind === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
-  $('#financeCategory').innerHTML = list.map(([id, label]) => `<option value="${id}">${label}</option>`).join('');
+  if (!list.some(([id]) => id === selectedFinanceCategory)) selectedFinanceCategory = list[0][0];
+  $('#financeCategoryGrid').innerHTML = list.map(([id, label, icon, color]) => `
+    <button type="button" class="finance-category-chip${id === selectedFinanceCategory ? ' selected' : ''}" data-category="${id}" style="--cat:${color}">
+      <i>${icon}</i>${escapeHtml(label)}
+    </button>`).join('');
+}
+function financeCategoryBreakdown() {
+  const now = new Date(); const monthKey = `${now.getFullYear()}-${pad(now.getMonth() + 1)}`;
+  const list = financeKind === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+  const monthly = expenses.filter(e => e.kind === financeKind && (e.occurredAt || '').slice(0, 7) === monthKey);
+  const total = monthly.reduce((sum, e) => sum + e.amount, 0);
+  return list.map(([id, label, icon, color]) => {
+    const amount = monthly.filter(e => e.category === id).reduce((sum, e) => sum + e.amount, 0);
+    return { id, label, icon, color, amount, pct: total ? Math.round(amount / total * 100) : 0 };
+  }).filter(row => row.amount > 0).sort((a, b) => b.amount - a.amount);
+}
+function renderFinanceBreakdown() {
+  const rows = financeCategoryBreakdown();
+  $('#financeBreakdown').innerHTML = rows.map(row => `
+    <div class="finance-breakdown-row">
+      <i style="background:${row.color}">${row.icon}</i>
+      <span>${escapeHtml(row.label)}<small>${row.pct}%</small></span>
+      <b>${formatMoney(row.amount)}</b>
+    </div>`).join('');
+  $('#financeBreakdownEmpty').hidden = !!rows.length;
+  $('#financeBreakdown').hidden = !rows.length;
 }
 function renderFinance() {
-  populateFinanceCategories();
+  renderFinanceCategoryGrid(); renderFinanceBreakdown();
   const now = new Date(); const monthKey = `${now.getFullYear()}-${pad(now.getMonth() + 1)}`;
   const monthly = expenses.filter(e => (e.occurredAt || '').slice(0, 7) === monthKey);
   const income = monthly.filter(e => e.kind === 'income').reduce((sum, e) => sum + e.amount, 0);
@@ -224,29 +266,32 @@ function renderFinance() {
   $('#financeBalanceTotal').textContent = formatMoney(income - spent);
   const sorted = [...expenses].sort((a, b) => (b.occurredAt || '').localeCompare(a.occurredAt || ''));
   $('#financeHistorySummary').textContent = expenses.length ? `${expenses.length} ${expenseWord(expenses.length)}` : 'Пока записей нет';
-  $('#financeList').innerHTML = sorted.map(e => `
+  $('#financeList').innerHTML = sorted.map(e => {
+    const [, label, icon, color] = financeCategoryMeta(e.kind, e.category);
+    return `
     <article class="task finance-row">
+      <i class="finance-row-icon" style="background:${color}">${icon}</i>
       <div class="finance-row-main">
         <b>${escapeHtml(e.title)}</b>
-        <small>${financeCategoryLabel(e.kind, e.category)} · ${fromKey((e.occurredAt || '').slice(0, 10) || todayKey).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}</small>
+        <small>${escapeHtml(label)} · ${fromKey((e.occurredAt || '').slice(0, 10) || todayKey).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}</small>
       </div>
       <strong class="finance-amount ${e.kind}">${e.kind === 'income' ? '+' : '−'}${formatMoney(e.amount)}</strong>
       <button type="button" class="finance-delete" data-delete-expense="${e.id}" aria-label="Удалить операцию">×</button>
-    </article>`).join('');
+    </article>`;
+  }).join('');
   $('#financeEmptyState').hidden = !!expenses.length;
   $('#financeList').hidden = !expenses.length;
 }
 function addFinanceEntry(event) {
   event.preventDefault();
   const input = $('#financeQuickInput');
-  const parsed = parseFinanceAmount(input.value.trim(), financeKind);
-  if (!parsed) { toast('Укажите сумму, например «кофе 250»'); return; }
-  const category = $('#financeCategory').value || detectFinanceCategory(input.value, financeKind);
+  const rows = parseFinanceLines(input.value, financeKind, selectedFinanceCategory);
+  if (!rows.length) { toast('Укажите сумму, например «кофе 250»'); return; }
   const now = new Date().toISOString();
-  expenses.push({ id: crypto.randomUUID(), kind: financeKind, title: parsed.title, amount: parsed.amount, category, occurredAt: now, updatedAt: now });
+  rows.forEach(row => expenses.push({ id: crypto.randomUUID(), kind: financeKind, title: row.title, amount: row.amount, category: row.category, occurredAt: now, updatedAt: now }));
   saveExpenses(); renderFinance();
   input.value = '';
-  toast(financeKind === 'income' ? 'Доход добавлен' : 'Расход добавлен');
+  toast(rows.length > 1 ? `Добавлено операций: ${rows.length}` : (financeKind === 'income' ? 'Доход добавлен' : 'Расход добавлен'));
 }
 function deleteExpense(id) {
   expenses = expenses.filter(e => e.id !== id);
@@ -1432,12 +1477,15 @@ $('#desktopPlansButton').addEventListener('click', openPlansDialog);
 $('#tabPlanner').addEventListener('click', () => setActiveTab('planner'));
 $('#tabFinance').addEventListener('click', () => setActiveTab('finance'));
 $('#financeQuickForm').addEventListener('submit', addFinanceEntry);
-$('#financeQuickInput').addEventListener('input', e => { $('#financeCategory').value = detectFinanceCategory(e.currentTarget.value, financeKind); });
+$('#financeQuickInput').addEventListener('input', e => { if (!/\r?\n/.test(e.currentTarget.value)) { selectedFinanceCategory = detectFinanceCategory(e.currentTarget.value, financeKind); renderFinanceCategoryGrid(); } });
+$('#financeCategoryGrid').addEventListener('click', e => { const button = e.target.closest('[data-category]'); if (!button) return; selectedFinanceCategory = button.dataset.category; renderFinanceCategoryGrid(); });
+bindHoldToTalk('financeVoiceButton', () => startVoiceForField('financeQuickInput', 'financeVoiceButton', { prompt: 'Слушаю… Назовите покупку и сумму', success: 'Текст добавлен' }));
 $('#financeList').addEventListener('click', e => { const button = e.target.closest('[data-delete-expense]'); if (button) deleteExpense(button.dataset.deleteExpense); });
 $$('.finance-kind-button').forEach(button => button.addEventListener('click', () => {
   financeKind = button.dataset.kind;
+  selectedFinanceCategory = financeKind === 'income' ? 'salary' : 'groceries';
   $$('.finance-kind-button').forEach(b => b.classList.toggle('active', b === button));
-  populateFinanceCategories();
+  renderFinanceCategoryGrid(); renderFinanceBreakdown();
 }));
 $('#mobileSharedButton').addEventListener('click', openSharedDialog); $('#desktopSharedButton').addEventListener('click', openSharedDialog); $('#closeShared').addEventListener('click', () => $('#sharedDialog').close()); $('#sharedAddButton').addEventListener('click', () => { $('#sharedDialog').close(); openDialog(null, 'shared'); });
 $('#sharedInvitePromptAccept').addEventListener('click', () => answerSharedInvitePrompt(true)); $('#sharedInvitePromptDecline').addEventListener('click', () => answerSharedInvitePrompt(false));
@@ -1461,7 +1509,7 @@ window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); instal
 $('#installButton').addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('#installButton').hidden = true; });
 showUpdatedNoticeIfNeeded();
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=70'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
+  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=71'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
   navigator.serviceWorker.addEventListener('message', event => {
     if (event.data?.type !== 'DAY_PUSH') return;
     showReminderAlert(event.data.taskId || '', event.data.title || 'Новое уведомление', event.data.body || '');
