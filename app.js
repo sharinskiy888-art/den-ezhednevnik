@@ -10,9 +10,155 @@ const PIN_RELOCK_MS = 30 * 60 * 1000;
 const NOTIFICATION_KEY = 'day-planner-notifications-v1';
 const EXPENSES_KEY = 'day-planner-expenses-v1';
 const DELETED_EXPENSES_KEY = 'day-planner-deleted-expenses-v1';
-const APP_VERSION = '78';
+const APP_VERSION = '79';
 const UPDATE_SEEN_KEY = 'day-planner-update-seen-v1';
 const UPDATE_APPLIED_KEY = 'day-planner-update-applied-v1';
+const LANG_KEY = 'day-planner-lang-v1';
+let appLang = localStorage.getItem(LANG_KEY) === 'en' ? 'en' : 'ru';
+const TRANSLATIONS = { ru: {
+  'nav.today': 'Сегодня', 'nav.upcoming': 'Предстоящие', 'nav.completed': 'Выполнено', 'nav.shared': 'Совместные', 'nav.plans': 'Планы', 'nav.notifications': 'Уведомления',
+  'greeting.night': 'Доброй ночи', 'greeting.morning': 'Доброе утро', 'greeting.day': 'Добрый день', 'greeting.evening': 'Добрый вечер',
+  'word.task': 'задача', 'word.tasks': 'задачи', 'word.entry': 'операция', 'word.entries': 'операции', 'word.day': 'день', 'word.days': 'дня',
+  'focus.at': 'В', 'focus.carriesOver': 'Переносится до выполнения', 'focus.anytime': 'В удобное время', 'focus.noUrgent': 'Срочных дел нет', 'focus.allDone': 'Все дела завершены', 'focus.noUrgentHint': 'Важные задачи не отмечены — остальные дела ждут своей очереди', 'focus.restHint': 'Можно спокойно отдохнуть',
+  'header.searchTitle': 'Поиск по ежедневнику', 'header.searchSubtitle': 'Ищем в активных, выполненных и архивных задачах.', 'header.searchResults': 'Результаты поиска',
+  'header.upcomingTitle': 'Предстоящие дела', 'header.upcomingSubtitle': 'Всё важное — в одном списке.', 'header.upcomingList': 'Ближайшие задачи',
+  'header.completedSubtitle': 'Приятно видеть результат.', 'header.completedList': 'Готовые задачи',
+  'header.planDay': 'План на день', 'header.planWeek': 'План на неделю', 'header.planMonth': 'План на месяц', 'header.planYear': 'План на год',
+  'header.remaining': 'осталось', 'header.unfinishedNote': 'Незавершённые дела не потеряются.', 'header.todayTasks': 'Задачи на сегодня', 'header.tasksFor': 'Задачи на', 'header.tasksColon': 'Задачи:',
+  'profile.defaultInitial': 'Я', 'profile.titlePrefix': 'Профиль', 'profile.setUpTitle': 'Настроить личный профиль',
+  'stats.greatDay': 'Отличный день!', 'stats.keepGoing': 'Так держать', 'stats.of': 'из', 'stats.allFree': 'Пока всё свободно',
+  'task.carriedOver': 'Переносилась', 'task.autoCarryTag': 'Автоперенос', 'task.markDoneAria': 'Отметить задачу выполненной', 'task.photoReport': 'фотоотчёт', 'task.attachmentTag': 'вложение', 'task.important': 'Важно', 'task.canWait': 'Можно позже', 'task.editAria': 'Редактировать',
+  'task.notFound': 'Ничего не найдено', 'task.noTasksToday': 'На этот день задач нет', 'task.notFoundHint': 'Проверьте написание или введите другое слово. Поиск выполняется по всему архиву.', 'task.noTasksHint': 'Оставьте время для себя или добавьте новое дело.',
+  'finance.openReceiptAria': 'Открыть фото чека', 'finance.hasReceiptTitle': 'Есть фото чека', 'finance.deleteEntryAria': 'Удалить операцию', 'finance.voiceHintFallback': 'Нажмите 🎙 — откроется поле, затем нажмите значок микрофона на клавиатуре и продиктуйте покупку и сумму',
+  'toast.enterAmount': 'Укажите сумму, например «кофе 250»', 'toast.entriesAdded': 'Добавлено операций', 'toast.incomeAdded': 'Доход добавлен', 'toast.expenseAdded': 'Расход добавлен', 'toast.entryDeleted': 'Операция удалена',
+  'sidebar.dayProgress': 'Прогресс дня', 'sidebar.startSmall': 'Начните с малого',
+  'tabs.planner': 'Ежедневник', 'tabs.finance': 'Финансы',
+  'period.day': 'День', 'period.week': 'Неделя', 'period.month': 'Месяц', 'period.year': 'Год', 'period.today': 'Сегодня', 'period.prevAria': 'Предыдущий период', 'period.nextAria': 'Следующий период',
+  'focus.label': 'Фокус дня',
+  'stats.done': 'выполнено', 'stats.planned': 'в плане',
+  'quick.newTask': 'Новая задача', 'quick.placeholder': 'Введите список дел — каждое с новой строки. Они будут переноситься до выполнения', 'quick.voiceAria': 'Добавить задачу голосом', 'quick.voiceTitle': 'Голосовой ввод', 'quick.add': 'Добавить', 'quick.searchAria': 'Поиск задач', 'quick.searchPlaceholder': 'Поиск по всем задачам и архиву', 'quick.weekTasks': 'Задачи на неделю', 'quick.addTaskShort': '+ Добавить задачу', 'quick.addTaskAria': 'Добавить задачу',
+  'finance.income': 'доход', 'finance.expense': 'расход', 'finance.balance': 'баланс', 'finance.expenseKind': 'Расход', 'finance.incomeKind': 'Доход',
+  'finance.inputPlaceholder': 'Например: кофе 250 (или несколько строк — по одной покупке в каждой)', 'finance.voiceAria': 'Продиктовать расход', 'finance.voiceHint': 'Нажмите и удерживайте 🎙, скажите покупку и сумму, отпустите',
+  'finance.camera': '📷 Сфотографировать чек', 'finance.gallery': '▧ Из галереи', 'finance.gallery2': 'Из галереи', 'finance.receiptAlt': 'Чек', 'finance.photoAttached': 'Чек прикреплён — сохранится вместе с операцией ниже', 'finance.removePhotoAria': 'Удалить фото',
+  'finance.byCategory': 'По категориям', 'finance.whereMoneyGoes': 'Куда уходят деньги за выбранный период', 'finance.breakdownEmptyTitle': 'Пока нечего показать', 'finance.breakdownEmptyText': 'Разбивка по категориям появится после первой операции за этот период.',
+  'finance.history': 'История операций', 'finance.emptyTitle': 'Записей пока нет', 'finance.emptyText': 'Добавьте первую операцию текстом выше — например «кофе 250».',
+  'finance.todayAria': 'Перейти к сегодняшнему дню',
+  'update.updateAction': 'Обновить',
+  'shared.taskLabel': 'Совместная задача', 'shared.decline': 'Отклонить', 'shared.accept': 'Принять', 'shared.workLabel': 'Общая работа', 'shared.tasksTab': 'Задачи', 'shared.peopleTab': 'Участники', 'shared.invitesTab': 'Приглашения', 'shared.newTask': '＋ Новая совместная задача',
+  'reminder.label': 'Напоминание', 'reminder.later': 'Позже', 'reminder.openTask': 'Открыть задачу',
+  'common.close': 'Закрыть', 'common.delete': 'Удалить', 'common.cancel': 'Отмена', 'common.save': 'Сохранить',
+  'task.planLabel': 'План', 'task.personal': 'Личная', 'task.shared': 'Совместная',
+  'task.inviteMembers': 'Пригласить участников', 'task.emailsPlaceholder': 'email@example.com — каждый адрес с новой строки', 'task.inviteHint': 'После входа с указанной почтой участник увидит приглашение по центру экрана и в разделе «Совместные».',
+  'task.status': 'Статус выполнения', 'task.statusOpen': 'В работе', 'task.statusReview': 'На проверке', 'task.statusCompleted': 'Принято и завершено',
+  'task.title': 'Название', 'task.titlePlaceholder': 'Например, подготовить отчёт', 'task.voiceTitleAria': 'Продиктовать название',
+  'task.date': 'Дата', 'task.when': 'Когда выполнить', 'task.anytime': 'Без времени — в течение дня', 'task.exactTime': 'Указать точное время', 'task.exactTimeAria': 'Точное время задачи',
+  'task.completionHelp': 'Завершите дело галочкой в списке — название автоматически перечеркнётся.',
+  'task.autoCarry': 'Автоматически переносить на следующий день, пока задача не выполнена',
+  'task.priority': 'Приоритет', 'task.priorityNormal': 'Обычный', 'task.priorityHigh': 'Высокий', 'task.priorityLow': 'Низкий',
+  'task.repeat': 'Повторение', 'task.repeatNone': 'Не повторять', 'task.repeatDaily': 'Каждый день', 'task.repeatWeekdays': 'По будням', 'task.repeatWeekly': 'Каждую неделю', 'task.repeatMonthly': 'Каждый месяц',
+  'task.remind': 'Напомнить',
+  'task.subtasksNoteLegend': 'Подзадачи и заметка', 'task.subtasksTitle': '☑ Подзадачи', 'task.subtasksHint': '— чек-лист внутри задачи, каждый пункт с новой строки', 'task.subtasksPlaceholder': 'Например:\nКупить материалы\nПозвонить клиенту', 'task.voiceSubtasksAria': 'Продиктовать подзадачу',
+  'task.noteTitle': '📝 Заметка', 'task.noteHint': '— просто текст, не чек-лист', 'task.notePlaceholder': 'Необязательные детали, комментарии, адрес и т.п.', 'task.voiceNoteAria': 'Продиктовать заметку',
+  'task.attachmentLegend': 'Вложение', 'task.camera': '📷 Камера', 'task.gallery': '▧ Галерея', 'task.document': '📎 Документ', 'task.attachmentHelp': 'Можно прикрепить фотографию или документ любого формата размером до 4 МБ.',
+  'task.previewAlt': 'Предпросмотр вложения', 'task.openFile': 'Открыть файл',
+  'task.attachmentComment': 'Комментарий к вложению', 'task.attachmentCommentPlaceholder': 'Например, помещение проверено, замечаний нет',
+  'task.editTitle': 'Редактировать задачу', 'task.newTitle': 'Новая задача', 'task.newByVoice': 'Новая задача голосом',
+  'plans.personalOverview': 'Личный обзор', 'plans.title': 'Дела и планы', 'plans.enableNotifications': 'Включить уведомления',
+  'plans.when': 'Когда планируется', 'plans.optional': 'необязательно', 'plans.inputPlaceholder': 'Например: заниматься английским', 'plans.hint': 'Один план виден в своей неделе, месяце и году. Можно написать несколько пунктов с новой строки.', 'plans.addToList': 'Добавить в список',
+  'update.appLabel': 'Приложение', 'update.title': 'Обновления', 'update.latestVersion': 'Последняя версия', 'update.defaultNote': 'Центр обновлений и ручная установка новой версии.', 'update.updateApp': 'Обновить приложение', 'update.hint': 'Задачи, фотографии и настройки при обновлении не удаляются.',
+  'update.accountSubtitle': 'Войти или зарегистрироваться', 'update.notificationsSubtitle': 'Напоминания и сводка дел', 'update.feedback': 'Обратная связь', 'update.feedbackSubtitle': 'Сообщить о проблеме, приложить фото',
+  'notif.remindersLabel': 'Напоминания', 'notif.exactTitle': 'По времени задачи', 'notif.exactText': 'В точное время, указанное в напоминании', 'notif.dailyTitle': 'Сводка на сегодня', 'notif.dailyText': 'Количество дел и ближайшие задачи', 'notif.dailyTime': 'Время сводки', 'notif.overdueTitle': 'Просроченные дела', 'notif.overdueText': 'Один раз в день, если остались незавершённые задачи', 'notif.test': 'Проверить уведомление', 'notif.save': 'Сохранить настройки', 'notif.hint': 'На iPhone уведомления работают для ежедневника, добавленного на экран «Домой». После входа в аккаунт серверные push-уведомления приходят и при закрытом приложении.',
+  'feedback.helpLabel': 'Помощь разработчику', 'feedback.describe': 'Опишите проблему или предложение', 'feedback.placeholder': 'Что произошло? Что вы нажимали? Что ожидали увидеть?', 'feedback.voiceAria': 'Надиктовать текст', 'feedback.replyEmail': 'Email отправителя', 'feedback.emailPlaceholder': 'Будет взят из аккаунта', 'feedback.attachPhoto': '▧ Прикрепить фото проблемы', 'feedback.removePhotoAria': 'Убрать фото', 'feedback.send': 'Отправить разработчику', 'feedback.hint': 'Сообщение уйдёт разработчику в фоне. Фото перед отправкой автоматически уменьшается. Ответ придёт на email вашего аккаунта.',
+  'sync.cloudLabel': 'Облако', 'sync.title': 'Синхронизация', 'sync.email': 'Email', 'sync.password': 'Пароль', 'sync.passwordPlaceholder': 'Не менее 8 символов', 'sync.signUp': 'Регистрация', 'sync.signIn': 'Войти', 'sync.forgotPassword': 'Забыли пароль? Получить новое письмо',
+  'sync.recoveryNote': 'Откройте только самое новое письмо. Нажмите в нём «Reset password». Если письмо содержит цифровой код, его можно ввести ниже.', 'sync.codeFromEmail': 'Код из письма', 'sync.codePlaceholder': '6–8 цифр', 'sync.checkCode': 'Проверить код', 'sync.resendCode': 'Отправить новый код', 'sync.backToLogin': 'Вернуться ко входу',
+  'sync.codeConfirmedNote': 'Код подтверждён. Придумайте новый пароль — старый пароль вводить не нужно.', 'sync.newPassword': 'Новый пароль', 'sync.repeatPassword': 'Повторите пароль', 'sync.saveNewPassword': 'Сохранить новый пароль',
+  'sync.syncNow': 'Синхронизировать сейчас', 'sync.switchUser': 'Сменить пользователя', 'sync.pinLogin': 'Быстрый вход по PIN', 'sync.pinHint': 'Четыре цифры хранятся только на этом устройстве.', 'sync.pinDigits': '4 цифры', 'sync.pinNewAria': 'Новый PIN-код', 'sync.pinSet': 'Установить PIN', 'sync.pinRemove': 'Убрать PIN',
+  'sync.note': 'У каждого email свой отдельный ежедневник. На общем устройстве нажмите «Сменить пользователя», прежде чем другой человек войдёт в свой аккаунт.',
+  'pin.enter': 'Введите PIN', 'pin.hint': 'Четыре цифры для быстрого входа в ежедневник.', 'pin.codeAria': 'PIN-код', 'pin.open': 'Открыть ежедневник', 'pin.usePassword': 'Войти по почте и паролю',
+  'profile.personalDataLabel': 'Личные данные', 'profile.myProfile': 'Мой профиль', 'profile.chooseAria': 'Выбрать фотографию из галереи', 'profile.photoAlt': 'Фотография профиля',
+  'profile.photo': 'Фотография', 'profile.photoHint': 'Будет показана в правом верхнем углу', 'profile.takePhoto': 'Сделать фото', 'profile.removePhoto': 'Удалить фото',
+  'profile.howToAddress': 'Как к вам обращаться', 'profile.namePlaceholder': 'Например, Александр', 'profile.note': 'Здесь можно изменить имя и фотографию профиля.'
+}, en: {
+  'nav.today': 'Today', 'nav.upcoming': 'Upcoming', 'nav.completed': 'Completed', 'nav.shared': 'Shared', 'nav.plans': 'Plans', 'nav.notifications': 'Notifications',
+  'greeting.night': 'Good night', 'greeting.morning': 'Good morning', 'greeting.day': 'Good afternoon', 'greeting.evening': 'Good evening',
+  'word.task': 'task', 'word.tasks': 'tasks', 'word.entry': 'entry', 'word.entries': 'entries', 'word.day': 'day', 'word.days': 'days',
+  'focus.at': 'At', 'focus.carriesOver': 'Carries over until done', 'focus.anytime': 'Anytime', 'focus.noUrgent': 'No urgent tasks', 'focus.allDone': 'All done', 'focus.noUrgentHint': 'No important tasks flagged — the rest can wait their turn', 'focus.restHint': 'Take a break',
+  'header.searchTitle': 'Search the planner', 'header.searchSubtitle': 'Searching active, completed and archived tasks.', 'header.searchResults': 'Search results',
+  'header.upcomingTitle': 'Upcoming tasks', 'header.upcomingSubtitle': 'Everything important, in one list.', 'header.upcomingList': 'Upcoming tasks',
+  'header.completedSubtitle': "Good to see it done.", 'header.completedList': 'Completed tasks',
+  'header.planDay': 'Day plan', 'header.planWeek': 'Week plan', 'header.planMonth': 'Month plan', 'header.planYear': 'Year plan',
+  'header.remaining': 'remaining:', 'header.unfinishedNote': "Unfinished tasks won't be lost.", 'header.todayTasks': "Today's tasks", 'header.tasksFor': 'Tasks for', 'header.tasksColon': 'Tasks:',
+  'profile.defaultInitial': 'U', 'profile.titlePrefix': 'Profile', 'profile.setUpTitle': 'Set up your profile',
+  'stats.greatDay': 'Great day!', 'stats.keepGoing': 'Keep it up', 'stats.of': 'of', 'stats.allFree': 'All clear for now',
+  'task.carriedOver': 'Carried over', 'task.autoCarryTag': 'Auto-carry', 'task.markDoneAria': 'Mark task done', 'task.photoReport': 'photo', 'task.attachmentTag': 'attachment', 'task.important': 'Important', 'task.canWait': 'Can wait', 'task.editAria': 'Edit',
+  'task.notFound': 'Nothing found', 'task.noTasksToday': 'No tasks for this day', 'task.notFoundHint': 'Check the spelling or try another word. Search covers the full archive.', 'task.noTasksHint': 'Leave time for yourself or add a new task.',
+  'finance.openReceiptAria': 'Open receipt photo', 'finance.hasReceiptTitle': 'Has a receipt photo', 'finance.deleteEntryAria': 'Delete entry', 'finance.voiceHintFallback': 'Tap 🎙 — the field opens, then tap the microphone icon on your keyboard and dictate the purchase and amount',
+  'toast.enterAmount': 'Enter an amount, e.g. "coffee 250"', 'toast.entriesAdded': 'Entries added', 'toast.incomeAdded': 'Income added', 'toast.expenseAdded': 'Expense added', 'toast.entryDeleted': 'Entry deleted',
+  'sidebar.dayProgress': 'Day progress', 'sidebar.startSmall': 'Start small',
+  'tabs.planner': 'Planner', 'tabs.finance': 'Finance',
+  'period.day': 'Day', 'period.week': 'Week', 'period.month': 'Month', 'period.year': 'Year', 'period.today': 'Today', 'period.prevAria': 'Previous period', 'period.nextAria': 'Next period',
+  'focus.label': 'Focus of the day',
+  'stats.done': 'done', 'stats.planned': 'planned',
+  'quick.newTask': 'New task', 'quick.placeholder': 'Enter your to-dos — one per line. Unfinished ones carry over automatically', 'quick.voiceAria': 'Add task by voice', 'quick.voiceTitle': 'Voice input', 'quick.add': 'Add', 'quick.searchAria': 'Search tasks', 'quick.searchPlaceholder': 'Search all tasks and archive', 'quick.weekTasks': 'Tasks this week', 'quick.addTaskShort': '+ Add task', 'quick.addTaskAria': 'Add task',
+  'finance.income': 'income', 'finance.expense': 'expense', 'finance.balance': 'balance', 'finance.expenseKind': 'Expense', 'finance.incomeKind': 'Income',
+  'finance.inputPlaceholder': 'E.g. coffee 250 (or several lines — one purchase per line)', 'finance.voiceAria': 'Dictate expense', 'finance.voiceHint': 'Press and hold 🎙, say the purchase and amount, then release',
+  'finance.camera': '📷 Photograph receipt', 'finance.gallery': '▧ From gallery', 'finance.gallery2': 'From gallery', 'finance.receiptAlt': 'Receipt', 'finance.photoAttached': 'Receipt attached — will be saved with the entry below', 'finance.removePhotoAria': 'Remove photo',
+  'finance.byCategory': 'By category', 'finance.whereMoneyGoes': 'Where your money goes this period', 'finance.breakdownEmptyTitle': 'Nothing to show yet', 'finance.breakdownEmptyText': 'The category breakdown will appear after your first entry this period.',
+  'finance.history': 'History', 'finance.emptyTitle': 'No entries yet', 'finance.emptyText': 'Add your first entry above — e.g. "coffee 250".',
+  'finance.todayAria': 'Jump to today',
+  'update.updateAction': 'Update',
+  'shared.taskLabel': 'Shared task', 'shared.decline': 'Decline', 'shared.accept': 'Accept', 'shared.workLabel': 'Shared work', 'shared.tasksTab': 'Tasks', 'shared.peopleTab': 'Members', 'shared.invitesTab': 'Invites', 'shared.newTask': '＋ New shared task',
+  'reminder.label': 'Reminder', 'reminder.later': 'Later', 'reminder.openTask': 'Open task',
+  'common.close': 'Close', 'common.delete': 'Delete', 'common.cancel': 'Cancel', 'common.save': 'Save',
+  'task.planLabel': 'Plan', 'task.personal': 'Personal', 'task.shared': 'Shared',
+  'task.inviteMembers': 'Invite members', 'task.emailsPlaceholder': 'email@example.com — one address per line', 'task.inviteHint': 'After signing in with that email, the person will see the invite centered on screen and in "Shared".',
+  'task.status': 'Status', 'task.statusOpen': 'In progress', 'task.statusReview': 'In review', 'task.statusCompleted': 'Accepted and done',
+  'task.title': 'Title', 'task.titlePlaceholder': 'E.g. prepare the report', 'task.voiceTitleAria': 'Dictate title',
+  'task.date': 'Date', 'task.when': 'When', 'task.anytime': 'No specific time — anytime that day', 'task.exactTime': 'Set exact time', 'task.exactTimeAria': 'Exact task time',
+  'task.completionHelp': 'Check it off in the list — the title crosses out automatically.',
+  'task.autoCarry': 'Automatically carry over to the next day until done',
+  'task.priority': 'Priority', 'task.priorityNormal': 'Normal', 'task.priorityHigh': 'High', 'task.priorityLow': 'Low',
+  'task.repeat': 'Repeat', 'task.repeatNone': "Don't repeat", 'task.repeatDaily': 'Every day', 'task.repeatWeekdays': 'Weekdays', 'task.repeatWeekly': 'Every week', 'task.repeatMonthly': 'Every month',
+  'task.remind': 'Remind me',
+  'task.subtasksNoteLegend': 'Subtasks and note', 'task.subtasksTitle': '☑ Subtasks', 'task.subtasksHint': '— a checklist inside the task, one item per line', 'task.subtasksPlaceholder': 'E.g.:\nBuy supplies\nCall the client', 'task.voiceSubtasksAria': 'Dictate subtask',
+  'task.noteTitle': '📝 Note', 'task.noteHint': '— plain text, not a checklist', 'task.notePlaceholder': 'Optional details, comments, address, etc.', 'task.voiceNoteAria': 'Dictate note',
+  'task.attachmentLegend': 'Attachment', 'task.camera': '📷 Camera', 'task.gallery': '▧ Gallery', 'task.document': '📎 Document', 'task.attachmentHelp': 'You can attach a photo or a document of any format up to 4 MB.',
+  'task.previewAlt': 'Attachment preview', 'task.openFile': 'Open file',
+  'task.attachmentComment': 'Attachment comment', 'task.attachmentCommentPlaceholder': 'E.g. the site was inspected, no issues',
+  'task.editTitle': 'Edit task', 'task.newTitle': 'New task', 'task.newByVoice': 'New task by voice',
+  'plans.personalOverview': 'Personal overview', 'plans.title': 'To-dos and plans', 'plans.enableNotifications': 'Enable notifications',
+  'plans.when': 'Target date', 'plans.optional': 'optional', 'plans.inputPlaceholder': 'E.g. practice English', 'plans.hint': 'A plan is shown in its own week, month and year. You can enter several items, one per line.', 'plans.addToList': 'Add to list',
+  'update.appLabel': 'App', 'update.title': 'Updates', 'update.latestVersion': 'Latest version', 'update.defaultNote': 'Update center and manual install of the new version.', 'update.updateApp': 'Update app', 'update.hint': 'Tasks, photos and settings are kept when updating.',
+  'update.accountSubtitle': 'Sign in or register', 'update.notificationsSubtitle': 'Reminders and daily summary', 'update.feedback': 'Feedback', 'update.feedbackSubtitle': 'Report an issue, attach a photo',
+  'notif.remindersLabel': 'Reminders', 'notif.exactTitle': 'At task time', 'notif.exactText': 'At the exact time set in the reminder', 'notif.dailyTitle': "Today's summary", 'notif.dailyText': 'Task count and upcoming tasks', 'notif.dailyTime': 'Summary time', 'notif.overdueTitle': 'Overdue tasks', 'notif.overdueText': 'Once a day, if unfinished tasks remain', 'notif.test': 'Test notification', 'notif.save': 'Save settings', 'notif.hint': 'On iPhone, notifications work for the planner added to the Home Screen. After signing in, server push notifications arrive even when the app is closed.',
+  'feedback.helpLabel': 'Help the developer', 'feedback.describe': 'Describe the issue or suggestion', 'feedback.placeholder': 'What happened? What did you tap? What did you expect?', 'feedback.voiceAria': 'Dictate text', 'feedback.replyEmail': 'Reply email', 'feedback.emailPlaceholder': "Taken from your account", 'feedback.attachPhoto': '▧ Attach a photo of the issue', 'feedback.removePhotoAria': 'Remove photo', 'feedback.send': 'Send to developer', 'feedback.hint': 'The message is sent to the developer in the background. Photos are shrunk automatically before sending. The reply arrives at your account email.',
+  'sync.cloudLabel': 'Cloud', 'sync.title': 'Sync', 'sync.email': 'Email', 'sync.password': 'Password', 'sync.passwordPlaceholder': 'At least 8 characters', 'sync.signUp': 'Sign up', 'sync.signIn': 'Sign in', 'sync.forgotPassword': 'Forgot password? Get a new email',
+  'sync.recoveryNote': 'Open only the newest email. Click "Reset password" in it. If the email contains a numeric code, you can enter it below.', 'sync.codeFromEmail': 'Code from the email', 'sync.codePlaceholder': '6–8 digits', 'sync.checkCode': 'Check code', 'sync.resendCode': 'Send a new code', 'sync.backToLogin': 'Back to sign in',
+  'sync.codeConfirmedNote': 'Code confirmed. Choose a new password — you do not need the old one.', 'sync.newPassword': 'New password', 'sync.repeatPassword': 'Repeat password', 'sync.saveNewPassword': 'Save new password',
+  'sync.syncNow': 'Sync now', 'sync.switchUser': 'Switch user', 'sync.pinLogin': 'Quick PIN sign-in', 'sync.pinHint': 'The four digits are stored only on this device.', 'sync.pinDigits': '4 digits', 'sync.pinNewAria': 'New PIN', 'sync.pinSet': 'Set PIN', 'sync.pinRemove': 'Remove PIN',
+  'sync.note': 'Each email has its own separate planner. On a shared device, tap "Switch user" before someone else signs into their account.',
+  'pin.enter': 'Enter PIN', 'pin.hint': 'Four digits for quick sign-in to the planner.', 'pin.codeAria': 'PIN', 'pin.open': 'Open planner', 'pin.usePassword': 'Sign in with email and password',
+  'profile.personalDataLabel': 'Personal data', 'profile.myProfile': 'My profile', 'profile.chooseAria': 'Choose a photo from gallery', 'profile.photoAlt': 'Profile photo',
+  'profile.photo': 'Photo', 'profile.photoHint': 'Shown in the top-right corner', 'profile.takePhoto': 'Take a photo', 'profile.removePhoto': 'Remove photo',
+  'profile.howToAddress': 'What should we call you', 'profile.namePlaceholder': 'E.g. Alex', 'profile.note': 'You can change your name and profile photo here.'
+} };
+const LOCALE = () => appLang === 'en' ? 'en-US' : 'ru-RU';
+function tr(key) { const dict = TRANSLATIONS[appLang] || TRANSLATIONS.ru; return dict[key] ?? TRANSLATIONS.ru[key] ?? key; }
+function applyStaticTranslations() {
+  $$('[data-i18n]').forEach(el => { el.textContent = tr(el.dataset.i18n); });
+  $$('[data-i18n-placeholder]').forEach(el => { el.placeholder = tr(el.dataset.i18nPlaceholder); });
+  $$('[data-i18n-aria]').forEach(el => { el.setAttribute('aria-label', tr(el.dataset.i18nAria)); });
+  $$('[data-i18n-title]').forEach(el => { el.title = tr(el.dataset.i18nTitle); });
+  $$('[data-i18n-alt]').forEach(el => { el.alt = tr(el.dataset.i18nAlt); });
+}
+function setLang(lang) {
+  appLang = lang === 'en' ? 'en' : 'ru';
+  localStorage.setItem(LANG_KEY, appLang);
+  document.documentElement.lang = appLang;
+  $$('.lang-button').forEach(b => b.classList.toggle('active', b.dataset.lang === appLang));
+  applyStaticTranslations();
+  render(); renderFinance(); renderProfile();
+}
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 const pad = (n) => String(n).padStart(2, '0');
@@ -138,12 +284,16 @@ function saveProfile() {
 }
 function profileDisplayName() {
   const emailName = window.DaySync?.user()?.email?.split('@')[0] || '';
-  const value = (profile.name || emailName).trim(); return value ? value.charAt(0).toLocaleUpperCase('ru') + value.slice(1) : '';
+  const value = (profile.name || emailName).trim(); return value ? value.charAt(0).toLocaleUpperCase(appLang) + value.slice(1) : '';
 }
 function greetingText() {
-  const hour = new Date().getHours(); return hour < 6 ? 'Доброй ночи' : hour < 12 ? 'Доброе утро' : hour < 18 ? 'Добрый день' : 'Добрый вечер';
+  const hour = new Date().getHours(); const key = hour < 6 ? 'greeting.night' : hour < 12 ? 'greeting.morning' : hour < 18 ? 'greeting.day' : 'greeting.evening';
+  return tr(key);
 }
-function taskWord(count) { const n = Math.abs(count) % 100; const n1 = n % 10; return n > 10 && n < 20 ? 'задач' : n1 === 1 ? 'задача' : n1 > 1 && n1 < 5 ? 'задачи' : 'задач'; }
+function taskWord(count) {
+  if (appLang === 'en') return count === 1 ? tr('word.task') : tr('word.tasks');
+  const n = Math.abs(count) % 100; const n1 = n % 10; return n > 10 && n < 20 ? 'задач' : n1 === 1 ? 'задача' : n1 > 1 && n1 < 5 ? 'задачи' : 'задач';
+}
 
 function switchAccountData() {
   tasks = loadTasks(); deletedIds = loadDeletedIds(); profile = loadProfile(); pendingProfilePhoto = profile.photo || ''; periodPlans = loadPeriodPlans(); appStateUpdatedAt = localStorage.getItem(stateUpdatedStorageKey()) || new Date(0).toISOString(); sharedTasks = []; expenses = loadExpenses(); deletedExpenseIds = loadDeletedExpenseIds(); runAutoCarry(); render(); renderFinance(); refreshSyncUi(); renderProfile(); loadSharedTasks(false);
@@ -178,24 +328,39 @@ function runAutoCarry() {
   if (changed) save();
 }
 
-function expenseWord(count) { const n = Math.abs(count) % 100; const n1 = n % 10; return n > 10 && n < 20 ? 'операций' : n1 === 1 ? 'операция' : n1 > 1 && n1 < 5 ? 'операции' : 'операций'; }
-const EXPENSE_CATEGORIES = [
-  ['home', 'Дом', '⌂', '#8e6c55'], ['transport', 'Транспорт', '◇', '#4c7185'], ['health', 'Аптека', '+', '#5d8b78'],
-  ['utilities', 'ЖКХ', '▥', '#99704f'], ['groceries', 'Продукты', '◒', '#758c55'], ['clothes', 'Одежда', '♢', '#87658c'],
-  ['education', 'Учёба', '□', '#5f7196'], ['cafe', 'Кафе', '☕', '#ae6b55'], ['travel', 'Путешествия', '✈', '#537f83'],
-  ['other', 'Другое', '•', '#8a8996']
-];
-const INCOME_CATEGORIES = [['salary', 'Зарплата', '₽', '#3f7a5c'], ['gift', 'Подарок', '♥', '#a06b8f'], ['other', 'Другое', '•', '#8a8996']];
+function expenseWord(count) {
+  if (appLang === 'en') return count === 1 ? tr('word.entry') : tr('word.entries');
+  const n = Math.abs(count) % 100; const n1 = n % 10; return n > 10 && n < 20 ? 'операций' : n1 === 1 ? 'операция' : n1 > 1 && n1 < 5 ? 'операции' : 'операций';
+}
+const WEEKDAY_ABBR = () => appLang === 'en' ? ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'] : ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+function EXPENSE_CATEGORIES() {
+  return appLang === 'en' ? [
+    ['home', 'Home', '⌂', '#8e6c55'], ['transport', 'Transport', '◇', '#4c7185'], ['health', 'Pharmacy', '+', '#5d8b78'],
+    ['utilities', 'Utilities', '▥', '#99704f'], ['groceries', 'Groceries', '◒', '#758c55'], ['clothes', 'Clothes', '♢', '#87658c'],
+    ['education', 'Education', '□', '#5f7196'], ['cafe', 'Cafe', '☕', '#ae6b55'], ['travel', 'Travel', '✈', '#537f83'],
+    ['other', 'Other', '•', '#8a8996']
+  ] : [
+    ['home', 'Дом', '⌂', '#8e6c55'], ['transport', 'Транспорт', '◇', '#4c7185'], ['health', 'Аптека', '+', '#5d8b78'],
+    ['utilities', 'ЖКХ', '▥', '#99704f'], ['groceries', 'Продукты', '◒', '#758c55'], ['clothes', 'Одежда', '♢', '#87658c'],
+    ['education', 'Учёба', '□', '#5f7196'], ['cafe', 'Кафе', '☕', '#ae6b55'], ['travel', 'Путешествия', '✈', '#537f83'],
+    ['other', 'Другое', '•', '#8a8996']
+  ];
+}
+function INCOME_CATEGORIES() {
+  return appLang === 'en'
+    ? [['salary', 'Salary', '₽', '#3f7a5c'], ['gift', 'Gift', '♥', '#a06b8f'], ['other', 'Other', '•', '#8a8996']]
+    : [['salary', 'Зарплата', '₽', '#3f7a5c'], ['gift', 'Подарок', '♥', '#a06b8f'], ['other', 'Другое', '•', '#8a8996']];
+}
 const EXPENSE_CATEGORY_KEYWORDS = {
-  home: ['дом', 'мебел', 'ремонт'],
-  transport: ['бензин', 'азс', 'такси', 'метро', 'автобус', 'парковк', 'авто'],
-  health: ['аптек', 'врач', 'лекарств', 'клиник'],
-  utilities: ['жкх', 'электр', 'вода', 'газ', 'интернет', 'связь'],
-  groceries: ['продукт', 'магазин', 'молок', 'хлеб', 'супермаркет'],
-  clothes: ['одежд', 'обувь'],
-  education: ['курс', 'книг', 'учёб', 'школ'],
-  cafe: ['кафе', 'кофе', 'ресторан', 'обед'],
-  travel: ['отел', 'билет', 'путешеств', 'самолёт']
+  home: ['дом', 'мебел', 'ремонт', 'home', 'furniture', 'repair'],
+  transport: ['бензин', 'азс', 'такси', 'метро', 'автобус', 'парковк', 'авто', 'gas', 'fuel', 'taxi', 'metro', 'bus', 'parking', 'car'],
+  health: ['аптек', 'врач', 'лекарств', 'клиник', 'pharmacy', 'doctor', 'medicine', 'clinic'],
+  utilities: ['жкх', 'электр', 'вода', 'газ', 'интернет', 'связь', 'utilities', 'electric', 'water', 'internet', 'phone bill'],
+  groceries: ['продукт', 'магазин', 'молок', 'хлеб', 'супермаркет', 'groceries', 'grocery', 'milk', 'bread', 'supermarket'],
+  clothes: ['одежд', 'обувь', 'clothes', 'shoes'],
+  education: ['курс', 'книг', 'учёб', 'школ', 'course', 'book', 'school', 'tuition'],
+  cafe: ['кафе', 'кофе', 'ресторан', 'обед', 'cafe', 'coffee', 'restaurant', 'lunch'],
+  travel: ['отел', 'билет', 'путешеств', 'самолёт', 'hotel', 'ticket', 'travel', 'flight']
 };
 let selectedFinanceCategory = 'groceries';
 let financePeriod = 'month';
@@ -207,13 +372,6 @@ function financePeriodBounds() {
   if (financePeriod === 'week') return weekBounds(financeSelectedDate);
   if (financePeriod === 'month') return [toKey(new Date(d.getFullYear(), d.getMonth(), 1)), toKey(new Date(d.getFullYear(), d.getMonth() + 1, 0))];
   return [`${d.getFullYear()}-01-01`, `${d.getFullYear()}-12-31`];
-}
-function financePeriodLabel() {
-  const d = fromKey(financeSelectedDate); const now = new Date();
-  if (financePeriod === 'day') return financeSelectedDate === todayKey ? 'Сегодня' : formatLong(financeSelectedDate);
-  if (financePeriod === 'week') { const [s, e] = weekBounds(financeSelectedDate); const [ts, te] = weekBounds(todayKey); return (s === ts && e === te) ? 'Эта неделя' : formatWeekRange(financeSelectedDate); }
-  if (financePeriod === 'month') { if (d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()) return 'Этот месяц'; const text = d.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' }); return text.charAt(0).toLocaleUpperCase('ru') + text.slice(1); }
-  return d.getFullYear() === now.getFullYear() ? 'Этот год' : String(d.getFullYear());
 }
 function moveFinancePeriod(direction) {
   const d = fromKey(financeSelectedDate);
@@ -243,22 +401,22 @@ function renderExpensePhotoPreview() {
 }
 function detectFinanceCategory(text, kind) {
   if (kind === 'income') return 'other';
-  const lower = text.toLocaleLowerCase('ru');
+  const lower = text.toLowerCase();
   const found = Object.entries(EXPENSE_CATEGORY_KEYWORDS).find(([, words]) => words.some(w => lower.includes(w)));
   return found ? found[0] : 'other';
 }
 function financeCategoryMeta(kind, id) {
-  const list = kind === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+  const list = kind === 'income' ? INCOME_CATEGORIES() : EXPENSE_CATEGORIES();
   return list.find(([categoryId]) => categoryId === id) || list[list.length - 1];
 }
 function financeCategoryLabel(kind, id) { return financeCategoryMeta(kind, id)[1]; }
-function formatMoney(amount) { return new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }).format(amount); }
+function formatMoney(amount) { return new Intl.NumberFormat(LOCALE(), { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }).format(amount); }
 function parseFinanceAmount(text, kind) {
   const matches = [...text.matchAll(/(\d[\d\s]*(?:[.,]\d{1,2})?)/g)];
   const raw = matches.at(-1)?.[0] || '';
   const amount = Number(raw.replace(/\s/g, '').replace(',', '.'));
   if (!(amount > 0)) return null;
-  const title = text.replace(raw, '').replace(/[-—:₽р.]+$/, '').trim() || (kind === 'income' ? 'Доход' : 'Расход');
+  const title = text.replace(raw, '').replace(/[-—:₽р.]+$/, '').trim() || (kind === 'income' ? tr('finance.incomeKind') : tr('finance.expenseKind'));
   return { title, amount };
 }
 function parseFinanceLines(text, kind, manualCategory) {
@@ -271,7 +429,7 @@ function parseFinanceLines(text, kind, manualCategory) {
   }).filter(Boolean);
 }
 function renderFinanceCategoryGrid() {
-  const list = financeKind === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+  const list = financeKind === 'income' ? INCOME_CATEGORIES() : EXPENSE_CATEGORIES();
   if (!list.some(([id]) => id === selectedFinanceCategory)) selectedFinanceCategory = list[0][0];
   $('#financeCategoryGrid').innerHTML = list.map(([id, label, icon, color]) => `
     <button type="button" class="finance-category-chip${id === selectedFinanceCategory ? ' selected' : ''}" data-category="${id}" style="--cat:${color}">
@@ -283,7 +441,7 @@ function expensesInPeriod() {
   return expenses.filter(e => { const d = (e.occurredAt || '').slice(0, 10); return d >= start && d <= end; });
 }
 function financeCategoryBreakdown() {
-  const list = financeKind === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+  const list = financeKind === 'income' ? INCOME_CATEGORIES() : EXPENSE_CATEGORIES();
   const periodEntries = expensesInPeriod().filter(e => e.kind === financeKind);
   const total = periodEntries.reduce((sum, e) => sum + e.amount, 0);
   return list.map(([id, label, icon, color]) => {
@@ -304,7 +462,6 @@ function renderFinanceBreakdown() {
 }
 function renderFinance() {
   $$('[data-finance-period]').forEach(b => b.classList.toggle('active', b.dataset.financePeriod === financePeriod));
-  $('#financePeriodToday').textContent = financePeriodLabel();
   renderFinanceCategoryGrid(); renderFinanceBreakdown();
   const periodEntries = expensesInPeriod();
   const income = periodEntries.filter(e => e.kind === 'income').reduce((sum, e) => sum + e.amount, 0);
@@ -313,18 +470,18 @@ function renderFinance() {
   $('#financeExpenseTotal').textContent = formatMoney(spent);
   $('#financeBalanceTotal').textContent = formatMoney(income - spent);
   const sorted = [...periodEntries].sort((a, b) => (b.occurredAt || '').localeCompare(a.occurredAt || ''));
-  $('#financeHistorySummary').textContent = periodEntries.length ? `${periodEntries.length} ${expenseWord(periodEntries.length)}` : 'Пока записей нет';
+  $('#financeHistorySummary').textContent = periodEntries.length ? `${periodEntries.length} ${expenseWord(periodEntries.length)}` : tr('finance.emptyTitle');
   $('#financeList').innerHTML = sorted.map(e => {
     const [, label, icon, color] = financeCategoryMeta(e.kind, e.category);
     return `
     <article class="task finance-row">
       <i class="finance-row-icon" style="background:${color}">${icon}</i>
       <div class="finance-row-main">
-        <b>${escapeHtml(e.title)}${e.photo ? ` <a class="finance-photo-flag" href="${e.photo}" target="_blank" rel="noopener" aria-label="Открыть фото чека" title="Есть фото чека">📷</a>` : ''}</b>
-        <small>${escapeHtml(label)} · ${fromKey((e.occurredAt || '').slice(0, 10) || todayKey).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}</small>
+        <b>${escapeHtml(e.title)}${e.photo ? ` <a class="finance-photo-flag" href="${e.photo}" target="_blank" rel="noopener" aria-label="${tr('finance.openReceiptAria')}" title="${tr('finance.hasReceiptTitle')}">📷</a>` : ''}</b>
+        <small>${escapeHtml(label)} · ${fromKey((e.occurredAt || '').slice(0, 10) || todayKey).toLocaleDateString(LOCALE(), { day: 'numeric', month: 'short' })}</small>
       </div>
       <strong class="finance-amount ${e.kind}">${e.kind === 'income' ? '+' : '−'}${formatMoney(e.amount)}</strong>
-      <button type="button" class="finance-delete" data-delete-expense="${e.id}" aria-label="Удалить операцию">×</button>
+      <button type="button" class="finance-delete" data-delete-expense="${e.id}" aria-label="${tr('finance.deleteEntryAria')}">×</button>
     </article>`;
   }).join('');
   $('#financeEmptyState').hidden = !!periodEntries.length;
@@ -334,18 +491,18 @@ function addFinanceEntry(event) {
   event.preventDefault();
   const input = $('#financeQuickInput');
   const rows = parseFinanceLines(input.value, financeKind, selectedFinanceCategory);
-  if (!rows.length) { toast('Укажите сумму, например «кофе 250»'); return; }
+  if (!rows.length) { toast(tr('toast.enterAmount')); return; }
   const now = new Date().toISOString();
   rows.forEach(row => expenses.push({ id: crypto.randomUUID(), kind: financeKind, title: row.title, amount: row.amount, category: row.category, photo: pendingExpensePhoto, occurredAt: now, updatedAt: now }));
   saveExpenses(); renderFinance();
   input.value = ''; pendingExpensePhoto = null; renderExpensePhotoPreview();
-  toast(rows.length > 1 ? `Добавлено операций: ${rows.length}` : (financeKind === 'income' ? 'Доход добавлен' : 'Расход добавлен'));
+  toast(rows.length > 1 ? `${tr('toast.entriesAdded')}: ${rows.length}` : (financeKind === 'income' ? tr('toast.incomeAdded') : tr('toast.expenseAdded')));
 }
 function deleteExpense(id) {
   expenses = expenses.filter(e => e.id !== id);
   if (!deletedExpenseIds.includes(id)) deletedExpenseIds.push(id);
   localStorage.setItem(deletedExpensesStorageKey(), JSON.stringify(deletedExpenseIds));
-  saveExpenses(); renderFinance(); toast('Операция удалена');
+  saveExpenses(); renderFinance(); toast(tr('toast.entryDeleted'));
 }
 function setActiveTab(tab) {
   activeTab = tab;
@@ -356,17 +513,21 @@ function setActiveTab(tab) {
   if (tab === 'finance') { if ($('#taskDialog')?.open) closeDialog(); renderFinance(); }
 }
 
-function formatLong(key) { return fromKey(key).toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' }); }
-function formatHeaderDate(key) { const text = fromKey(key).toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }); return text.charAt(0).toLocaleUpperCase('ru') + text.slice(1); }
+function formatLong(key) { return fromKey(key).toLocaleDateString(LOCALE(), { weekday: 'long', day: 'numeric', month: 'long' }); }
+function formatHeaderDate(key) { const text = fromKey(key).toLocaleDateString(LOCALE(), { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }); return text.charAt(0).toLocaleUpperCase(appLang) + text.slice(1); }
 function escapeHtml(value = '') { const d = document.createElement('div'); d.textContent = value; return d.innerHTML; }
-const REPEAT_LABELS = { daily: 'Каждый день', weekdays: 'По будням', weekly: 'Каждую неделю', monthly: 'Каждый месяц' };
+function REPEAT_LABELS() {
+  return appLang === 'en'
+    ? { daily: 'Every day', weekdays: 'Weekdays', weekly: 'Every week', monthly: 'Every month' }
+    : { daily: 'Каждый день', weekdays: 'По будням', weekly: 'Каждую неделю', monthly: 'Каждый месяц' };
+}
 const FIXED_HOLIDAYS = { '01-01': 'Новый год', '01-02': 'Новогодние каникулы', '01-03': 'Новогодние каникулы', '01-04': 'Новогодние каникулы', '01-05': 'Новогодние каникулы', '01-06': 'Новогодние каникулы', '01-07': 'Рождество Христово', '01-08': 'Новогодние каникулы', '02-23': 'День защитника Отечества', '03-08': 'Международный женский день', '05-01': 'Праздник Весны и Труда', '05-09': 'День Победы', '06-12': 'День России', '11-04': 'День народного единства' };
 const OFFICIAL_HOLIDAYS_2026 = (() => {
   const result = {}; const addRange = (start, end, name) => { const d = fromKey(start); const last = fromKey(end); while (d <= last) { result[toKey(d)] = name; d.setDate(d.getDate() + 1); } };
   addRange('2026-01-01', '2026-01-11', 'Новогодние каникулы'); addRange('2026-02-21', '2026-02-23', 'Праздничные выходные'); addRange('2026-03-07', '2026-03-09', 'Праздничные выходные'); addRange('2026-05-01', '2026-05-03', 'Праздник Весны и Труда'); addRange('2026-05-09', '2026-05-11', 'День Победы'); addRange('2026-06-12', '2026-06-14', 'День России'); result['2026-11-04'] = 'День народного единства'; result['2026-12-31'] = 'Официальный выходной'; return result;
 })();
-function holidayName(key) { return OFFICIAL_HOLIDAYS_2026[key] || FIXED_HOLIDAYS[key.slice(5)] || ''; }
-function formatShortDate(key) { return fromKey(key).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' }); }
+function holidayName(key) { if (appLang !== 'ru') return ''; return OFFICIAL_HOLIDAYS_2026[key] || FIXED_HOLIDAYS[key.slice(5)] || ''; }
+function formatShortDate(key) { return fromKey(key).toLocaleDateString(LOCALE(), { day: 'numeric', month: 'short' }); }
 function weekBounds(key) {
   const date = fromKey(key); const start = new Date(date); start.setDate(date.getDate() - ((date.getDay() + 6) % 7));
   const end = new Date(start); end.setDate(start.getDate() + 6); return [toKey(start), toKey(end)];
@@ -374,10 +535,10 @@ function weekBounds(key) {
 function formatWeekRange(key) {
   const [startKey, endKey] = weekBounds(key); const start = fromKey(startKey); const end = fromKey(endKey);
   if (start.getMonth() === end.getMonth()) {
-    const month = end.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' }).replace(/^\d+\s*/, '');
-    return `${start.getDate()}–${end.getDate()} ${month}`;
+    const month = end.toLocaleDateString(LOCALE(), { day: 'numeric', month: 'long' }).replace(/^\d+\s*/, '');
+    return appLang === 'en' ? `${month} ${start.getDate()}–${end.getDate()}` : `${start.getDate()}–${end.getDate()} ${month}`;
   }
-  return `${start.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })} — ${end.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}`;
+  return `${start.toLocaleDateString(LOCALE(), { day: 'numeric', month: 'short' })} — ${end.toLocaleDateString(LOCALE(), { day: 'numeric', month: 'short' })}`;
 }
 function periodBounds() {
   const d = fromKey(selectedDate);
@@ -400,11 +561,11 @@ function renderPeriod() {
 
 function renderWeek() {
   const base = fromKey(selectedDate); const monday = new Date(base); monday.setDate(base.getDate() - ((base.getDay() + 6) % 7));
-  const names = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+  const names = WEEKDAY_ABBR();
   $('#weekStrip').innerHTML = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(monday); d.setDate(monday.getDate() + i); const key = toKey(d);
     const dayTasks = tasks.filter(t => t.date === key && !t.completed); const importantCount = dayTasks.filter(t => t.priority === 'high').length;
-    const priorityText = importantCount ? `, важных задач: ${importantCount}` : ''; const holiday = holidayName(key); const weekend = [0, 6].includes(d.getDay());
+    const priorityText = importantCount ? `, ${appLang === 'en' ? 'important tasks: ' + importantCount : 'важных задач: ' + importantCount}` : ''; const holiday = holidayName(key); const weekend = [0, 6].includes(d.getDay());
     return `<button class="day-button ${key === selectedDate ? 'selected' : ''} ${dayTasks.length ? 'has-tasks' : ''} ${importantCount ? 'has-high-priority' : ''} ${weekend ? 'weekend' : ''} ${holiday ? 'holiday' : ''}" data-date="${key}" aria-label="${formatLong(key)}${holiday ? `, ${holiday}` : ''}${priorityText}" title="${holiday}"><em ${importantCount ? '' : 'hidden'} aria-hidden="true">!</em><span>${names[i]}</span><b>${d.getDate()}</b><i></i></button>`;
   }).join('');
   $$('.day-button').forEach(b => b.addEventListener('click', () => { selectedDate = b.dataset.date; if (currentPeriod === 'day') render(); else { renderPeriod(); renderStats(); } }));
@@ -413,7 +574,7 @@ function renderWeek() {
 function renderMonth() {
   const anchor = fromKey(selectedDate); const first = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
   const start = new Date(first); start.setDate(first.getDate() - ((first.getDay() + 6) % 7));
-  const heads = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map(x => `<div class="month-grid-head">${x}</div>`).join('');
+  const heads = WEEKDAY_ABBR().map(x => `<div class="month-grid-head">${x}</div>`).join('');
   const days = Array.from({ length: 42 }, (_, i) => {
     const d = new Date(start); d.setDate(start.getDate() + i); const key = toKey(d); const count = tasks.filter(t => t.date === key && !t.completed).length; const holiday = holidayName(key); const weekend = [0, 6].includes(d.getDay());
     return `<button class="month-day ${d.getMonth() !== anchor.getMonth() ? 'outside' : ''} ${key === selectedDate ? 'selected' : ''} ${weekend ? 'weekend' : ''} ${holiday ? 'holiday' : ''}" data-month-date="${key}" title="${holiday}" aria-label="${formatLong(key)}${holiday ? `, ${holiday}` : ''}"><b>${d.getDate()}</b>${holiday ? '<em>праздник</em>' : count ? `<small>${count} дел</small>` : ''}</button>`;
@@ -447,25 +608,29 @@ function visibleTasks() {
   });
 }
 
+function carryDayLabel(count) {
+  if (appLang === 'en') return `${count} ${count === 1 ? tr('word.day') : tr('word.days')}`;
+  return `${count} ${count === 1 ? 'день' : count < 5 ? 'дня' : 'дней'}`;
+}
 function renderTasks() {
   const list = visibleTasks();
   $('#taskList').innerHTML = list.map(t => {
     const subDone = (t.subtasks || []).filter(s => s.done).length;
-    const carryLabel = t.carryCount ? `Переносилась ${t.carryCount} ${t.carryCount === 1 ? 'день' : t.carryCount < 5 ? 'дня' : 'дней'}` : 'Автоперенос';
+    const carryLabel = t.carryCount ? `${tr('task.carriedOver')} ${carryDayLabel(t.carryCount)}` : tr('task.autoCarryTag');
     return `<article class="task priority-${t.priority || 'normal'} ${t.completed ? 'completed' : ''}" data-task-id="${t.id}">
-    <input class="check" type="checkbox" data-check="${t.id}" ${t.completed ? 'checked' : ''} aria-label="Отметить задачу ${escapeHtml(t.title)} выполненной">
+    <input class="check" type="checkbox" data-check="${t.id}" ${t.completed ? 'checked' : ''} aria-label="${tr('task.markDoneAria')} ${escapeHtml(t.title)}">
     <div class="task-main"><div class="task-title">${escapeHtml(t.title)}</div><div class="task-meta">
-      <span>${currentPeriod !== 'day' || currentView !== 'today' ? formatShortDate(t.date) + ' · ' : ''}${t.time || 'В течение дня'}</span>
-      ${t.autoCarry ? `<span class="tag carry">↻ ${carryLabel}</span>` : ''}${t.photo ? '<span class="photo-chip">📷 фотоотчёт</span>' : ''}
-      ${t.repeat && t.repeat !== 'none' ? `<span class="tag repeat">⟳ ${REPEAT_LABELS[t.repeat]}</span>` : ''}
+      <span>${currentPeriod !== 'day' || currentView !== 'today' ? formatShortDate(t.date) + ' · ' : ''}${t.time || tr('task.anytime')}</span>
+      ${t.autoCarry ? `<span class="tag carry">↻ ${carryLabel}</span>` : ''}${t.photo ? `<span class="photo-chip">📷 ${tr('task.photoReport')}</span>` : ''}
+      ${t.repeat && t.repeat !== 'none' ? `<span class="tag repeat">⟳ ${REPEAT_LABELS()[t.repeat]}</span>` : ''}
       ${(t.subtasks || []).length ? `<span class="tag checklist">☑ ${subDone}/${t.subtasks.length}</span>` : ''}
-      ${t.attachment || t.photo ? '<span class="tag">📎 вложение</span>' : ''}
-      ${t.priority === 'high' ? '<span class="priority-label high">Важно</span>' : t.priority === 'low' ? '<span class="priority-label low">Можно позже</span>' : ''}
-    </div>${(t.subtasks || []).length ? `<div class="subtask-list">${t.subtasks.map((s, i) => `<button type="button" class="subtask ${s.done ? 'done' : ''}" data-subtask="${t.id}" data-sub-index="${i}"><i>${s.done ? '✓' : ''}</i>${escapeHtml(s.title)}</button>`).join('')}</div>` : ''}</div><button class="more-button" data-edit="${t.id}" aria-label="Редактировать ${escapeHtml(t.title)}">•••</button></article>`;
+      ${t.attachment || t.photo ? `<span class="tag">📎 ${tr('task.attachmentTag')}</span>` : ''}
+      ${t.priority === 'high' ? `<span class="priority-label high">${tr('task.important')}</span>` : t.priority === 'low' ? `<span class="priority-label low">${tr('task.canWait')}</span>` : ''}
+    </div>${(t.subtasks || []).length ? `<div class="subtask-list">${t.subtasks.map((s, i) => `<button type="button" class="subtask ${s.done ? 'done' : ''}" data-subtask="${t.id}" data-sub-index="${i}"><i>${s.done ? '✓' : ''}</i>${escapeHtml(s.title)}</button>`).join('')}</div>` : ''}</div><button class="more-button" data-edit="${t.id}" aria-label="${tr('task.editAria')} ${escapeHtml(t.title)}">•••</button></article>`;
   }).join('');
   $('#emptyState').hidden = list.length > 0;
-  $('#emptyStateTitle').textContent = searchQuery ? 'Ничего не найдено' : 'На этот день задач нет';
-  $('#emptyStateText').textContent = searchQuery ? 'Проверьте написание или введите другое слово. Поиск выполняется по всему архиву.' : 'Оставьте время для себя или добавьте новое дело.';
+  $('#emptyStateTitle').textContent = searchQuery ? tr('task.notFound') : tr('task.noTasksToday');
+  $('#emptyStateText').textContent = searchQuery ? tr('task.notFoundHint') : tr('task.noTasksHint');
   $('#emptyAddButton').hidden = !!searchQuery;
   $$('[data-check]').forEach(el => el.addEventListener('change', () => toggleTask(el.dataset.check)));
   $$('[data-edit]').forEach(el => el.addEventListener('click', () => openDialog(el.dataset.edit)));
@@ -477,10 +642,10 @@ function renderStats() {
   const day = tasks.filter(t => t.date === selectedDate); const done = day.filter(t => t.completed).length; const planned = day.length - done;
   const percent = day.length ? Math.round(done / day.length * 100) : 0;
   $('#doneCount').textContent = done; $('#plannedCount').textContent = planned; $('#progressPercent').textContent = `${percent}%`;
-  $('#progressRing').style.setProperty('--p', percent); $('#progressCaption').textContent = percent === 100 ? 'Отличный день!' : percent > 0 ? 'Так держать' : 'Начните с малого';
+  $('#progressRing').style.setProperty('--p', percent); $('#progressCaption').textContent = percent === 100 ? tr('stats.greatDay') : percent > 0 ? tr('stats.keepGoing') : tr('sidebar.startSmall');
   renderFocusCard(day);
   const periodList = visibleTasks(); const periodDone = periodList.filter(t => t.completed).length;
-  $('#taskSummary').textContent = periodList.length ? `${periodDone} из ${periodList.length} выполнено` : 'Пока всё свободно';
+  $('#taskSummary').textContent = periodList.length ? `${periodDone} ${tr('stats.of')} ${periodList.length} ${tr('stats.done')}` : tr('stats.allFree');
 }
 
 function renderFocusCard(day) {
@@ -504,13 +669,13 @@ function paintFocusCard(urgentParam, dayParam) {
       if (focusIndex >= urgent.length) focusIndex = 0;
       const focus = urgent[focusIndex];
       $('#focusTitle').textContent = focus.title;
-      $('#focusMeta').textContent = focus.time ? `В ${focus.time}` : focus.autoCarry ? 'Переносится до выполнения' : 'В удобное время';
+      $('#focusMeta').textContent = focus.time ? `${tr('focus.at')} ${focus.time}` : focus.autoCarry ? tr('focus.carriesOver') : tr('focus.anytime');
       $('#focusIllustration').textContent = urgent.length > 1 ? `${focusIndex + 1}/${urgent.length}` : '★';
       card.dataset.focusTask = focus.id; card.classList.toggle('has-task', true);
     } else {
       const hasOpen = day.some(t => !t.completed);
-      $('#focusTitle').textContent = hasOpen ? 'Срочных дел нет' : 'Все дела завершены';
-      $('#focusMeta').textContent = hasOpen ? 'Важные задачи не отмечены — остальные дела ждут своей очереди' : 'Можно спокойно отдохнуть';
+      $('#focusTitle').textContent = hasOpen ? tr('focus.noUrgent') : tr('focus.allDone');
+      $('#focusMeta').textContent = hasOpen ? tr('focus.noUrgentHint') : tr('focus.restHint');
       $('#focusIllustration').textContent = hasOpen ? '—' : '✓';
       delete card.dataset.focusTask; card.classList.toggle('has-task', false);
     }
@@ -522,31 +687,31 @@ function paintFocusCard(urgentParam, dayParam) {
 
 function renderHeader() {
   const d = fromKey(selectedDate); const [start, end] = periodBounds();
-  const periodLabel = currentPeriod === 'day' ? formatLong(selectedDate) : currentPeriod === 'week' ? `${fromKey(start).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })} — ${fromKey(end).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}` : currentPeriod === 'month' ? d.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' }) : String(d.getFullYear());
+  const periodLabel = currentPeriod === 'day' ? formatLong(selectedDate) : currentPeriod === 'week' ? `${fromKey(start).toLocaleDateString(LOCALE(), { day: 'numeric', month: 'short' })} — ${fromKey(end).toLocaleDateString(LOCALE(), { day: 'numeric', month: 'short' })}` : currentPeriod === 'month' ? d.toLocaleDateString(LOCALE(), { month: 'long', year: 'numeric' }) : String(d.getFullYear());
   $('#weekOverviewLabel').textContent = formatWeekRange(selectedDate);
   $('#weekOverviewButton').hidden = currentView !== 'today' || currentPeriod !== 'day';
   $('#dateEyebrow').textContent = periodLabel;
-  if (searchQuery) { $('#pageTitle').textContent = 'Поиск по ежедневнику'; $('#pageSubtitle').textContent = 'Ищем в активных, выполненных и архивных задачах.'; $('#listTitle').textContent = `Результаты поиска: ${visibleTasks().length}`; }
-  else if (currentView === 'upcoming') { $('#pageTitle').textContent = 'Предстоящие дела'; $('#pageSubtitle').textContent = 'Всё важное — в одном списке.'; $('#listTitle').textContent = 'Ближайшие задачи'; }
-  else if (currentView === 'completed') { $('#pageTitle').textContent = 'Выполнено'; $('#pageSubtitle').textContent = 'Приятно видеть результат.'; $('#listTitle').textContent = 'Готовые задачи'; }
+  if (searchQuery) { $('#pageTitle').textContent = tr('header.searchTitle'); $('#pageSubtitle').textContent = tr('header.searchSubtitle'); $('#listTitle').textContent = `${tr('header.searchResults')}: ${visibleTasks().length}`; }
+  else if (currentView === 'upcoming') { $('#pageTitle').textContent = tr('header.upcomingTitle'); $('#pageSubtitle').textContent = tr('header.upcomingSubtitle'); $('#listTitle').textContent = tr('header.upcomingList'); }
+  else if (currentView === 'completed') { $('#pageTitle').textContent = tr('nav.completed'); $('#pageSubtitle').textContent = tr('header.completedSubtitle'); $('#listTitle').textContent = tr('header.completedList'); }
   else {
-    const titles = { day: 'План на день', week: 'План на неделю', month: 'План на месяц', year: 'План на год' };
+    const titles = { day: tr('header.planDay'), week: tr('header.planWeek'), month: tr('header.planMonth'), year: tr('header.planYear') };
     const name = profileDisplayName(); const openCount = tasks.filter(t => t.date === selectedDate && !t.completed).length;
     $('#pageTitle').textContent = currentPeriod === 'day' ? `${greetingText()}${name ? `, ${name}` : ''}!` : titles[currentPeriod];
-    $('#pageSubtitle').textContent = currentPeriod === 'day' ? `${formatHeaderDate(selectedDate)} · осталось ${openCount} ${taskWord(openCount)}` : 'Незавершённые дела не потеряются.';
-    $('#listTitle').textContent = currentPeriod === 'day' ? (selectedDate === todayKey ? 'Задачи на сегодня' : `Задачи на ${d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}`) : `Задачи: ${periodLabel}`;
+    $('#pageSubtitle').textContent = currentPeriod === 'day' ? `${formatHeaderDate(selectedDate)} · ${tr('header.remaining')} ${openCount} ${taskWord(openCount)}` : tr('header.unfinishedNote');
+    $('#listTitle').textContent = currentPeriod === 'day' ? (selectedDate === todayKey ? tr('header.todayTasks') : `${tr('header.tasksFor')} ${d.toLocaleDateString(LOCALE(), { day: 'numeric', month: 'long' })}`) : `${tr('header.tasksColon')} ${periodLabel}`;
   }
 }
 
 function renderProfile() {
-  const name = profileDisplayName(); const initial = (name || 'Я').charAt(0).toLocaleUpperCase('ru');
+  const name = profileDisplayName(); const initial = (name || tr('profile.defaultInitial')).charAt(0).toLocaleUpperCase(appLang);
   if (!$('#profileInitial')) $('#profileButton').innerHTML = '<span id="profileInitial">Я</span><img id="profileAvatarImage" alt="" hidden>';
   $('#profileInitial').textContent = initial; const previewInitial = $('#profilePreviewInitial'); if (previewInitial) previewInitial.textContent = initial;
   const avatar = $('#profileAvatarImage'); avatar.hidden = !profile.photo; if (profile.photo) avatar.src = profile.photo; else avatar.removeAttribute('src');
   $('#profileInitial').hidden = !!profile.photo;
   const preview = $('#profilePreviewImage'); if (preview) { preview.hidden = !pendingProfilePhoto; if (pendingProfilePhoto) preview.src = pendingProfilePhoto; else preview.removeAttribute('src'); }
   if (previewInitial) previewInitial.hidden = !!pendingProfilePhoto; const remove = $('#removeProfilePhoto'); if (remove) remove.hidden = !pendingProfilePhoto;
-  $('#profileButton').title = name ? `Профиль: ${name}` : 'Настроить личный профиль';
+  $('#profileButton').title = name ? `${tr('profile.titlePrefix')}: ${name}` : tr('profile.setUpTitle');
 }
 function renderConnectionState() {
   const avatar = $('#profileButton'); if (!avatar) return;
@@ -657,7 +822,7 @@ function setTaskType(type = 'personal', locked = false) {
 function openDialog(id = null, source = 'personal') {
   const task = source === 'shared' ? sharedTasks.find(t => t.id === id) : tasks.find(t => t.id === id); $('#taskForm').reset(); pendingPhoto = task?.photo || null;
   pendingAttachment = task?.attachment || (task?.photo ? { name: 'Фотоотчёт.jpg', type: 'image/jpeg', data: task.photo, size: 0 } : null);
-  $('#taskId').value = task?.id || ''; $('#dialogTitle').textContent = task ? 'Редактировать задачу' : 'Новая задача';
+  $('#taskId').value = task?.id || ''; $('#dialogTitle').textContent = task ? tr('task.editTitle') : tr('task.newTitle');
   setTaskType(source, !!task);
   $('#sharedEmails').value = source === 'shared' ? [...(task?.acceptedEmails || []), ...(task?.invitedEmails || [])].filter(email => email !== task?.ownerEmail).join('\n') : '';
   $('#sharedTaskStatus').value = task?.status || 'open';
@@ -785,14 +950,14 @@ function applyVoiceText(targetId, text, parseTask) {
 }
 async function startVoiceForField(targetId, buttonId, options = {}) {
   if (activeRecognition) return;
-  if (options.openTask) { openDialog(); $('#dialogTitle').textContent = 'Новая задача голосом'; $('#taskAutoCarry').checked = true; }
+  if (options.openTask) { openDialog(); $('#dialogTitle').textContent = tr('task.newByVoice'); $('#taskAutoCarry').checked = true; }
   const target = $('#' + targetId); if (!target) { toast('Поле для голосового ввода не найдено'); return; } target.focus();
   const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!Recognition) { voiceFallback(targetId, 'Нажмите микрофон на клавиатуре телефона и продиктуйте текст'); return; }
   if (!isSecureContext) { toast('Микрофон работает только в установленном приложении или через HTTPS'); return; }
   try {
     const recognition = new Recognition(); activeRecognition = recognition; activeVoiceButton = $('#' + buttonId);
-    recognition.lang = 'ru-RU'; recognition.interimResults = false; recognition.continuous = false; recognition.maxAlternatives = 1;
+    recognition.lang = LOCALE(); recognition.interimResults = false; recognition.continuous = false; recognition.maxAlternatives = 1;
     activeVoiceButton?.classList.add('listening'); if (activeVoiceButton) { activeVoiceButton.textContent = '●'; activeVoiceButton.title = 'Слушаю…'; }
     recognition.onstart = () => toast(options.prompt || 'Слушаю… Говорите');
     recognition.onresult = e => {
@@ -1524,13 +1689,14 @@ $('#closeReminders').addEventListener('click', () => $('#reminderDialog').close(
 function openPlansDialog() { currentPlanningView = 'week'; planningAnchorDate = selectedDate; renderPlanningDialog(); $('#reminderDialog').showModal(); }
 $('#mobilePlansButton').addEventListener('click', openPlansDialog);
 $('#desktopPlansButton').addEventListener('click', openPlansDialog);
+$$('.lang-button').forEach(button => button.addEventListener('click', () => setLang(button.dataset.lang)));
 $('#tabPlanner').addEventListener('click', () => setActiveTab('planner'));
 $('#tabFinance').addEventListener('click', () => setActiveTab('finance'));
 $('#financeQuickForm').addEventListener('submit', addFinanceEntry);
 $('#financeQuickInput').addEventListener('input', e => { if (!/\r?\n/.test(e.currentTarget.value)) { selectedFinanceCategory = detectFinanceCategory(e.currentTarget.value, financeKind); renderFinanceCategoryGrid(); } });
 $('#financeCategoryGrid').addEventListener('click', e => { const button = e.target.closest('[data-category]'); if (!button) return; selectedFinanceCategory = button.dataset.category; renderFinanceCategoryGrid(); });
 bindHoldToTalk('financeVoiceButton', () => startVoiceForField('financeQuickInput', 'financeVoiceButton', { prompt: 'Слушаю… Назовите покупку и сумму', success: 'Текст добавлен' }));
-if (!HAS_SPEECH_RECOGNITION) $('#financeVoiceHint').textContent = 'Нажмите 🎙 — откроется поле, затем нажмите значок микрофона на клавиатуре и продиктуйте покупку и сумму';
+if (!HAS_SPEECH_RECOGNITION) $('#financeVoiceHint').textContent = tr('finance.voiceHintFallback');
 $('#financeList').addEventListener('click', e => { const button = e.target.closest('[data-delete-expense]'); if (button) deleteExpense(button.dataset.deleteExpense); });
 $$('.finance-kind-button').forEach(button => button.addEventListener('click', () => {
   financeKind = button.dataset.kind;
@@ -1568,7 +1734,7 @@ window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); instal
 $('#installButton').addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('#installButton').hidden = true; });
 showUpdatedNoticeIfNeeded();
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=78'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
+  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=79'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
   navigator.serviceWorker.addEventListener('message', event => {
     if (event.data?.type !== 'DAY_PUSH') return;
     showReminderAlert(event.data.taskId || '', event.data.title || 'Новое уведомление', event.data.body || '');
@@ -1616,4 +1782,5 @@ document.addEventListener('visibilitychange', () => {
 setInterval(() => { if (document.visibilityState === 'visible' && navigator.onLine) performSync(false); }, 15000);
 setInterval(() => { if (document.visibilityState === 'visible' && navigator.onLine) refreshSharedPresence(); }, 30000);
 
+document.documentElement.lang = appLang; $$('.lang-button').forEach(b => b.classList.toggle('active', b.dataset.lang === appLang)); applyStaticTranslations();
 runAutoCarry(); save(); render(); renderProfile(); renderConnectionState(); refreshUpdateIndicator(); initializeAccount(); checkReminders(); setInterval(checkReminders, 30000);
