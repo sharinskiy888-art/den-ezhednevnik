@@ -10,7 +10,7 @@ const PIN_RELOCK_MS = 30 * 60 * 1000;
 const NOTIFICATION_KEY = 'day-planner-notifications-v1';
 const EXPENSES_KEY = 'day-planner-expenses-v1';
 const DELETED_EXPENSES_KEY = 'day-planner-deleted-expenses-v1';
-const APP_VERSION = '77';
+const APP_VERSION = '78';
 const UPDATE_SEEN_KEY = 'day-planner-update-seen-v1';
 const UPDATE_APPLIED_KEY = 'day-planner-update-applied-v1';
 const $ = (selector) => document.querySelector(selector);
@@ -209,11 +209,11 @@ function financePeriodBounds() {
   return [`${d.getFullYear()}-01-01`, `${d.getFullYear()}-12-31`];
 }
 function financePeriodLabel() {
-  const d = fromKey(financeSelectedDate);
-  if (financePeriod === 'day') return formatLong(financeSelectedDate);
-  if (financePeriod === 'week') return formatWeekRange(financeSelectedDate);
-  if (financePeriod === 'month') { const text = d.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' }); return text.charAt(0).toLocaleUpperCase('ru') + text.slice(1); }
-  return String(d.getFullYear());
+  const d = fromKey(financeSelectedDate); const now = new Date();
+  if (financePeriod === 'day') return financeSelectedDate === todayKey ? 'Сегодня' : formatLong(financeSelectedDate);
+  if (financePeriod === 'week') { const [s, e] = weekBounds(financeSelectedDate); const [ts, te] = weekBounds(todayKey); return (s === ts && e === te) ? 'Эта неделя' : formatWeekRange(financeSelectedDate); }
+  if (financePeriod === 'month') { if (d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()) return 'Этот месяц'; const text = d.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' }); return text.charAt(0).toLocaleUpperCase('ru') + text.slice(1); }
+  return d.getFullYear() === now.getFullYear() ? 'Этот год' : String(d.getFullYear());
 }
 function moveFinancePeriod(direction) {
   const d = fromKey(financeSelectedDate);
@@ -1568,7 +1568,7 @@ window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); instal
 $('#installButton').addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('#installButton').hidden = true; });
 showUpdatedNoticeIfNeeded();
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=77'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
+  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=78'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
   navigator.serviceWorker.addEventListener('message', event => {
     if (event.data?.type !== 'DAY_PUSH') return;
     showReminderAlert(event.data.taskId || '', event.data.title || 'Новое уведомление', event.data.body || '');
