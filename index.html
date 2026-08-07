@@ -7,7 +7,7 @@
   <meta name="description" content="Простой ежедневник, который работает офлайн на телефоне и Windows.">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=74">
+  <link rel="stylesheet" href="styles.css?v=75">
   <title>День — ежедневник</title>
   <script>
     (() => {
@@ -171,6 +171,7 @@
               <textarea id="financeQuickInput" rows="1" maxlength="400" placeholder="Например: кофе 250 (или несколько строк — по одной покупке в каждой)"></textarea>
               <button type="button" class="field-voice-button" id="financeVoiceButton" aria-label="Продиктовать расход">🎙</button>
             </span>
+            <p class="finance-hint" id="financeVoiceHint">Нажмите и удерживайте 🎙, скажите покупку и сумму, отпустите</p>
             <div class="finance-category-grid" id="financeCategoryGrid"></div>
             <div class="finance-photo-actions">
               <button type="button" class="attachment-button" id="financeCameraButton">📷 Сфотографировать чек</button>
@@ -180,7 +181,7 @@
             <input type="file" id="financeGalleryInput" accept="image/*" hidden>
             <div class="finance-photo-preview" id="financePhotoPreview" hidden>
               <img id="financePhotoPreviewImage" alt="Чек">
-              <span>Чек прикреплён к операции</span>
+              <span>Чек прикреплён — сохранится вместе с операцией ниже</span>
               <button type="button" id="removeExpensePhoto" aria-label="Удалить фото">×</button>
             </div>
             <button type="submit" class="finance-submit">Добавить</button>
@@ -543,8 +544,8 @@
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastAction" hidden></button></div>
-  <script src="sync-config.js?v=74"></script>
-  <script src="sync.js?v=74"></script>
-  <script src="app.js?v=74"></script>
+  <script src="sync-config.js?v=75"></script>
+  <script src="sync.js?v=75"></script>
+  <script src="app.js?v=75"></script>
 </body>
 </html>

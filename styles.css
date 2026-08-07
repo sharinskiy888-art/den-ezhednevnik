@@ -179,6 +179,7 @@ dialog { border-radius:12px;box-shadow:0 20px 55px rgba(25,41,57,.22); }.close-b
 .finance-kind-button.active { background:white;color:var(--ink);font-weight:800;box-shadow:0 3px 9px rgba(40,34,90,.08); }
 .finance-capture { margin-bottom:22px;background:white;border:1px solid var(--line);border-radius:17px;padding:14px;display:flex;flex-direction:column;gap:12px;box-shadow:0 7px 24px rgba(40,34,90,.05); }
 .finance-capture textarea { width:100%;border:1px solid var(--line);border-radius:11px;padding:9px 44px 9px 11px;resize:vertical;min-height:44px;max-height:160px; }
+.finance-hint { margin:-4px 0 0;color:var(--muted);font-size:11px;line-height:1.4; }
 .finance-category-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:8px; }
 .finance-category-chip { --cat:var(--muted);display:flex;flex-direction:column;align-items:center;gap:5px;border:1px solid var(--line);border-radius:12px;padding:9px 4px;background:white;font-size:11px;font-weight:700;color:var(--ink);text-align:center; }
 .finance-category-chip i { width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:color-mix(in srgb, var(--cat) 18%, white);color:var(--cat);font-style:normal;font-size:13px; }
@@ -209,4 +210,4 @@ dialog { border-radius:12px;box-shadow:0 20px 55px rgba(25,41,57,.22); }.close-b
 .finance-amount.expense { color:var(--coral); }
 .finance-delete { border:0;background:transparent;color:#aaa9b4;font-size:18px;border-radius:9px;padding:4px 8px; }
 .finance-delete:hover { background:#f2f1f6; }
-@media(max-width:850px){.app-tabs{padding:3px}.app-tab{padding:7px 12px;font-size:11px}.finance-summary{grid-template-columns:1fr}}
+@media(max-width:850px){.app-tabs{padding:3px}.app-tab{padding:7px 12px;font-size:11px}.finance-summary{grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}.finance-summary .stat-card{flex-direction:column;align-items:flex-start;gap:7px;padding:12px 10px}.finance-summary .stat-icon{width:28px;height:28px;font-size:13px;border-radius:8px}.finance-summary .stat-card strong{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}.finance-summary .stat-card small{font-size:9px}}
