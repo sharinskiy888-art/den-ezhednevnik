@@ -98,6 +98,9 @@ dialog { border-radius:12px;box-shadow:0 20px 55px rgba(25,41,57,.22); }.close-b
   .main-content { height:100dvh;padding:12px 11px calc(66px + env(safe-area-inset-bottom));display:flex;flex-direction:column;overflow:hidden; }
   .topbar { flex:0 0 auto;align-items:center;gap:8px; }.topbar .eyebrow,.topbar .subtitle { display:none; }.topbar h1 { font-size:21px;line-height:1.15; }.top-actions { gap:5px; }.icon-button,.avatar { width:35px;height:35px;border-radius:6px; }
   .period-bar { flex:0 0 auto;margin:8px 0 0;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px;align-items:center; }.period-switch { width:100%;display:grid;grid-template-columns:repeat(4,1fr); }.period-button,.period-nav button { padding:6px 5px;font-size:10px; }.period-nav { align-self:auto; }.period-nav #periodToday { display:none; }
+  #financeView .period-bar { grid-template-columns:1fr;row-gap:8px; }
+  #financeView .period-nav { width:100%;display:flex; }
+  #financeView .period-nav button { padding:7px 6px;font-size:11px; }
   .week-strip { flex:0 0 auto;margin:7px 0;gap:3px; }.day-button { min-height:46px;padding:5px 2px;gap:2px; }.day-button span { font-size:9px; }.day-button b { font-size:13px; }.day-button.has-high-priority em { width:14px;height:14px;right:2px;top:2px;font-size:8px; }
   .calendar-overview { margin:7px 0;max-height:28dvh;overflow:auto; }.month-day { min-height:42px; }.year-grid { gap:6px; }.year-month { border-radius:6px;padding:10px; }
   .overview { display:none; }
@@ -193,7 +196,7 @@ dialog { border-radius:12px;box-shadow:0 20px 55px rgba(25,41,57,.22); }.close-b
 .finance-breakdown-row b { font-size:13px;font-weight:800;white-space:nowrap; }
 .finance-row-icon { width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-style:normal;font-size:14px;flex-shrink:0; }
 .finance-photo-flag { text-decoration:none;font-size:12px; }
-.finance-period-label { margin:-6px 0 16px;color:var(--muted);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.03em; }
+.finance-period-nav #financePeriodToday.finance-period-label { flex:1;min-width:0;color:var(--ink);font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:8px 10px; }
 .finance-photo-actions { display:flex;gap:8px;flex-wrap:wrap; }
 .finance-photo-actions .attachment-button { flex:1 1 160px; }
 .finance-photo-preview { display:flex;align-items:center;gap:10px;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:8px 10px; }

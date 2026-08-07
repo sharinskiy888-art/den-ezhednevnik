@@ -7,7 +7,7 @@
   <meta name="description" content="Простой ежедневник, который работает офлайн на телефоне и Windows.">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=76">
+  <link rel="stylesheet" href="styles.css?v=77">
   <title>День — ежедневник</title>
   <script>
     (() => {
@@ -138,13 +138,12 @@
             <button class="period-button active" data-finance-period="month">Месяц</button>
             <button class="period-button" data-finance-period="year">Год</button>
           </div>
-          <div class="period-nav">
+          <div class="period-nav finance-period-nav">
             <button id="financePeriodPrev" aria-label="Предыдущий период">‹</button>
-            <button id="financePeriodToday">Сегодня</button>
+            <button id="financePeriodToday" class="finance-period-label" aria-label="Перейти к сегодняшнему дню"></button>
             <button id="financePeriodNext" aria-label="Следующий период">›</button>
           </div>
         </section>
-        <p class="finance-period-label" id="financePeriodLabel"></p>
 
         <section class="finance-summary" aria-label="Сводка по финансам">
           <article class="stat-card">
@@ -544,8 +543,8 @@
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastAction" hidden></button></div>
-  <script src="sync-config.js?v=76"></script>
-  <script src="sync.js?v=76"></script>
-  <script src="app.js?v=76"></script>
+  <script src="sync-config.js?v=77"></script>
+  <script src="sync.js?v=77"></script>
+  <script src="app.js?v=77"></script>
 </body>
 </html>
