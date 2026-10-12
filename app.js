@@ -10,7 +10,7 @@ const PIN_RELOCK_MS = 30 * 60 * 1000;
 const NOTIFICATION_KEY = 'day-planner-notifications-v1';
 const EXPENSES_KEY = 'day-planner-expenses-v1';
 const DELETED_EXPENSES_KEY = 'day-planner-deleted-expenses-v1';
-const APP_VERSION = '81';
+const APP_VERSION = '82';
 const UPDATE_SEEN_KEY = 'day-planner-update-seen-v1';
 const UPDATE_APPLIED_KEY = 'day-planner-update-applied-v1';
 const LANG_KEY = 'day-planner-lang-v1';
@@ -158,6 +158,9 @@ function setLang(lang) {
   $$('.lang-button').forEach(b => b.classList.toggle('active', b.dataset.lang === appLang));
   applyStaticTranslations();
   render(); renderFinance(); renderProfile();
+  // Часть интерфейса переводится слоем i18n-en.js прямо в разметке; при возврате на русский
+  // эти тексты восстанавливаются только перезагрузкой страницы.
+  if (appLang === 'en') window.DayI18nEn?.start(); else if (window.DayI18nEn) { window.DayI18nEn.stop(); location.reload(); }
 }
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -543,7 +546,7 @@ function weekBounds(key) {
 function formatWeekRange(key) {
   const [startKey, endKey] = weekBounds(key); const start = fromKey(startKey); const end = fromKey(endKey);
   if (start.getMonth() === end.getMonth()) {
-    const month = end.toLocaleDateString(LOCALE(), { day: 'numeric', month: 'long' }).replace(/^\d+\s*/, '');
+    const month = appLang === 'en' ? end.toLocaleDateString(LOCALE(), { month: 'long' }) : end.toLocaleDateString(LOCALE(), { day: 'numeric', month: 'long' }).replace(/^\d+\s*/, '');
     return appLang === 'en' ? `${month} ${start.getDate()}–${end.getDate()}` : `${start.getDate()}–${end.getDate()} ${month}`;
   }
   return `${start.toLocaleDateString(LOCALE(), { day: 'numeric', month: 'short' })} — ${end.toLocaleDateString(LOCALE(), { day: 'numeric', month: 'short' })}`;
@@ -706,7 +709,7 @@ function renderHeader() {
     const titles = { day: tr('header.planDay'), week: tr('header.planWeek'), month: tr('header.planMonth'), year: tr('header.planYear') };
     const name = profileDisplayName(); const openCount = tasks.filter(t => t.date === selectedDate && !t.completed).length;
     $('#pageTitle').textContent = currentPeriod === 'day' ? `${greetingText()}${name ? `, ${name}` : ''}!` : titles[currentPeriod];
-    $('#pageSubtitle').textContent = currentPeriod === 'day' ? `${formatHeaderDate(selectedDate)} · ${tr('header.remaining')} ${openCount} ${taskWord(openCount)}` : tr('header.unfinishedNote');
+    $('#pageSubtitle').textContent = currentPeriod === 'day' ? (appLang === 'en' ? `${formatHeaderDate(selectedDate)} · ${openCount} ${taskWord(openCount)} left` : `${formatHeaderDate(selectedDate)} · ${tr('header.remaining')} ${openCount} ${taskWord(openCount)}`) : tr('header.unfinishedNote');
     $('#listTitle').textContent = currentPeriod === 'day' ? (selectedDate === todayKey ? tr('header.todayTasks') : `${tr('header.tasksFor')} ${d.toLocaleDateString(LOCALE(), { day: 'numeric', month: 'long' })}`) : `${tr('header.tasksColon')} ${periodLabel}`;
   }
 }
@@ -1429,7 +1432,8 @@ function renderUpdateCenter() {
   $('#latestVersionLabel').textContent = latestAppVersion;
   $('#updateStatusTitle').textContent = available ? 'Доступно новое обновление' : 'Установлена последняя версия';
   $('#updateStatusText').textContent = available ? `Версия ${latestAppVersion} готова к установке` : 'Новых обновлений нет';
-  $('#updateNotes').innerHTML = latestUpdateNotes.map(note => `<li>${escapeHtml(note)}</li>`).join('');
+  const notes = appLang === 'en' && Array.isArray(window.DAY_APP_RELEASE?.notesEn) && String(window.DAY_APP_RELEASE.version) === String(latestAppVersion) ? window.DAY_APP_RELEASE.notesEn : appLang === 'en' ? ['Release notes for this version are available in Russian.'] : latestUpdateNotes;
+  $('#updateNotes').innerHTML = notes.map(note => `<li>${escapeHtml(note)}</li>`).join('');
   $('#applyUpdateButton').hidden = !available;
   $('#applyUpdateButton').disabled = !available;
   $('#applyUpdateButton').textContent = 'Установить обновление';
@@ -1749,7 +1753,7 @@ window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); instal
 $('#installButton').addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('#installButton').hidden = true; });
 showUpdatedNoticeIfNeeded();
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=81'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
+  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=82'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
   navigator.serviceWorker.addEventListener('message', event => {
     if (event.data?.type !== 'DAY_PUSH') return;
     showReminderAlert(event.data.taskId || '', event.data.title || 'Новое уведомление', event.data.body || '');
