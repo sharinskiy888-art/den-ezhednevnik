@@ -10,7 +10,7 @@ const PIN_RELOCK_MS = 30 * 60 * 1000;
 const NOTIFICATION_KEY = 'day-planner-notifications-v1';
 const EXPENSES_KEY = 'day-planner-expenses-v1';
 const DELETED_EXPENSES_KEY = 'day-planner-deleted-expenses-v1';
-const APP_VERSION = '79';
+const APP_VERSION = '80';
 const UPDATE_SEEN_KEY = 'day-planner-update-seen-v1';
 const UPDATE_APPLIED_KEY = 'day-planner-update-applied-v1';
 const LANG_KEY = 'day-planner-lang-v1';
@@ -243,15 +243,24 @@ function loadTasks() {
   } catch { return seedTasks(); }
 }
 
-function loadDeletedIds() {
-  try { return JSON.parse(localStorage.getItem(deletedStorageKey()) || '[]'); } catch { return []; }
+// Надгробия удалённых записей: { id: время удаления }. Хранятся, пока не истекут (90 дней),
+// а не стираются после первой синхронизации — иначе другое устройство вернёт удалённое обратно.
+function loadTombstones(key) {
+  try {
+    const raw = JSON.parse(localStorage.getItem(key) || '{}');
+    if (Array.isArray(raw)) { const now = new Date().toISOString(); return Object.fromEntries(raw.map(id => [id, now])); }
+    return raw && typeof raw === 'object' ? raw : {};
+  } catch { return {}; }
 }
+function markDeleted(tombstones, key, id) {
+  tombstones[id] = new Date().toISOString();
+  localStorage.setItem(key, JSON.stringify(tombstones));
+}
+function loadDeletedIds() { return loadTombstones(deletedStorageKey()); }
 function loadExpenses() {
   try { return JSON.parse(localStorage.getItem(expensesStorageKey()) || '[]'); } catch { return []; }
 }
-function loadDeletedExpenseIds() {
-  try { return JSON.parse(localStorage.getItem(deletedExpensesStorageKey()) || '[]'); } catch { return []; }
-}
+function loadDeletedExpenseIds() { return loadTombstones(deletedExpensesStorageKey()); }
 function loadProfile() {
   try { return { name: '', photo: '', ...JSON.parse(localStorage.getItem(profileStorageKey()) || '{}') }; }
   catch { return { name: '', photo: '' }; }
@@ -500,8 +509,7 @@ function addFinanceEntry(event) {
 }
 function deleteExpense(id) {
   expenses = expenses.filter(e => e.id !== id);
-  if (!deletedExpenseIds.includes(id)) deletedExpenseIds.push(id);
-  localStorage.setItem(deletedExpensesStorageKey(), JSON.stringify(deletedExpenseIds));
+  markDeleted(deletedExpenseIds, deletedExpensesStorageKey(), id);
   saveExpenses(); renderFinance(); toast(tr('toast.entryDeleted'));
 }
 function setActiveTab(tab) {
@@ -771,7 +779,7 @@ function toggleTask(id) {
   const wasCompleted = task.completed; task.completed = !task.completed; task.updatedAt = new Date().toISOString();
   const createdRepeatId = task.completed ? createNextRepeat(task) : null;
   save(); render();
-  toast(task.completed ? 'Задача выполнена' : 'Задача возвращена', task.completed ? 'Отменить' : '', () => { task.completed = wasCompleted; if (createdRepeatId) tasks = tasks.filter(t => t.id !== createdRepeatId); task.updatedAt = new Date().toISOString(); save(); render(); });
+  toast(task.completed ? 'Задача выполнена' : 'Задача возвращена', task.completed ? 'Отменить' : '', () => { task.completed = wasCompleted; if (createdRepeatId) { tasks = tasks.filter(t => t.id !== createdRepeatId); markDeleted(deletedIds, deletedStorageKey(), createdRepeatId); } task.updatedAt = new Date().toISOString(); save(); render(); });
 }
 function toggleSubtask(id, index) {
   const task = tasks.find(t => t.id === id); if (!task?.subtasks?.[index]) return;
@@ -891,7 +899,7 @@ async function deleteCurrent() {
     try { await window.DaySync.deleteSharedTask(id); closeDialog(); await loadSharedTasks(false); renderSharedDialog(); toast('Совместная задача удалена'); } catch (error) { toast(sharedErrorText(error)); }
     return;
   }
-  tasks = tasks.filter(t => t.id !== id); if (!deletedIds.includes(id)) deletedIds.push(id); localStorage.setItem(deletedStorageKey(), JSON.stringify(deletedIds)); save(); closeDialog(); render(); toast('Задача удалена');
+  tasks = tasks.filter(t => t.id !== id); markDeleted(deletedIds, deletedStorageKey(), id); save(); closeDialog(); render(); toast('Задача удалена');
 }
 
 async function prepareAttachment(file) {
@@ -1244,8 +1252,13 @@ async function performSync(showMessage = true) {
   syncInFlight = true;
   setSyncStatus('syncing', 'Синхронизация…', 'Обмениваемся изменениями с облаком');
   try {
-    const result = await window.DaySync.sync('planner_tasks', tasks, deletedIds, { profile, periodPlans, updatedAt: appStateUpdatedAt });
-    tasks = result.tasks || []; deletedIds = []; localStorage.setItem(deletedStorageKey(), '[]');
+    const sentTombstones = { ...deletedIds };
+    const result = await window.DaySync.sync('planner_tasks', tasks, sentTombstones, { profile, periodPlans, updatedAt: appStateUpdatedAt });
+    // Задачи, удалённые пока шёл обмен с облаком, не должны вернуться из ответа сервера.
+    const deletedDuringSync = Object.keys(deletedIds).filter(id => !(id in sentTombstones));
+    tasks = (result.tasks || []).filter(t => !deletedDuringSync.includes(t.id));
+    deletedIds = { ...(result.tombstones || {}), ...Object.fromEntries(deletedDuringSync.map(id => [id, deletedIds[id]])) };
+    localStorage.setItem(deletedStorageKey(), JSON.stringify(deletedIds));
     const remoteState = result.appState;
     if (remoteState && new Date(remoteState.updatedAt || 0) > new Date(appStateUpdatedAt || 0)) {
       profile = { name: '', photo: '', ...(remoteState.profile || {}) };
@@ -1256,14 +1269,16 @@ async function performSync(showMessage = true) {
       localStorage.setItem(planStorageKey(), JSON.stringify(periodPlans));
       localStorage.setItem(stateUpdatedStorageKey(), appStateUpdatedAt);
     }
-    expenses = await window.DaySync.syncExpenses(expenses, deletedExpenseIds);
-    deletedExpenseIds = []; localStorage.setItem(deletedExpensesStorageKey(), '[]');
+    const expenseResult = await window.DaySync.syncExpenses(expenses, deletedExpenseIds);
+    expenses = expenseResult.expenses || []; deletedExpenseIds = expenseResult.tombstones || {}; localStorage.setItem(deletedExpensesStorageKey(), JSON.stringify(deletedExpenseIds));
     suppressSync = true; save(); saveExpenses(); suppressSync = false; render(); renderFinance(); renderProfile(); await loadSharedTasks(false); await refreshSharedPresence(); await ensurePushSubscription(false);
     if ($('#sharedDialog')?.open) renderSharedDialog();
     setSyncStatus('connected', 'Синхронизировано', `Задач в облаке: ${tasks.length}`);
     if (showMessage) toast('Данные синхронизированы');
   } catch (error) {
-    suppressSync = false; setSyncStatus('error', 'Ошибка синхронизации', error.message); if (showMessage) toast(error.message);
+    suppressSync = false;
+    if (error.sessionExpired) { switchAccountData(); toast(error.message); openSyncDialog(); setSyncStatus('error', 'Нужно войти снова', error.message); }
+    else { setSyncStatus('error', 'Ошибка синхронизации', error.message); if (showMessage) toast(error.message); }
   } finally { syncInFlight = false; }
 }
 async function handleSyncLogin(event) {
@@ -1734,7 +1749,7 @@ window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); instal
 $('#installButton').addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('#installButton').hidden = true; });
 showUpdatedNoticeIfNeeded();
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=79'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
+  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=80'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
   navigator.serviceWorker.addEventListener('message', event => {
     if (event.data?.type !== 'DAY_PUSH') return;
     showReminderAlert(event.data.taskId || '', event.data.title || 'Новое уведомление', event.data.body || '');
