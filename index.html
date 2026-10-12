@@ -7,7 +7,7 @@
   <meta name="description" content="Простой ежедневник, который работает офлайн на телефоне и Windows.">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=82">
+  <link rel="stylesheet" href="styles.css?v=83">
   <title>День — ежедневник</title>
   <script>
     (() => {
@@ -25,14 +25,24 @@
         <span class="brand-mark">D</span>
         <span>День</span>
       </a>
-      <nav class="side-nav">
+      <nav class="side-nav" id="plannerSideNav">
         <button class="nav-item active" data-view="today"><span>●</span><span data-i18n="nav.today">Сегодня</span></button>
         <button class="nav-item" data-view="upcoming"><span>→</span><span data-i18n="nav.upcoming">Предстоящие</span></button>
         <button class="nav-item" data-view="completed"><span>✓</span><span data-i18n="nav.completed">Выполнено</span></button>
         <button type="button" class="nav-item shared-nav-entry" id="desktopSharedButton"><span>◎</span><span data-i18n="nav.shared">Совместные</span><i class="shared-badge" id="desktopSharedBadge" hidden></i></button>
         <button type="button" class="nav-item" id="desktopPlansButton"><span>▦</span><span data-i18n="nav.plans">Планы</span></button>
       </nav>
-      <div class="sidebar-footer">
+      <nav class="side-nav" id="financeSideNav" hidden>
+        <button type="button" class="nav-item active" data-finance-nav="overview"><span>◉</span><span data-i18n="fnav.overview">Обзор</span></button>
+        <button type="button" class="nav-item" data-finance-nav="expense"><span>−</span><span data-i18n="fnav.expense">Добавить расход</span></button>
+        <button type="button" class="nav-item" data-finance-nav="income"><span>+</span><span data-i18n="fnav.income">Добавить доход</span></button>
+        <button type="button" class="nav-item" data-finance-nav="categories"><span>◐</span><span data-i18n="fnav.categories">По категориям</span></button>
+        <button type="button" class="nav-item" data-finance-nav="history"><span>☰</span><span data-i18n="fnav.history">История</span></button>
+      </nav>
+      <div class="sidebar-footer" id="financeSidebarFooter" hidden>
+        <div class="finance-side-balance"><small data-i18n="fnav.balance">Баланс периода</small><strong id="financeSideBalance">0 ₽</strong></div>
+      </div>
+      <div class="sidebar-footer" id="plannerSidebarFooter">
         <div class="progress-ring" id="progressRing"><span id="progressPercent">0%</span></div>
         <div><strong data-i18n="sidebar.dayProgress">Прогресс дня</strong><small id="progressCaption" data-i18n="sidebar.startSmall">Начните с малого</small></div>
       </div>
@@ -149,7 +159,7 @@
           </div>
         </section>
 
-        <section class="finance-summary" aria-label="Сводка по финансам">
+        <section class="finance-summary" id="financeSummarySection" aria-label="Сводка по финансам">
           <article class="stat-card">
             <span class="stat-icon green">↓</span>
             <div><strong id="financeIncomeTotal">0 ₽</strong><small data-i18n="finance.income">доход</small></div>
@@ -191,7 +201,7 @@
           </form>
         </section>
 
-        <section class="tasks-section">
+        <section class="tasks-section" id="financeBreakdownSection">
           <div class="section-heading">
             <div>
               <h2 data-i18n="finance.byCategory">По категориям</h2>
@@ -206,7 +216,7 @@
           </div>
         </section>
 
-        <section class="tasks-section">
+        <section class="tasks-section" id="financeHistorySection">
           <div class="section-heading">
             <div>
               <h2 data-i18n="finance.history">История операций</h2>
@@ -223,13 +233,15 @@
       </div>
     </main>
 
-    <button class="fab" id="addButton" aria-label="Добавить задачу" data-i18n-aria="quick.addTaskAria"><span>+</span><b data-i18n="quick.newTask">Новая задача</b></button>
+    <button class="fab" id="addButton" aria-label="Добавить задачу" data-i18n-aria="quick.addTaskAria"><span>+</span><b id="fabLabel" data-i18n="quick.newTask">Новая задача</b></button>
 
     <nav class="bottom-nav" aria-label="Мобильная навигация">
-      <button class="mobile-nav active" data-view="today"><span>◉</span><small data-i18n="nav.today">Сегодня</small></button>
-      <button class="mobile-nav shared-nav-entry" id="mobileSharedButton"><span>◎</span><small data-i18n="nav.shared">Совместные</small><i class="shared-badge" id="mobileSharedBadge" hidden></i></button>
+      <button class="mobile-nav finance-only" data-finance-nav="overview" hidden><span>◉</span><small data-i18n="fnav.overview">Обзор</small></button>
+      <button class="mobile-nav active planner-only" data-view="today"><span>◉</span><small data-i18n="nav.today">Сегодня</small></button>
+      <button class="mobile-nav shared-nav-entry planner-only" id="mobileSharedButton"><span>◎</span><small data-i18n="nav.shared">Совместные</small><i class="shared-badge" id="mobileSharedBadge" hidden></i></button>
       <button class="mobile-add" id="mobileAddButton" aria-label="Добавить задачу" data-i18n-aria="quick.addTaskAria">+</button>
-      <button class="mobile-nav" id="mobilePlansButton"><span>▦</span><small data-i18n="nav.plans">Планы</small></button>
+      <button class="mobile-nav finance-only" data-finance-nav="history" hidden><span>☰</span><small data-i18n="fnav.history">История</small></button>
+      <button class="mobile-nav planner-only" id="mobilePlansButton"><span>▦</span><small data-i18n="nav.plans">Планы</small></button>
     </nav>
   </div>
 
@@ -547,9 +559,9 @@
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastAction" hidden></button></div>
-  <script src="sync-config.js?v=82"></script>
-  <script src="sync.js?v=82"></script>
-  <script src="i18n-en.js?v=82"></script>
-  <script src="app.js?v=82"></script>
+  <script src="sync-config.js?v=83"></script>
+  <script src="sync.js?v=83"></script>
+  <script src="i18n-en.js?v=83"></script>
+  <script src="app.js?v=83"></script>
 </body>
 </html>

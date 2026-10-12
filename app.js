@@ -10,7 +10,7 @@ const PIN_RELOCK_MS = 30 * 60 * 1000;
 const NOTIFICATION_KEY = 'day-planner-notifications-v1';
 const EXPENSES_KEY = 'day-planner-expenses-v1';
 const DELETED_EXPENSES_KEY = 'day-planner-deleted-expenses-v1';
-const APP_VERSION = '82';
+const APP_VERSION = '83';
 const UPDATE_SEEN_KEY = 'day-planner-update-seen-v1';
 const UPDATE_APPLIED_KEY = 'day-planner-update-applied-v1';
 const LANG_KEY = 'day-planner-lang-v1';
@@ -36,6 +36,7 @@ const TRANSLATIONS = { ru: {
   'period.day': 'День', 'period.week': 'Неделя', 'period.month': 'Месяц', 'period.year': 'Год', 'period.today': 'Сегодня', 'period.prevAria': 'Предыдущий период', 'period.nextAria': 'Следующий период',
   'focus.label': 'Фокус дня',
   'stats.done': 'выполнено', 'stats.planned': 'в плане',
+  'fnav.overview': 'Обзор', 'fnav.expense': 'Добавить расход', 'fnav.income': 'Добавить доход', 'fnav.categories': 'По категориям', 'fnav.history': 'История', 'fnav.balance': 'Баланс периода', 'fnav.addExpenseAria': 'Добавить расход',
   'quick.newTask': 'Новая задача', 'quick.placeholder': 'Введите список дел — каждое с новой строки. Они будут переноситься до выполнения', 'quick.voiceAria': 'Добавить задачу голосом', 'quick.voiceTitle': 'Голосовой ввод', 'quick.add': 'Добавить', 'quick.searchAria': 'Поиск задач', 'quick.searchPlaceholder': 'Поиск по всем задачам и архиву', 'quick.weekTasks': 'Задачи на неделю', 'quick.addTaskShort': '+ Добавить задачу', 'quick.addTaskAria': 'Добавить задачу',
   'finance.income': 'доход', 'finance.expense': 'расход', 'finance.balance': 'баланс', 'finance.expenseKind': 'Расход', 'finance.incomeKind': 'Доход',
   'finance.inputPlaceholder': 'Например: кофе 250 (или несколько строк — по одной покупке в каждой)', 'finance.voiceAria': 'Продиктовать расход', 'finance.voiceHint': 'Нажмите и удерживайте 🎙, скажите покупку и сумму, отпустите',
@@ -99,6 +100,7 @@ const TRANSLATIONS = { ru: {
   'period.day': 'Day', 'period.week': 'Week', 'period.month': 'Month', 'period.year': 'Year', 'period.today': 'Today', 'period.prevAria': 'Previous period', 'period.nextAria': 'Next period',
   'focus.label': 'Focus of the day',
   'stats.done': 'done', 'stats.planned': 'planned',
+  'fnav.overview': 'Overview', 'fnav.expense': 'Add expense', 'fnav.income': 'Add income', 'fnav.categories': 'By category', 'fnav.history': 'History', 'fnav.balance': 'Period balance', 'fnav.addExpenseAria': 'Add expense',
   'quick.newTask': 'New task', 'quick.placeholder': 'Enter your to-dos — one per line. Unfinished ones carry over automatically', 'quick.voiceAria': 'Add task by voice', 'quick.voiceTitle': 'Voice input', 'quick.add': 'Add', 'quick.searchAria': 'Search tasks', 'quick.searchPlaceholder': 'Search all tasks and archive', 'quick.weekTasks': 'Tasks this week', 'quick.addTaskShort': '+ Add task', 'quick.addTaskAria': 'Add task',
   'finance.income': 'income', 'finance.expense': 'expense', 'finance.balance': 'balance', 'finance.expenseKind': 'Expense', 'finance.incomeKind': 'Income',
   'finance.inputPlaceholder': 'E.g. coffee 250 (or several lines — one purchase per line)', 'finance.voiceAria': 'Dictate expense', 'finance.voiceHint': 'Press and hold 🎙, say the purchase and amount, then release',
@@ -360,7 +362,7 @@ function EXPENSE_CATEGORIES() {
 }
 function INCOME_CATEGORIES() {
   return appLang === 'en'
-    ? [['salary', 'Salary', '₽', '#3f7a5c'], ['gift', 'Gift', '♥', '#a06b8f'], ['other', 'Other', '•', '#8a8996']]
+    ? [['salary', 'Salary', '$', '#3f7a5c'], ['gift', 'Gift', '♥', '#a06b8f'], ['other', 'Other', '•', '#8a8996']]
     : [['salary', 'Зарплата', '₽', '#3f7a5c'], ['gift', 'Подарок', '♥', '#a06b8f'], ['other', 'Другое', '•', '#8a8996']];
 }
 const EXPENSE_CATEGORY_KEYWORDS = {
@@ -422,13 +424,14 @@ function financeCategoryMeta(kind, id) {
   return list.find(([categoryId]) => categoryId === id) || list[list.length - 1];
 }
 function financeCategoryLabel(kind, id) { return financeCategoryMeta(kind, id)[1]; }
-function formatMoney(amount) { return new Intl.NumberFormat(LOCALE(), { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }).format(amount); }
+// В английском режиме суммы показываются со знаком $ (по просьбе владельца), в русском — в рублях.
+function formatMoney(amount) { return new Intl.NumberFormat(LOCALE(), { style: 'currency', currency: appLang === 'en' ? 'USD' : 'RUB', maximumFractionDigits: 0 }).format(amount); }
 function parseFinanceAmount(text, kind) {
   const matches = [...text.matchAll(/(\d[\d\s]*(?:[.,]\d{1,2})?)/g)];
   const raw = matches.at(-1)?.[0] || '';
   const amount = Number(raw.replace(/\s/g, '').replace(',', '.'));
   if (!(amount > 0)) return null;
-  const title = text.replace(raw, '').replace(/[-—:₽р.]+$/, '').trim() || (kind === 'income' ? tr('finance.incomeKind') : tr('finance.expenseKind'));
+  const title = text.replace(raw, '').replace(/[-—:₽р.$]+$/, '').replace(/^\$\s*/, '').trim() || (kind === 'income' ? tr('finance.incomeKind') : tr('finance.expenseKind'));
   return { title, amount };
 }
 function parseFinanceLines(text, kind, manualCategory) {
@@ -481,6 +484,7 @@ function renderFinance() {
   $('#financeIncomeTotal').textContent = formatMoney(income);
   $('#financeExpenseTotal').textContent = formatMoney(spent);
   $('#financeBalanceTotal').textContent = formatMoney(income - spent);
+  if ($('#financeSideBalance')) $('#financeSideBalance').textContent = formatMoney(income - spent);
   const sorted = [...periodEntries].sort((a, b) => (b.occurredAt || '').localeCompare(a.occurredAt || ''));
   $('#financeHistorySummary').textContent = periodEntries.length ? `${periodEntries.length} ${expenseWord(periodEntries.length)}` : tr('finance.emptyTitle');
   $('#financeList').innerHTML = sorted.map(e => {
@@ -522,6 +526,32 @@ function setActiveTab(tab) {
   $('#plannerView').hidden = tab !== 'planner';
   $('#financeView').hidden = tab !== 'finance';
   if (tab === 'finance') { if ($('#taskDialog')?.open) closeDialog(); renderFinance(); }
+  // Боковая панель, нижнее меню и плавающая кнопка показывают разделы текущей вкладки.
+  const finance = tab === 'finance';
+  $('#plannerSideNav').hidden = finance; $('#plannerSidebarFooter').hidden = finance;
+  $('#financeSideNav').hidden = !finance; $('#financeSidebarFooter').hidden = !finance;
+  $('.bottom-nav')?.classList.toggle('finance-mode', finance);
+  $$('.planner-only').forEach(el => { el.hidden = finance; }); $$('.finance-only').forEach(el => { el.hidden = !finance; });
+  // На компьютере в «Финансах» плавающая кнопка не нужна: форма расхода уже на экране, а пункт «Добавить расход» есть в боковой панели.
+  $('#addButton').classList.toggle('finance-hidden', finance);
+  $('#fabLabel').dataset.i18n = finance ? 'fnav.expense' : 'quick.newTask'; $('#fabLabel').textContent = tr($('#fabLabel').dataset.i18n);
+  const addAria = finance ? 'fnav.addExpenseAria' : 'quick.addTaskAria';
+  ['#addButton', '#mobileAddButton'].forEach(sel => { $(sel).dataset.i18nAria = addAria; $(sel).setAttribute('aria-label', tr(addAria)); });
+}
+function setFinanceKind(kind) {
+  const button = $(`.finance-kind-button[data-kind="${kind}"]`); if (button && financeKind !== kind) button.click();
+}
+function focusFinanceEntry(kind = 'expense') {
+  setFinanceKind(kind);
+  $('#financeQuickForm').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  setTimeout(() => $('#financeQuickInput').focus({ preventScroll: true }), 250);
+}
+function goFinanceSection(target) {
+  $$('[data-finance-nav]').forEach(b => b.classList.toggle('active', b.dataset.financeNav === target));
+  if (target === 'expense' || target === 'income') { focusFinanceEntry(target); return; }
+  const section = { overview: '#financeSummarySection', categories: '#financeBreakdownSection', history: '#financeHistorySection' }[target];
+  if (target === 'overview') { window.scrollTo({ top: 0, behavior: 'smooth' }); $('.main-content')?.scrollTo?.({ top: 0, behavior: 'smooth' }); }
+  $(section)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function formatLong(key) { return fromKey(key).toLocaleDateString(LOCALE(), { weekday: 'long', day: 'numeric', month: 'long' }); }
@@ -1691,7 +1721,8 @@ bindHoldToTalk('voiceButton', startVoiceInput);
 bindHoldToTalk('voiceTitleButton', () => startVoiceForField('taskTitle', 'voiceTitleButton', { parseTask: true, prompt: 'Слушаю название, дату и время', success: 'Название задачи добавлено' }));
 bindHoldToTalk('voiceSubtasksButton', () => startVoiceForField('taskSubtasks', 'voiceSubtasksButton', { prompt: 'Продиктуйте одну подзадачу', success: 'Подзадача добавлена новой строкой' }));
 bindHoldToTalk('voiceNoteButton', () => startVoiceForField('taskNote', 'voiceNoteButton', { prompt: 'Продиктуйте заметку', success: 'Заметка добавлена' }));
-$('#addButton').addEventListener('click', () => openDialog()); $('#mobileAddButton').addEventListener('click', () => openDialog()); $('#mobileNewTaskButton').addEventListener('click', () => openDialog()); $('#emptyAddButton').addEventListener('click', () => openDialog());
+$('#addButton').addEventListener('click', () => activeTab === 'finance' ? focusFinanceEntry('expense') : openDialog()); $('#mobileAddButton').addEventListener('click', () => activeTab === 'finance' ? focusFinanceEntry('expense') : openDialog());
+$$('[data-finance-nav]').forEach(b => b.addEventListener('click', () => goFinanceSection(b.dataset.financeNav))); $('#mobileNewTaskButton').addEventListener('click', () => openDialog()); $('#emptyAddButton').addEventListener('click', () => openDialog());
 $$('[data-task-type]').forEach(button => button.addEventListener('click', () => setTaskType(button.dataset.taskType)));
 $('#closeDialog').addEventListener('click', closeDialog); $('#cancelDialog').addEventListener('click', closeDialog); $('#taskForm').addEventListener('submit', handleSubmit); $('#deleteTask').addEventListener('click', deleteCurrent);
 $('#taskCameraButton').addEventListener('click', () => $('#taskCameraInput').click()); $('#taskGalleryButton').addEventListener('click', () => $('#taskGalleryInput').click()); $('#taskDocumentButton').addEventListener('click', () => $('#taskDocumentInput').click());
@@ -1753,7 +1784,7 @@ window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); instal
 $('#installButton').addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('#installButton').hidden = true; });
 showUpdatedNoticeIfNeeded();
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=82'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
+  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=83'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
   navigator.serviceWorker.addEventListener('message', event => {
     if (event.data?.type !== 'DAY_PUSH') return;
     showReminderAlert(event.data.taskId || '', event.data.title || 'Новое уведомление', event.data.body || '');

@@ -221,3 +221,9 @@ dialog { border-radius:12px;box-shadow:0 20px 55px rgba(25,41,57,.22); }.close-b
 /* Узкий экран: переключатель «Ежедневник / Финансы» на отдельной строке под приветствием,
    чтобы он не наезжал на заголовок «Добрый день!» / «Good afternoon!». */
 @media(max-width:600px){.topbar{flex-wrap:wrap;row-gap:10px}.identity-header{flex:1 1 0;min-width:0}.app-tabs{order:3;width:100%;align-self:stretch}.app-tab{flex:1}}
+
+/* Вкладка «Финансы»: свои разделы в боковой панели и нижнем меню. */
+.finance-side-balance { display:grid;gap:3px; }.finance-side-balance strong { font-size:18px !important;color:var(--ink); }
+@media(max-width:850px){.bottom-nav.finance-mode{grid-template-columns:repeat(3,1fr)}}
+#financeSideNav .nav-item span:last-child { white-space:nowrap; }
+@media(min-width:851px){#addButton.finance-hidden{display:none}}
