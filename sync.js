@@ -119,18 +119,47 @@
   async function pruneRemoteTombstones(table, ids) {
     for (const id of ids) await request(`/rest/v1/${table}?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE', headers: { Prefer: 'return=minimal' } });
   }
+  // Экономная синхронизация: сначала с сервера берётся лёгкий список «id + время правки» без
+  // содержимого, а полностью скачиваются только строки, чьей версии на устройстве ещё нет.
+  // На сервер уходят только записи, отличающиеся от последней известной серверной версии.
+  // Раньше каждые 15 секунд все задачи (с фото) скачивались целиком — это исчерпало лимит трафика Supabase.
+  const syncMetaKey = (table, userId) => `day-sync-meta-v1:${table}:${userId}`;
+  function loadSyncMeta(table, userId) {
+    try { const meta = JSON.parse(localStorage.getItem(syncMetaKey(table, userId)) || 'null'); if (meta && typeof meta === 'object') return { known: meta.known || {} }; } catch {}
+    return { known: {} };
+  }
+  function saveSyncMeta(table, userId, meta) {
+    try { localStorage.setItem(syncMetaKey(table, userId), JSON.stringify(meta)); } catch {}
+  }
+  async function fetchChangedRows(table, known) {
+    const full = `/rest/v1/${table}?select=id,payload,updated_at`;
+    if (!Object.keys(known).length) return { rows: await request(full, { method: 'GET' }) || [], serverIds: null };
+    const heads = await request(`/rest/v1/${table}?select=id,updated_at,pu:payload->>updatedAt`, { method: 'GET' }) || [];
+    const ids = heads.filter(row => known[row.id] !== (row.pu || row.updated_at)).map(row => row.id);
+    const rows = [];
+    for (let i = 0; i < ids.length; i += 50) {
+      const list = ids.slice(i, i + 50).map(id => `"${String(id).replace(/"/g, '')}"`).join(',');
+      rows.push(...(await request(`${full}&id=in.(${encodeURIComponent(list)})`, { method: 'GET' }) || []));
+    }
+    return { rows, serverIds: new Set(heads.map(row => row.id)) };
+  }
   async function sync(table, localItems, localTombstones = {}, localState = null) {
     const sessionUser = user(); if (!sessionUser) throw new Error('Сначала войдите в облако');
-    const remoteRows = await request(`/rest/v1/${table}?select=id,payload,updated_at`, { method: 'GET' });
+    const meta = loadSyncMeta(table, sessionUser.id);
+    const known = { ...meta.known };
+    const { rows: remoteRows, serverIds } = await fetchChangedRows(table, known);
+    // Строку убрали с сервера (истёкшее надгробие) — забываем её версию, чтобы при нужде отправить заново.
+    if (serverIds) Object.keys(known).forEach(id => { if (!serverIds.has(id)) delete known[id]; });
     const merged = new Map();
     const tombstones = new Map(Object.entries(localTombstones || {}));
     const newer = (a, b) => new Date(a || 0) > new Date(b || 0);
     localItems.forEach(item => merged.set(item.id, item));
     let remoteState = null;
-    (remoteRows || []).forEach(row => {
-      if (row.id === STATE_ID || row.payload?.__type === 'app_state') { remoteState = row.payload; return; }
+    remoteRows.forEach(row => {
       const updatedAt = row.payload?.updatedAt || row.updated_at;
-      if (isTombstone(row.payload)) { if (newer(updatedAt, tombstones.get(row.id))) tombstones.set(row.id, updatedAt); return; }
+      known[row.id] = updatedAt;
+      if (row.id === STATE_ID || row.payload?.__type === 'app_state') { remoteState = row.payload; return; }
+      if (isTombstone(row.payload)) { if (!tombstones.has(row.id) || newer(updatedAt, tombstones.get(row.id))) tombstones.set(row.id, updatedAt); return; }
       const remoteItem = { ...row.payload, id: row.id, updatedAt };
       const localItem = merged.get(row.id);
       if (!localItem || newer(remoteItem.updatedAt, localItem.updatedAt)) merged.set(row.id, remoteItem);
@@ -147,11 +176,17 @@
     const result = [...merged.values()];
     const localUpdated = new Date(localState?.updatedAt || 0); const remoteUpdated = new Date(remoteState?.updatedAt || 0);
     const appState = remoteState && remoteUpdated > localUpdated ? remoteState : localState ? { __type: 'app_state', ...localState } : remoteState;
-    const rows = result.map(item => ({ user_id: sessionUser.id, id: item.id, payload: item, updated_at: item.updatedAt || new Date(0).toISOString() }));
-    tombstones.forEach((deletedAt, id) => rows.push({ user_id: sessionUser.id, id, payload: { id, __deleted: true, updatedAt: deletedAt }, updated_at: deletedAt }));
-    if (appState) rows.push({ user_id: sessionUser.id, id: STATE_ID, payload: appState, updated_at: appState.updatedAt || new Date(0).toISOString() });
-    if (rows.length) await request(`/rest/v1/${table}?on_conflict=user_id,id`, { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify(rows) });
-    if (expired.length) await pruneRemoteTombstones(table, expired);
+    const stamp = value => value || new Date(0).toISOString();
+    const rows = [];
+    result.forEach(item => { if (known[item.id] !== stamp(item.updatedAt)) rows.push({ user_id: sessionUser.id, id: item.id, payload: item, updated_at: stamp(item.updatedAt) }); });
+    tombstones.forEach((deletedAt, id) => { if (known[id] !== deletedAt) rows.push({ user_id: sessionUser.id, id, payload: { id, __deleted: true, updatedAt: deletedAt }, updated_at: deletedAt }); });
+    if (appState && known[STATE_ID] !== stamp(appState.updatedAt)) rows.push({ user_id: sessionUser.id, id: STATE_ID, payload: appState, updated_at: stamp(appState.updatedAt) });
+    if (rows.length) {
+      await request(`/rest/v1/${table}?on_conflict=user_id,id`, { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify(rows) });
+      rows.forEach(row => { known[row.id] = row.updated_at; });
+    }
+    if (expired.length) { await pruneRemoteTombstones(table, expired); expired.forEach(id => { delete known[id]; }); }
+    saveSyncMeta(table, sessionUser.id, { known });
     return { tasks: result, tombstones: Object.fromEntries(tombstones), appState };
   }
   async function syncExpenses(localExpenses, localTombstones = {}) {
