@@ -9,8 +9,9 @@ const PIN_UNLOCKED_AT_KEY = 'day-planner-pin-unlocked-at-v1';
 const PIN_RELOCK_MS = 30 * 60 * 1000;
 const NOTIFICATION_KEY = 'day-planner-notifications-v1';
 const EXPENSES_KEY = 'day-planner-expenses-v1';
+const FINANCE_LIMITS_KEY = 'day-planner-finance-limits-v1';
 const DELETED_EXPENSES_KEY = 'day-planner-deleted-expenses-v1';
-const APP_VERSION = '83';
+const APP_VERSION = '84';
 const UPDATE_SEEN_KEY = 'day-planner-update-seen-v1';
 const UPDATE_APPLIED_KEY = 'day-planner-update-applied-v1';
 const LANG_KEY = 'day-planner-lang-v1';
@@ -36,6 +37,7 @@ const TRANSLATIONS = { ru: {
   'period.day': 'День', 'period.week': 'Неделя', 'period.month': 'Месяц', 'period.year': 'Год', 'period.today': 'Сегодня', 'period.prevAria': 'Предыдущий период', 'period.nextAria': 'Следующий период',
   'focus.label': 'Фокус дня',
   'stats.done': 'выполнено', 'stats.planned': 'в плане',
+  'limit.set': 'лимит на месяц', 'limit.change': 'изменить лимит', 'limit.of': 'из', 'limit.overBy': 'превышен на', 'limit.prompt': 'Лимит в месяц для категории (пусто — убрать)', 'limit.saved': 'Лимит сохранён', 'limit.removed': 'Лимит убран', 'limit.exceeded': '⚠ Лимит превышен', 'limit.stillOver': '⚠ Сверх лимита', 'limit.near': 'Почти лимит', 'limit.addOther': '＋ Лимит для категории…', 'limit.addAria': 'Лимит для категории',
   'fnav.overview': 'Обзор', 'fnav.expense': 'Добавить расход', 'fnav.income': 'Добавить доход', 'fnav.categories': 'По категориям', 'fnav.history': 'История', 'fnav.balance': 'Баланс периода', 'fnav.addExpenseAria': 'Добавить расход',
   'quick.newTask': 'Новая задача', 'quick.placeholder': 'Введите список дел — каждое с новой строки. Они будут переноситься до выполнения', 'quick.voiceAria': 'Добавить задачу голосом', 'quick.voiceTitle': 'Голосовой ввод', 'quick.add': 'Добавить', 'quick.searchAria': 'Поиск задач', 'quick.searchPlaceholder': 'Поиск по всем задачам и архиву', 'quick.weekTasks': 'Задачи на неделю', 'quick.addTaskShort': '+ Добавить задачу', 'quick.addTaskAria': 'Добавить задачу',
   'finance.income': 'доход', 'finance.expense': 'расход', 'finance.balance': 'баланс', 'finance.expenseKind': 'Расход', 'finance.incomeKind': 'Доход',
@@ -100,6 +102,7 @@ const TRANSLATIONS = { ru: {
   'period.day': 'Day', 'period.week': 'Week', 'period.month': 'Month', 'period.year': 'Year', 'period.today': 'Today', 'period.prevAria': 'Previous period', 'period.nextAria': 'Next period',
   'focus.label': 'Focus of the day',
   'stats.done': 'done', 'stats.planned': 'planned',
+  'limit.set': 'monthly limit', 'limit.change': 'change limit', 'limit.of': 'of', 'limit.overBy': 'over by', 'limit.prompt': 'Monthly limit for category (leave empty to remove)', 'limit.saved': 'Limit saved', 'limit.removed': 'Limit removed', 'limit.exceeded': '⚠ Limit exceeded', 'limit.stillOver': '⚠ Over the limit', 'limit.near': 'Close to the limit', 'limit.addOther': '＋ Limit for a category…', 'limit.addAria': 'Limit for a category',
   'fnav.overview': 'Overview', 'fnav.expense': 'Add expense', 'fnav.income': 'Add income', 'fnav.categories': 'By category', 'fnav.history': 'History', 'fnav.balance': 'Period balance', 'fnav.addExpenseAria': 'Add expense',
   'quick.newTask': 'New task', 'quick.placeholder': 'Enter your to-dos — one per line. Unfinished ones carry over automatically', 'quick.voiceAria': 'Add task by voice', 'quick.voiceTitle': 'Voice input', 'quick.add': 'Add', 'quick.searchAria': 'Search tasks', 'quick.searchPlaceholder': 'Search all tasks and archive', 'quick.weekTasks': 'Tasks this week', 'quick.addTaskShort': '+ Add task', 'quick.addTaskAria': 'Add task',
   'finance.income': 'income', 'finance.expense': 'expense', 'finance.balance': 'balance', 'finance.expenseKind': 'Expense', 'finance.incomeKind': 'Income',
@@ -182,6 +185,7 @@ const pinStorageKey = () => `${PIN_KEY}:${accountSuffix()}`;
 const pinUnlockedAtStorageKey = () => `${PIN_UNLOCKED_AT_KEY}:${accountSuffix()}`;
 const notificationStorageKey = () => `${NOTIFICATION_KEY}:${accountSuffix()}`;
 const expensesStorageKey = () => `${EXPENSES_KEY}:${accountSuffix()}`;
+const financeLimitsStorageKey = () => `${FINANCE_LIMITS_KEY}:${accountSuffix()}`;
 const deletedExpensesStorageKey = () => `${DELETED_EXPENSES_KEY}:${accountSuffix()}`;
 
 let tasks = loadTasks();
@@ -229,6 +233,7 @@ let sharedLoading = false;
 let activeSharedInviteId = '';
 let sharedPresenceBusy = false;
 let expenses = loadExpenses();
+let financeLimits = loadFinanceLimits();
 let deletedExpenseIds = loadDeletedExpenseIds();
 let activeTab = 'planner';
 let financeKind = 'expense';
@@ -285,6 +290,14 @@ function loadPeriodPlans() {
   }
   catch { return []; }
 }
+// Месячные лимиты расходов по категориям: { категория: сумма }. Хранятся вместе с профилем и планами
+// в общей строке настроек и синхронизируются только при изменении.
+function loadFinanceLimits() {
+  try { const value = JSON.parse(localStorage.getItem(financeLimitsStorageKey()) || '{}'); return value && typeof value === 'object' && !Array.isArray(value) ? value : {}; } catch { return {}; }
+}
+function saveFinanceLimits() {
+  try { localStorage.setItem(financeLimitsStorageKey(), JSON.stringify(financeLimits)); touchAppState(); } catch {}
+}
 function touchAppState() {
   appStateUpdatedAt = new Date().toISOString(); localStorage.setItem(stateUpdatedStorageKey(), appStateUpdatedAt); queueCloudSync();
 }
@@ -310,7 +323,7 @@ function taskWord(count) {
 }
 
 function switchAccountData() {
-  tasks = loadTasks(); deletedIds = loadDeletedIds(); profile = loadProfile(); pendingProfilePhoto = profile.photo || ''; periodPlans = loadPeriodPlans(); appStateUpdatedAt = localStorage.getItem(stateUpdatedStorageKey()) || new Date(0).toISOString(); sharedTasks = []; expenses = loadExpenses(); deletedExpenseIds = loadDeletedExpenseIds(); runAutoCarry(); render(); renderFinance(); refreshSyncUi(); renderProfile(); loadSharedTasks(false);
+  tasks = loadTasks(); deletedIds = loadDeletedIds(); profile = loadProfile(); pendingProfilePhoto = profile.photo || ''; periodPlans = loadPeriodPlans(); appStateUpdatedAt = localStorage.getItem(stateUpdatedStorageKey()) || new Date(0).toISOString(); sharedTasks = []; expenses = loadExpenses(); financeLimits = loadFinanceLimits(); deletedExpenseIds = loadDeletedExpenseIds(); runAutoCarry(); render(); renderFinance(); refreshSyncUi(); renderProfile(); loadSharedTasks(false);
 }
 
 function seedTasks() {
@@ -447,7 +460,7 @@ function renderFinanceCategoryGrid() {
   const list = financeKind === 'income' ? INCOME_CATEGORIES() : EXPENSE_CATEGORIES();
   if (!list.some(([id]) => id === selectedFinanceCategory)) selectedFinanceCategory = list[0][0];
   $('#financeCategoryGrid').innerHTML = list.map(([id, label, icon, color]) => `
-    <button type="button" class="finance-category-chip${id === selectedFinanceCategory ? ' selected' : ''}" data-category="${id}" style="--cat:${color}">
+    <button type="button" class="finance-category-chip${id === selectedFinanceCategory ? ' selected' : ''}${financeKind === 'expense' && limitState(categoryMonthSpent(id, todayKey.slice(0, 7)), financeLimits[id]) === 'over' ? ' over-limit' : ''}" data-category="${id}" style="--cat:${color}">
       <i>${icon}</i>${escapeHtml(label)}
     </button>`).join('');
 }
@@ -462,16 +475,61 @@ function financeCategoryBreakdown() {
   return list.map(([id, label, icon, color]) => {
     const amount = periodEntries.filter(e => e.category === id).reduce((sum, e) => sum + e.amount, 0);
     return { id, label, icon, color, amount, pct: total ? Math.round(amount / total * 100) : 0 };
-  }).filter(row => row.amount > 0).sort((a, b) => b.amount - a.amount);
+  }).filter(row => row.amount > 0 || (financeKind === 'expense' && financeLimits[row.id] > 0)).sort((a, b) => b.amount - a.amount);
+}
+// Месяц, к которому относится лимит на экране: месяц выбранного периода, но не позже текущего.
+function financeLimitMonth() {
+  const end = financePeriodBounds()[1];
+  return (end < todayKey ? end : todayKey).slice(0, 7);
+}
+function categoryMonthSpent(category, month = financeLimitMonth()) {
+  return expenses.filter(e => e.kind === 'expense' && e.category === category && (e.occurredAt || '').slice(0, 7) === month).reduce((sum, e) => sum + e.amount, 0);
+}
+function limitState(spent, limit) { return !(limit > 0) ? '' : spent > limit ? 'over' : spent >= limit * 0.8 ? 'warn' : 'ok'; }
+function monthLabel(month) { const [y, m] = month.split('-').map(Number); return new Date(y, m - 1, 1).toLocaleDateString(LOCALE(), { month: 'long' }); }
+function editFinanceLimit(category) {
+  const label = (EXPENSE_CATEGORIES().find(([id]) => id === category) || [])[1] || category;
+  const current = financeLimits[category] || '';
+  const answer = window.prompt(`${tr('limit.prompt')} «${label}»`, current ? String(current) : '');
+  if (answer === null) return;
+  const value = Number(String(answer).replace(/[^\d.,]/g, '').replace(',', '.'));
+  if (value > 0) { financeLimits = { ...financeLimits, [category]: Math.round(value) }; toast(`${tr('limit.saved')}: ${label} — ${formatMoney(Math.round(value))}`); }
+  else { const next = { ...financeLimits }; delete next[category]; financeLimits = next; toast(`${tr('limit.removed')}: ${label}`); }
+  saveFinanceLimits(); renderFinance();
+}
+// После добавления расхода: предупредить, если категория подошла к лимиту (80%) или превысила его.
+function checkLimitsAfterAdd(rows) {
+  const month = todayKey.slice(0, 7); let message = '';
+  [...new Set(rows.map(row => row.category))].forEach(category => {
+    const limit = financeLimits[category]; if (!(limit > 0)) return;
+    const spent = categoryMonthSpent(category, month); const before = spent - rows.filter(r => r.category === category).reduce((sum, r) => sum + r.amount, 0);
+    const label = (EXPENSE_CATEGORIES().find(([id]) => id === category) || [])[1] || category;
+    if (spent > limit && before <= limit) message = `${tr('limit.exceeded')} «${label}»: ${formatMoney(spent)} ${tr('limit.of')} ${formatMoney(limit)}`;
+    else if (spent > limit && !message) message = `${tr('limit.stillOver')} «${label}»: ${formatMoney(spent)} ${tr('limit.of')} ${formatMoney(limit)}`;
+    else if (spent >= limit * 0.8 && before < limit * 0.8 && !message) message = `${tr('limit.near')} «${label}»: ${formatMoney(spent)} ${tr('limit.of')} ${formatMoney(limit)}`;
+  });
+  return message;
 }
 function renderFinanceBreakdown() {
   const rows = financeCategoryBreakdown();
-  $('#financeBreakdown').innerHTML = rows.map(row => `
-    <div class="finance-breakdown-row">
+  const month = financeLimitMonth();
+  $('#financeBreakdown').innerHTML = rows.map(row => {
+    const limit = financeKind === 'expense' ? financeLimits[row.id] : 0;
+    const spent = limit ? categoryMonthSpent(row.id, month) : 0; const state = limitState(spent, limit);
+    const limitBlock = financeKind !== 'expense' ? '' : limit
+      ? `<div class="finance-limit ${state}"><div class="finance-limit-bar"><em style="width:${Math.min(100, Math.round(spent / limit * 100))}%"></em></div><small>${state === 'over' ? '⚠ ' : ''}${formatMoney(spent)} ${tr('limit.of')} ${formatMoney(limit)} · ${monthLabel(month)}${state === 'over' ? ` · ${tr('limit.overBy')} ${formatMoney(spent - limit)}` : ''}</small><button type="button" class="finance-limit-edit" data-edit-limit="${row.id}">${tr('limit.change')}</button></div>`
+      : `<div class="finance-limit"><button type="button" class="finance-limit-edit" data-edit-limit="${row.id}">＋ ${tr('limit.set')}</button></div>`;
+    return `
+    <div class="finance-breakdown-row${state ? ' limit-' + state : ''}">
       <i style="background:${row.color}">${row.icon}</i>
       <span>${escapeHtml(row.label)}<small>${row.pct}%</small></span>
       <b>${formatMoney(row.amount)}</b>
-    </div>`).join('');
+      ${limitBlock}
+    </div>`; }).join('');
+  // Лимит можно поставить и на категорию, где расходов ещё не было.
+  const free = financeKind === 'expense' ? EXPENSE_CATEGORIES().filter(([id]) => !rows.some(row => row.id === id)) : [];
+  $('#financeLimitAdd').hidden = !free.length;
+  $('#financeLimitAddSelect').innerHTML = `<option value="">${tr('limit.addOther')}</option>` + free.map(([id, label, icon]) => `<option value="${id}">${icon} ${escapeHtml(label)}</option>`).join('');
   $('#financeBreakdownEmpty').hidden = !!rows.length;
   $('#financeBreakdown').hidden = !rows.length;
 }
@@ -512,6 +570,8 @@ function addFinanceEntry(event) {
   rows.forEach(row => expenses.push({ id: crypto.randomUUID(), kind: financeKind, title: row.title, amount: row.amount, category: row.category, photo: pendingExpensePhoto, occurredAt: now, updatedAt: now }));
   saveExpenses(); renderFinance();
   input.value = ''; pendingExpensePhoto = null; renderExpensePhotoPreview();
+  const limitMessage = financeKind === 'expense' ? checkLimitsAfterAdd(rows) : '';
+  if (limitMessage) { toast(limitMessage, '', null, 6000); if (navigator.vibrate) navigator.vibrate([120, 60, 120]); return; }
   toast(rows.length > 1 ? `${tr('toast.entriesAdded')}: ${rows.length}` : (financeKind === 'income' ? tr('toast.incomeAdded') : tr('toast.expenseAdded')));
 }
 function deleteExpense(id) {
@@ -1286,7 +1346,7 @@ async function performSync(showMessage = true) {
   setSyncStatus('syncing', 'Синхронизация…', 'Обмениваемся изменениями с облаком');
   try {
     const sentTombstones = { ...deletedIds };
-    const result = await window.DaySync.sync('planner_tasks', tasks, sentTombstones, { profile, periodPlans, updatedAt: appStateUpdatedAt });
+    const result = await window.DaySync.sync('planner_tasks', tasks, sentTombstones, { profile, periodPlans, financeLimits, updatedAt: appStateUpdatedAt });
     // Задачи, удалённые пока шёл обмен с облаком, не должны вернуться из ответа сервера.
     const deletedDuringSync = Object.keys(deletedIds).filter(id => !(id in sentTombstones));
     tasks = (result.tasks || []).filter(t => !deletedDuringSync.includes(t.id));
@@ -1300,6 +1360,7 @@ async function performSync(showMessage = true) {
       appStateUpdatedAt = remoteState.updatedAt;
       localStorage.setItem(profileStorageKey(), JSON.stringify(profile));
       localStorage.setItem(planStorageKey(), JSON.stringify(periodPlans));
+      if (remoteState.financeLimits && typeof remoteState.financeLimits === 'object') { financeLimits = remoteState.financeLimits; localStorage.setItem(financeLimitsStorageKey(), JSON.stringify(financeLimits)); }
       localStorage.setItem(stateUpdatedStorageKey(), appStateUpdatedAt);
     }
     const expenseResult = await window.DaySync.syncExpenses(expenses, deletedExpenseIds);
@@ -1747,6 +1808,8 @@ $('#financeQuickInput').addEventListener('input', e => { if (!/\r?\n/.test(e.cur
 $('#financeCategoryGrid').addEventListener('click', e => { const button = e.target.closest('[data-category]'); if (!button) return; selectedFinanceCategory = button.dataset.category; renderFinanceCategoryGrid(); });
 bindHoldToTalk('financeVoiceButton', () => startVoiceForField('financeQuickInput', 'financeVoiceButton', { prompt: 'Слушаю… Назовите покупку и сумму', success: 'Текст добавлен' }));
 if (!HAS_SPEECH_RECOGNITION) $('#financeVoiceHint').textContent = tr('finance.voiceHintFallback');
+$('#financeBreakdown').addEventListener('click', e => { const button = e.target.closest('[data-edit-limit]'); if (button) editFinanceLimit(button.dataset.editLimit); });
+$('#financeLimitAddSelect').addEventListener('change', e => { const category = e.target.value; e.target.value = ''; if (category) editFinanceLimit(category); });
 $('#financeList').addEventListener('click', e => { const button = e.target.closest('[data-delete-expense]'); if (button) deleteExpense(button.dataset.deleteExpense); });
 $$('.finance-kind-button').forEach(button => button.addEventListener('click', () => {
   financeKind = button.dataset.kind;
@@ -1784,7 +1847,7 @@ window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); instal
 $('#installButton').addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('#installButton').hidden = true; });
 showUpdatedNoticeIfNeeded();
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=83'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
+  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=84'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
   navigator.serviceWorker.addEventListener('message', event => {
     if (event.data?.type !== 'DAY_PUSH') return;
     showReminderAlert(event.data.taskId || '', event.data.title || 'Новое уведомление', event.data.body || '');
