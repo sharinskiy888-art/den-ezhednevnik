@@ -210,6 +210,12 @@
     const rows = await request('/rest/v1/shared_tasks?select=id,owner_id,owner_email,invited_emails,accepted_emails,payload,updated_at&order=updated_at.desc', { method: 'GET' });
     return (rows || []).map(sharedTaskFromRow);
   }
+  // Свежая копия одной задачи прямо перед сохранением: чтобы правка одного участника не затирала чужие.
+  async function loadSharedTask(id) {
+    if (!user()) return null;
+    const rows = await request(`/rest/v1/shared_tasks?id=eq.${encodeURIComponent(id)}&select=id,owner_id,owner_email,invited_emails,accepted_emails,payload,updated_at`, { method: 'GET' });
+    return rows?.[0] ? sharedTaskFromRow(rows[0]) : null;
+  }
   async function saveSharedTask(task) {
     const sessionUser = user(); if (!sessionUser) throw new Error('Сначала войдите в облако');
     const ownerId = task.ownerId || sessionUser.id;
@@ -283,5 +289,5 @@
     await request('/rest/v1/rpc/delete_own_account', { method: 'POST', body: '{}' });
     setSession(null);
   }
-  window.DaySync = { getSession, user, signUp, signIn, signOut, resetPassword, verifyRecoveryCode, consumeRecoveryFromUrl, updatePassword, sync, syncExpenses, loadSharedTasks, saveSharedTask, deleteSharedTask, answerSharedInvite, touchPresence, loadSharedPresence, savePushSubscription, deletePushSubscription, deleteAccount };
+  window.DaySync = { getSession, user, signUp, signIn, signOut, resetPassword, verifyRecoveryCode, consumeRecoveryFromUrl, updatePassword, sync, syncExpenses, loadSharedTasks, loadSharedTask, saveSharedTask, deleteSharedTask, answerSharedInvite, touchPresence, loadSharedPresence, savePushSubscription, deletePushSubscription, deleteAccount };
 })();
