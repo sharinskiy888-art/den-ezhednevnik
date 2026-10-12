@@ -227,3 +227,17 @@ dialog { border-radius:12px;box-shadow:0 20px 55px rgba(25,41,57,.22); }.close-b
 @media(max-width:850px){.bottom-nav.finance-mode{grid-template-columns:repeat(3,1fr)}}
 #financeSideNav .nav-item span:last-child { white-space:nowrap; }
 @media(min-width:851px){#addButton.finance-hidden{display:none}}
+
+/* Месячные лимиты по категориям: зелёная полоска, жёлтая от 80%, красная при превышении. */
+.finance-limit { grid-column:1/-1;display:grid;grid-template-columns:1fr auto;align-items:center;gap:4px 10px; }
+.finance-limit-bar { grid-column:1/-1;height:6px;border-radius:99px;background:#ecebf1;overflow:hidden; }
+.finance-limit-bar em { display:block;height:100%;border-radius:inherit;background:var(--green,#2d9c6b); }
+.finance-limit small { color:var(--muted);font-size:11px;font-weight:600; }
+.finance-limit-edit { border:0;background:transparent;color:var(--violet);font-size:11px;font-weight:750;padding:2px 0;justify-self:end;grid-column:2; }
+.finance-limit-add { display:block;margin-top:10px; }
+.finance-limit-add select { width:100%;border:1px dashed var(--line, #d8d8e0);border-radius:12px;background:transparent;color:var(--violet);font:inherit;font-size:13px;font-weight:700;padding:9px 12px; }
+.finance-limit:not(:has(small)) .finance-limit-edit { justify-self:start;grid-column:1; }
+.finance-limit.warn .finance-limit-bar em { background:#d99a1e; }.finance-limit.warn small { color:#9a6b0c; }
+.finance-limit.over .finance-limit-bar em { background:#d64545; }.finance-limit.over small { color:#c03636;font-weight:750; }
+.finance-breakdown-row.limit-over { border-color:#e8a3a3;background:#fff6f6; }.finance-breakdown-row.limit-over b { color:#c03636; }
+.finance-category-chip.over-limit { border-color:#e8a3a3;background:#fff6f6; }
