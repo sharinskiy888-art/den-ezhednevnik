@@ -10,13 +10,31 @@
     if (session) localStorage.setItem(SESSION_KEY, JSON.stringify(session));
     else localStorage.removeItem(SESSION_KEY);
   }
-  async function request(path, options = {}, useAuth = true) {
+  // Если вход в облако истёк и обновить его нельзя, не оставляем «мёртвую» сессию: иначе приложение
+  // молча перестаёт синхронизироваться, а пользователь продолжает видеть статус «вошёл».
+  function expireSession() { setSession(null); }
+  function sessionExpiredError(cause) {
+    if (cause && !(cause.status === 400 || cause.status === 401)) return cause;
+    const error = new Error('Вход в облако истёк. Войдите снова, чтобы синхронизировать задачи.');
+    error.sessionExpired = true; error.status = 401; return error;
+  }
+  async function request(path, options = {}, useAuth = true, retried = false) {
     let session = getSession();
-    if (useAuth && session?.expires_at && session.expires_at * 1000 < Date.now() + 60000 && session.refresh_token) session = await refresh(session.refresh_token);
+    if (useAuth && session?.expires_at && session.expires_at * 1000 < Date.now() + 60000 && session.refresh_token) {
+      try { session = await refresh(session.refresh_token); }
+      catch (error) { if (error.status === 400 || error.status === 401) expireSession(); throw error.sessionExpired ? error : sessionExpiredError(error); }
+    }
     const headers = { apikey: config.anonKey, 'Content-Type': 'application/json', ...(options.headers || {}) };
     if (useAuth && session?.access_token) headers.Authorization = `Bearer ${session.access_token}`;
     const response = await fetch(`${config.url}${path}`, { ...options, headers });
     if (!response.ok) {
+      if (useAuth && response.status === 401 && session?.access_token) {
+        if (!retried && session.refresh_token) {
+          try { await refresh(session.refresh_token); } catch (error) { if (error.status === 400 || error.status === 401) expireSession(); throw sessionExpiredError(error); }
+          return request(path, options, useAuth, true);
+        }
+        expireSession(); throw sessionExpiredError();
+      }
       let message = `Ошибка облака: ${response.status}`;
       try { const body = await response.json(); message = body.msg || body.message || body.error_description || message; } catch {}
       const error = new Error(message);
@@ -93,35 +111,52 @@
     setSession(null);
   }
   function user() { return getSession()?.user || null; }
-  async function removeRemote(table, ids) {
+  // Удалённые записи не стираются физически, а хранятся как «надгробия» { __deleted: true, updatedAt }.
+  // Надгробие проходит через ту же логику «новее побеждает», что и обычная правка, поэтому
+  // устройство со старой копией задачи не может вернуть её обратно в облако.
+  const TOMBSTONE_TTL_MS = 90 * 24 * 60 * 60 * 1000;
+  const isTombstone = payload => !!payload?.__deleted;
+  async function pruneRemoteTombstones(table, ids) {
     for (const id of ids) await request(`/rest/v1/${table}?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE', headers: { Prefer: 'return=minimal' } });
   }
-  async function sync(table, localItems, deletedIds = [], localState = null) {
+  async function sync(table, localItems, localTombstones = {}, localState = null) {
     const sessionUser = user(); if (!sessionUser) throw new Error('Сначала войдите в облако');
-    if (deletedIds.length) await removeRemote(table, deletedIds);
     const remoteRows = await request(`/rest/v1/${table}?select=id,payload,updated_at`, { method: 'GET' });
     const merged = new Map();
+    const tombstones = new Map(Object.entries(localTombstones || {}));
+    const newer = (a, b) => new Date(a || 0) > new Date(b || 0);
     localItems.forEach(item => merged.set(item.id, item));
     let remoteState = null;
     (remoteRows || []).forEach(row => {
       if (row.id === STATE_ID || row.payload?.__type === 'app_state') { remoteState = row.payload; return; }
-      const remoteItem = { ...row.payload, id: row.id, updatedAt: row.payload.updatedAt || row.updated_at };
+      const updatedAt = row.payload?.updatedAt || row.updated_at;
+      if (isTombstone(row.payload)) { if (newer(updatedAt, tombstones.get(row.id))) tombstones.set(row.id, updatedAt); return; }
+      const remoteItem = { ...row.payload, id: row.id, updatedAt };
       const localItem = merged.get(row.id);
-      if (!localItem || new Date(remoteItem.updatedAt || 0) > new Date(localItem.updatedAt || 0)) merged.set(row.id, remoteItem);
+      if (!localItem || newer(remoteItem.updatedAt, localItem.updatedAt)) merged.set(row.id, remoteItem);
     });
+    // Надгробие побеждает, если оно не старше самой записи; если запись правили уже после удаления — она остаётся.
+    tombstones.forEach((deletedAt, id) => {
+      const item = merged.get(id);
+      if (!item) return;
+      if (newer(item.updatedAt, deletedAt)) tombstones.delete(id); else merged.delete(id);
+    });
+    const expired = [];
+    const cutoff = Date.now() - TOMBSTONE_TTL_MS;
+    tombstones.forEach((deletedAt, id) => { if (new Date(deletedAt || 0).getTime() < cutoff) { expired.push(id); tombstones.delete(id); } });
     const result = [...merged.values()];
     const localUpdated = new Date(localState?.updatedAt || 0); const remoteUpdated = new Date(remoteState?.updatedAt || 0);
     const appState = remoteState && remoteUpdated > localUpdated ? remoteState : localState ? { __type: 'app_state', ...localState } : remoteState;
-    if (result.length || appState) {
-      const rows = result.map(item => ({ user_id: sessionUser.id, id: item.id, payload: item, updated_at: item.updatedAt || new Date(0).toISOString() }));
-      if (appState) rows.push({ user_id: sessionUser.id, id: STATE_ID, payload: appState, updated_at: appState.updatedAt || new Date(0).toISOString() });
-      await request(`/rest/v1/${table}?on_conflict=user_id,id`, { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify(rows) });
-    }
-    return { tasks: result, appState };
+    const rows = result.map(item => ({ user_id: sessionUser.id, id: item.id, payload: item, updated_at: item.updatedAt || new Date(0).toISOString() }));
+    tombstones.forEach((deletedAt, id) => rows.push({ user_id: sessionUser.id, id, payload: { id, __deleted: true, updatedAt: deletedAt }, updated_at: deletedAt }));
+    if (appState) rows.push({ user_id: sessionUser.id, id: STATE_ID, payload: appState, updated_at: appState.updatedAt || new Date(0).toISOString() });
+    if (rows.length) await request(`/rest/v1/${table}?on_conflict=user_id,id`, { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify(rows) });
+    if (expired.length) await pruneRemoteTombstones(table, expired);
+    return { tasks: result, tombstones: Object.fromEntries(tombstones), appState };
   }
-  async function syncExpenses(localExpenses, deletedIds = []) {
-    const { tasks } = await sync('planner_expenses', localExpenses, deletedIds, null);
-    return tasks;
+  async function syncExpenses(localExpenses, localTombstones = {}) {
+    const { tasks, tombstones } = await sync('planner_expenses', localExpenses, localTombstones, null);
+    return { expenses: tasks, tombstones };
   }
   function sharedTaskFromRow(row) {
     return {
