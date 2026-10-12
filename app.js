@@ -10,7 +10,7 @@ const PIN_RELOCK_MS = 30 * 60 * 1000;
 const NOTIFICATION_KEY = 'day-planner-notifications-v1';
 const EXPENSES_KEY = 'day-planner-expenses-v1';
 const DELETED_EXPENSES_KEY = 'day-planner-deleted-expenses-v1';
-const APP_VERSION = '80';
+const APP_VERSION = '81';
 const UPDATE_SEEN_KEY = 'day-planner-update-seen-v1';
 const UPDATE_APPLIED_KEY = 'day-planner-update-applied-v1';
 const LANG_KEY = 'day-planner-lang-v1';
@@ -1749,7 +1749,7 @@ window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); instal
 $('#installButton').addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('#installButton').hidden = true; });
 showUpdatedNoticeIfNeeded();
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=80'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
+  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=81'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
   navigator.serviceWorker.addEventListener('message', event => {
     if (event.data?.type !== 'DAY_PUSH') return;
     showReminderAlert(event.data.taskId || '', event.data.title || 'Новое уведомление', event.data.body || '');
@@ -1794,8 +1794,10 @@ document.addEventListener('visibilitychange', () => {
   refreshSharedPresence();
   performSync(false);
 });
-setInterval(() => { if (document.visibilityState === 'visible' && navigator.onLine) performSync(false); }, 15000);
-setInterval(() => { if (document.visibilityState === 'visible' && navigator.onLine) refreshSharedPresence(); }, 30000);
+// Фоновый опрос облака раз в 2 минуты (раньше — каждые 15 с, что расходовало лимит трафика Supabase).
+// Свои правки отправляются сразу после сохранения, а при возврате в приложение синхронизация идёт немедленно.
+setInterval(() => { if (document.visibilityState === 'visible' && navigator.onLine) performSync(false); }, 120000);
+setInterval(() => { if (document.visibilityState === 'visible' && navigator.onLine) refreshSharedPresence(); }, 120000);
 
 document.documentElement.lang = appLang; $$('.lang-button').forEach(b => b.classList.toggle('active', b.dataset.lang === appLang)); applyStaticTranslations();
 runAutoCarry(); save(); render(); renderProfile(); renderConnectionState(); refreshUpdateIndicator(); initializeAccount(); checkReminders(); setInterval(checkReminders, 30000);
