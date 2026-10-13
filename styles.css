@@ -267,3 +267,13 @@ dialog { border-radius:12px;box-shadow:0 20px 55px rgba(25,41,57,.22); }.close-b
 .report-photo{max-width:100%;max-height:240px;border-radius:7px;cursor:zoom-in}.report-media audio{width:100%;max-width:320px}
 .report-tools{display:grid;grid-template-columns:1fr 1fr 1.6fr;gap:7px}.report-tools button{min-height:40px;grid-column:auto !important;grid-row:auto !important;width:100%;margin:0;padding:8px 6px;font-size:12px}#reportVoiceButton.recording{border-color:var(--coral);color:var(--coral)}
 .report-pending{display:flex;flex-wrap:wrap;gap:6px}.report-pending[hidden]{display:none}.report-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 9px;border-radius:999px;background:#e9f1f8;font-size:11px}.report-chip button{border:0;background:none;color:#5c6874;font-size:14px;line-height:1}
+
+/* Финансы: окно истории и быстрое добавление через иконку категории */
+.finance-history-dialog .shared-panel{display:grid;gap:12px}
+.fh-filters{display:grid;grid-template-columns:1fr 1fr;gap:10px}.fh-filters label{display:grid;gap:5px;font-size:11px;color:var(--muted)}.fh-filters input,.fh-filters select{min-width:0}
+.fh-quick{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px}.fh-quick button{padding:7px 11px;border:1px solid #cbd9e5;border-radius:999px;background:white;color:#3f4c59;font-size:11px;font-weight:700}.fh-quick button.active{border-color:var(--violet);background:var(--violet);color:white}
+.fh-search{grid-column:1/-1}.fh-summary{margin:0;font-size:12px;color:var(--muted)}.fh-summary .expense{color:var(--coral);font-weight:700}.fh-summary .income{color:var(--green);font-weight:700}
+.finance-history-dialog .task-list{max-height:none}
+.finance-breakdown-icon{position:relative;width:34px;height:34px;display:grid;place-items:center;border:0;border-radius:10px;color:white;font-size:16px;cursor:pointer}.finance-breakdown-icon em{position:absolute;right:-5px;bottom:-5px;width:16px;height:16px;display:grid;place-items:center;border-radius:50%;background:var(--violet);color:white;font-size:12px;font-style:normal;font-weight:800;box-shadow:0 0 0 2px white}
+.finance-add-dialog{width:min(380px,calc(100% - 28px))}.finance-add-dialog form{display:grid;gap:12px;padding:20px}.finance-add-dialog label{display:grid;gap:5px;font-size:12px;color:var(--muted)}#faAmount{font-size:24px;font-weight:800}
+.fa-head{display:flex;align-items:center;gap:12px}.fa-head i{width:42px;height:42px;display:grid;place-items:center;border-radius:12px;color:white;font-size:20px;font-style:normal}

@@ -11,7 +11,7 @@ const NOTIFICATION_KEY = 'day-planner-notifications-v1';
 const EXPENSES_KEY = 'day-planner-expenses-v1';
 const FINANCE_LIMITS_KEY = 'day-planner-finance-limits-v1';
 const DELETED_EXPENSES_KEY = 'day-planner-deleted-expenses-v1';
-const APP_VERSION = '89';
+const APP_VERSION = '90';
 const UPDATE_SEEN_KEY = 'day-planner-update-seen-v1';
 const UPDATE_APPLIED_KEY = 'day-planner-update-applied-v1';
 const LANG_KEY = 'day-planner-lang-v1';
@@ -44,7 +44,7 @@ const TRANSLATIONS = { ru: {
   'finance.inputPlaceholder': 'Например: кофе 250 (или несколько строк — по одной покупке в каждой)', 'finance.voiceAria': 'Продиктовать расход', 'finance.voiceHint': 'Нажмите и удерживайте 🎙, скажите покупку и сумму, отпустите',
   'finance.camera': '📷 Сфотографировать чек', 'finance.gallery': '▧ Из галереи', 'finance.gallery2': 'Из галереи', 'finance.receiptAlt': 'Чек', 'finance.photoAttached': 'Чек прикреплён — сохранится вместе с операцией ниже', 'finance.removePhotoAria': 'Удалить фото',
   'finance.byCategory': 'По категориям', 'finance.whereMoneyGoes': 'Куда уходят деньги за выбранный период', 'finance.breakdownEmptyTitle': 'Пока нечего показать', 'finance.breakdownEmptyText': 'Разбивка по категориям появится после первой операции за этот период.',
-  'finance.history': 'История операций', 'finance.emptyTitle': 'Записей пока нет', 'finance.emptyText': 'Добавьте первую операцию текстом выше — например «кофе 250».',
+  'finance.history': 'История операций', 'fh.from': 'С', 'fh.to': 'По', 'fh.thisMonth': 'Этот месяц', 'fh.lastMonth': 'Прошлый месяц', 'fh.thisYear': 'Этот год', 'fh.kind': 'Тип', 'fh.all': 'Все', 'fh.allCategories': 'Все категории', 'fh.category': 'Категория', 'fh.search': 'Поиск', 'fh.searchPlaceholder': 'Например: кофе', 'fh.emptyTitle': 'Ничего не найдено', 'fh.emptyText': 'Измените даты, категорию или текст поиска.', 'fa.amount': 'Сумма', 'fa.note': 'Комментарий (необязательно)', 'fa.notePlaceholder': 'Например: обед с коллегами', 'fa.date': 'Дата', 'fa.hint': 'Нажмите на иконку категории, чтобы сразу добавить сумму', 'finance.emptyTitle': 'Записей пока нет', 'finance.emptyText': 'Добавьте первую операцию текстом выше — например «кофе 250».',
   'finance.todayAria': 'Перейти к сегодняшнему дню',
   'update.updateAction': 'Обновить',
   'shared.taskLabel': 'Совместная задача', 'shared.decline': 'Отклонить', 'shared.accept': 'Принять', 'shared.workLabel': 'Общая работа', 'shared.tasksTab': 'Задачи', 'shared.peopleTab': 'Участники', 'shared.invitesTab': 'Приглашения', 'shared.newTask': '＋ Новая совместная задача',
@@ -109,7 +109,7 @@ const TRANSLATIONS = { ru: {
   'finance.inputPlaceholder': 'E.g. coffee 250 (or several lines — one purchase per line)', 'finance.voiceAria': 'Dictate expense', 'finance.voiceHint': 'Press and hold 🎙, say the purchase and amount, then release',
   'finance.camera': '📷 Photograph receipt', 'finance.gallery': '▧ From gallery', 'finance.gallery2': 'From gallery', 'finance.receiptAlt': 'Receipt', 'finance.photoAttached': 'Receipt attached — will be saved with the entry below', 'finance.removePhotoAria': 'Remove photo',
   'finance.byCategory': 'By category', 'finance.whereMoneyGoes': 'Where your money goes this period', 'finance.breakdownEmptyTitle': 'Nothing to show yet', 'finance.breakdownEmptyText': 'The category breakdown will appear after your first entry this period.',
-  'finance.history': 'History', 'finance.emptyTitle': 'No entries yet', 'finance.emptyText': 'Add your first entry above — e.g. "coffee 250".',
+  'finance.history': 'History', 'fh.from': 'From', 'fh.to': 'To', 'fh.thisMonth': 'This month', 'fh.lastMonth': 'Last month', 'fh.thisYear': 'This year', 'fh.kind': 'Type', 'fh.all': 'All', 'fh.allCategories': 'All categories', 'fh.category': 'Category', 'fh.search': 'Search', 'fh.searchPlaceholder': 'E.g. coffee', 'fh.emptyTitle': 'Nothing found', 'fh.emptyText': 'Change the dates, category or search text.', 'fa.amount': 'Amount', 'fa.note': 'Comment (optional)', 'fa.notePlaceholder': 'E.g. lunch with colleagues', 'fa.date': 'Date', 'fa.hint': 'Tap a category icon to add an amount right away', 'finance.emptyTitle': 'No entries yet', 'finance.emptyText': 'Add your first entry above — e.g. "coffee 250".',
   'finance.todayAria': 'Jump to today',
   'update.updateAction': 'Update',
   'shared.taskLabel': 'Shared task', 'shared.decline': 'Decline', 'shared.accept': 'Accept', 'shared.workLabel': 'Shared work', 'shared.tasksTab': 'Tasks', 'shared.peopleTab': 'Members', 'shared.invitesTab': 'Invites', 'shared.newTask': '＋ New shared task',
@@ -526,7 +526,7 @@ function renderFinanceBreakdown() {
       : `<div class="finance-limit"><button type="button" class="finance-limit-edit" data-edit-limit="${row.id}">＋ ${tr('limit.set')}</button></div>`;
     return `
     <div class="finance-breakdown-row${state ? ' limit-' + state : ''}">
-      <i style="background:${row.color}">${row.icon}</i>
+      <button type="button" class="finance-breakdown-icon" data-quick-add="${row.id}" style="background:${row.color}" aria-label="${escapeHtml(row.label)}: ${tr('quick.add')}">${row.icon}<em>+</em></button>
       <span>${escapeHtml(row.label)}<small>${row.pct}%</small></span>
       <b>${formatMoney(row.amount)}</b>
       ${limitBlock}
@@ -548,23 +548,80 @@ function renderFinance() {
   $('#financeExpenseTotal').textContent = formatMoney(spent);
   $('#financeBalanceTotal').textContent = formatMoney(income - spent);
   if ($('#financeSideBalance')) $('#financeSideBalance').textContent = formatMoney(income - spent);
-  const sorted = [...periodEntries].sort((a, b) => (b.occurredAt || '').localeCompare(a.occurredAt || ''));
-  $('#financeHistorySummary').textContent = periodEntries.length ? `${periodEntries.length} ${expenseWord(periodEntries.length)}` : tr('finance.emptyTitle');
-  $('#financeList').innerHTML = sorted.map(e => {
+  if ($('#financeHistoryDialog')?.open) renderFinanceHistory();
+}
+// ——— История операций: отдельное окно с выбором дат, типа, категории и поиском ———
+function setHistoryRange(range) {
+  const now = fromKey(todayKey); const y = now.getFullYear(); const m = now.getMonth();
+  const key = date => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  const ranges = { month: [new Date(y, m, 1), now], last: [new Date(y, m - 1, 1), new Date(y, m, 0)], year: [new Date(y, 0, 1), now] };
+  const [from, to] = ranges[range] || ranges.month;
+  $('#fhFrom').value = key(from); $('#fhTo').value = key(to);
+  $$('[data-fh-range]').forEach(b => b.classList.toggle('active', b.dataset.fhRange === range));
+}
+function renderHistoryCategoryOptions() {
+  const kind = $('#fhKind').value; const current = $('#fhCategory').value;
+  const list = kind === 'income' ? INCOME_CATEGORIES() : kind === 'expense' ? EXPENSE_CATEGORIES() : [...EXPENSE_CATEGORIES(), ...INCOME_CATEGORIES().filter(([id]) => !EXPENSE_CATEGORIES().some(([e]) => e === id))];
+  $('#fhCategory').innerHTML = `<option value="">${tr('fh.allCategories')}</option>` + list.map(([id, label, icon]) => `<option value="${id}">${icon} ${escapeHtml(label)}</option>`).join('');
+  if (list.some(([id]) => id === current)) $('#fhCategory').value = current;
+}
+function openFinanceHistory() {
+  if (!$('#fhFrom').value) setHistoryRange('month');
+  renderHistoryCategoryOptions(); renderFinanceHistory();
+  if (!$('#financeHistoryDialog').open) $('#financeHistoryDialog').showModal();
+}
+function renderFinanceHistory() {
+  let from = $('#fhFrom').value || '0000-01-01'; let to = $('#fhTo').value || '9999-12-31'; if (from > to) [from, to] = [to, from];
+  const kind = $('#fhKind').value; const category = $('#fhCategory').value; const query = $('#fhSearch').value.trim().toLocaleLowerCase(appLang);
+  const list = expenses.filter(e => {
+    const day = (e.occurredAt || '').slice(0, 10);
+    if (day < from || day > to) return false;
+    if (kind && e.kind !== kind) return false;
+    if (category && e.category !== category) return false;
+    if (query) { const [, label] = financeCategoryMeta(e.kind, e.category); if (!`${e.title} ${label} ${e.amount}`.toLocaleLowerCase(appLang).includes(query)) return false; }
+    return true;
+  }).sort((a, b) => (b.occurredAt || '').localeCompare(a.occurredAt || ''));
+  const spent = list.filter(e => e.kind === 'expense').reduce((sum, e) => sum + e.amount, 0);
+  const income = list.filter(e => e.kind === 'income').reduce((sum, e) => sum + e.amount, 0);
+  $('#financeHistorySummary').innerHTML = list.length ? `<b>${list.length} ${expenseWord(list.length)}</b>${spent ? ` · ${tr('finance.expense')} <span class="expense">−${formatMoney(spent)}</span>` : ''}${income ? ` · ${tr('finance.income')} <span class="income">+${formatMoney(income)}</span>` : ''}` : '';
+  $('#financeList').innerHTML = list.map(e => {
     const [, label, icon, color] = financeCategoryMeta(e.kind, e.category);
     return `
     <article class="task finance-row">
       <i class="finance-row-icon" style="background:${color}">${icon}</i>
       <div class="finance-row-main">
         <b>${escapeHtml(e.title)}${e.photo ? ` <a class="finance-photo-flag" href="${e.photo}" target="_blank" rel="noopener" aria-label="${tr('finance.openReceiptAria')}" title="${tr('finance.hasReceiptTitle')}">📷</a>` : ''}</b>
-        <small>${escapeHtml(label)} · ${fromKey((e.occurredAt || '').slice(0, 10) || todayKey).toLocaleDateString(LOCALE(), { day: 'numeric', month: 'short' })}</small>
+        <small>${escapeHtml(label)} · ${fromKey((e.occurredAt || '').slice(0, 10) || todayKey).toLocaleDateString(LOCALE(), { day: 'numeric', month: 'short', year: (e.occurredAt || '').slice(0, 4) === todayKey.slice(0, 4) ? undefined : 'numeric' })}</small>
       </div>
       <strong class="finance-amount ${e.kind}">${e.kind === 'income' ? '+' : '−'}${formatMoney(e.amount)}</strong>
       <button type="button" class="finance-delete" data-delete-expense="${e.id}" aria-label="${tr('finance.deleteEntryAria')}">×</button>
     </article>`;
   }).join('');
-  $('#financeEmptyState').hidden = !!periodEntries.length;
-  $('#financeList').hidden = !periodEntries.length;
+  $('#financeEmptyState').hidden = !!list.length; $('#financeList').hidden = !list.length;
+}
+// ——— Быстрое добавление через иконку категории ———
+let financeAddTarget = { kind: 'expense', category: '' };
+function openFinanceAdd(kind, category) {
+  const [, label, icon, color] = financeCategoryMeta(kind, category);
+  financeAddTarget = { kind, category };
+  $('#faIcon').textContent = icon; $('#faIcon').style.background = color;
+  $('#faKindLabel').textContent = kind === 'income' ? tr('finance.incomeKind') : tr('finance.expenseKind');
+  $('#faTitle').textContent = label;
+  $('#faAmount').value = ''; $('#faNote').value = ''; $('#faDate').value = todayKey;
+  $('#financeAddDialog').showModal(); setTimeout(() => $('#faAmount').focus(), 60);
+}
+function submitFinanceAdd(event) {
+  event.preventDefault();
+  const amount = Math.round(Number(String($('#faAmount').value).replace(/\s/g, '').replace(',', '.').replace(/[^\d.]/g, '')) * 100) / 100;
+  if (!(amount > 0)) { toast(tr('toast.enterAmount')); $('#faAmount').focus(); return; }
+  const { kind, category } = financeAddTarget; const [, label] = financeCategoryMeta(kind, category);
+  const now = new Date(); const day = $('#faDate').value || todayKey;
+  const occurredAt = day === todayKey ? now.toISOString() : new Date(`${day}T12:00:00`).toISOString();
+  const row = { id: crypto.randomUUID(), kind, title: $('#faNote').value.trim() || label, amount, category, photo: null, occurredAt, updatedAt: now.toISOString() };
+  expenses.push(row); saveExpenses(); $('#financeAddDialog').close(); renderFinance();
+  const limitMessage = kind === 'expense' ? checkLimitsAfterAdd([row]) : '';
+  if (limitMessage) { toast(limitMessage, '', null, 6000); if (navigator.vibrate) navigator.vibrate([120, 60, 120]); return; }
+  toast(`${kind === 'income' ? tr('toast.incomeAdded') : tr('toast.expenseAdded')}: ${label} — ${formatMoney(amount)}`);
 }
 function addFinanceEntry(event) {
   event.preventDefault();
@@ -614,7 +671,8 @@ function focusFinanceEntry(kind = 'expense') {
 function goFinanceSection(target) {
   $$('[data-finance-nav]').forEach(b => b.classList.toggle('active', b.dataset.financeNav === target));
   if (target === 'expense' || target === 'income') { focusFinanceEntry(target); return; }
-  const section = { overview: '#financeSummarySection', categories: '#financeBreakdownSection', history: '#financeHistorySection' }[target];
+  if (target === 'history') { openFinanceHistory(); return; }
+  const section = { overview: '#financeSummarySection', categories: '#financeBreakdownSection' }[target];
   if (target === 'overview') { window.scrollTo({ top: 0, behavior: 'smooth' }); $('.main-content')?.scrollTo?.({ top: 0, behavior: 'smooth' }); }
   $(section)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
@@ -2069,10 +2127,16 @@ $('#tabPlanner').addEventListener('click', () => setActiveTab('planner'));
 $('#tabFinance').addEventListener('click', () => setActiveTab('finance'));
 $('#financeQuickForm').addEventListener('submit', addFinanceEntry);
 $('#financeQuickInput').addEventListener('input', e => { if (!/\r?\n/.test(e.currentTarget.value)) { selectedFinanceCategory = detectFinanceCategory(e.currentTarget.value, financeKind); renderFinanceCategoryGrid(); } });
-$('#financeCategoryGrid').addEventListener('click', e => { const button = e.target.closest('[data-category]'); if (!button) return; selectedFinanceCategory = button.dataset.category; renderFinanceCategoryGrid(); });
+$('#financeCategoryGrid').addEventListener('click', e => { const button = e.target.closest('[data-category]'); if (!button) return; selectedFinanceCategory = button.dataset.category; if (!$('#financeQuickInput').value.trim()) openFinanceAdd(financeKind, button.dataset.category); renderFinanceCategoryGrid(); });
 bindHoldToTalk('financeVoiceButton', () => startVoiceForField('financeQuickInput', 'financeVoiceButton', { prompt: 'Слушаю… Назовите покупку и сумму', success: 'Текст добавлен' }));
 if (!HAS_SPEECH_RECOGNITION) $('#financeVoiceHint').textContent = tr('finance.voiceHintFallback');
-$('#financeBreakdown').addEventListener('click', e => { const button = e.target.closest('[data-edit-limit]'); if (button) editFinanceLimit(button.dataset.editLimit); });
+$('#financeBreakdown').addEventListener('click', e => { const add = e.target.closest('[data-quick-add]'); if (add) { openFinanceAdd(financeKind, add.dataset.quickAdd); return; } const button = e.target.closest('[data-edit-limit]'); if (button) editFinanceLimit(button.dataset.editLimit); });
+$('#closeFinanceHistory').addEventListener('click', () => $('#financeHistoryDialog').close());
+['fhFrom', 'fhTo'].forEach(id => $('#' + id).addEventListener('change', () => { $$('[data-fh-range]').forEach(b => b.classList.remove('active')); renderFinanceHistory(); }));
+$$('[data-fh-range]').forEach(b => b.addEventListener('click', () => { setHistoryRange(b.dataset.fhRange); renderFinanceHistory(); }));
+$('#fhKind').addEventListener('change', () => { renderHistoryCategoryOptions(); renderFinanceHistory(); });
+$('#fhCategory').addEventListener('change', renderFinanceHistory); $('#fhSearch').addEventListener('input', renderFinanceHistory);
+$('#financeAddForm').addEventListener('submit', submitFinanceAdd); $('#closeFinanceAdd').addEventListener('click', () => $('#financeAddDialog').close());
 $('#financeLimitAddSelect').addEventListener('change', e => { const category = e.target.value; e.target.value = ''; if (category) editFinanceLimit(category); });
 $('#financeList').addEventListener('click', e => { const button = e.target.closest('[data-delete-expense]'); if (button) deleteExpense(button.dataset.deleteExpense); });
 $$('.finance-kind-button').forEach(button => button.addEventListener('click', () => {
@@ -2115,7 +2179,7 @@ window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); instal
 $('#installButton').addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('#installButton').hidden = true; });
 showUpdatedNoticeIfNeeded();
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=89'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
+  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=90'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
   navigator.serviceWorker.addEventListener('message', event => {
     if (event.data?.type !== 'DAY_PUSH') return;
     showReminderAlert(event.data.taskId || '', event.data.title || 'Новое уведомление', event.data.body || '');
