@@ -220,10 +220,24 @@
       __remote: true
     };
   }
+  // Совместные задачи тоже грузятся экономно: каждые 2 минуты берётся лёгкий список «id + время правки +
+  // участники», а задача целиком (с фото) скачивается, только если она изменилась с прошлой загрузки.
+  const SHARED_COLUMNS = 'id,owner_id,owner_email,invited_emails,accepted_emails,payload,updated_at';
+  let sharedCache = { userId: '', rows: new Map() };
+  const sharedHeadKey = row => `${row.updated_at}|${row.pu || ''}|${(row.invited_emails || []).join(',')}|${(row.accepted_emails || []).join(',')}`;
   async function loadSharedTasks() {
-    if (!user()) return [];
-    const rows = await request('/rest/v1/shared_tasks?select=id,owner_id,owner_email,invited_emails,accepted_emails,payload,updated_at&order=updated_at.desc', { method: 'GET' });
-    return (rows || []).map(sharedTaskFromRow);
+    const sessionUser = user(); if (!sessionUser) return [];
+    if (sharedCache.userId !== sessionUser.id) sharedCache = { userId: sessionUser.id, rows: new Map() };
+    const heads = await request('/rest/v1/shared_tasks?select=id,updated_at,invited_emails,accepted_emails,pu:payload->>updatedAt&order=updated_at.desc', { method: 'GET' }) || [];
+    const changed = heads.filter(head => sharedCache.rows.get(head.id)?.key !== sharedHeadKey(head)).map(head => head.id);
+    for (let i = 0; i < changed.length; i += 50) {
+      const list = changed.slice(i, i + 50).map(id => `"${String(id).replace(/"/g, '')}"`).join(',');
+      const rows = await request(`/rest/v1/shared_tasks?select=${SHARED_COLUMNS}&id=in.(${encodeURIComponent(list)})`, { method: 'GET' }) || [];
+      rows.forEach(row => sharedCache.rows.set(row.id, { key: sharedHeadKey({ ...row, pu: row.payload?.updatedAt }), row }));
+    }
+    const visible = new Set(heads.map(head => head.id));
+    [...sharedCache.rows.keys()].forEach(id => { if (!visible.has(id)) sharedCache.rows.delete(id); });
+    return heads.map(head => sharedCache.rows.get(head.id)?.row).filter(Boolean).map(row => sharedTaskFromRow(structuredClone(row)));
   }
   // Свежая копия одной задачи прямо перед сохранением: чтобы правка одного участника не затирала чужие.
   async function loadSharedTask(id) {
@@ -242,14 +256,17 @@
     if (__remote) {
       const isOwner = ownerId === sessionUser.id;
       const patch = isOwner ? { ...row } : { payload, updated_at: row.updated_at };
+      sharedCache.rows.delete(id);
       delete patch.id;
       await request(`/rest/v1/shared_tasks?id=eq.${encodeURIComponent(id)}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(patch) });
     } else {
+      sharedCache.rows.delete(id);
       await request('/rest/v1/shared_tasks?on_conflict=id', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify(row) });
     }
     return { ...task, ownerId, ownerEmail, invitedEmails, acceptedEmails, __remote: true };
   }
   async function deleteSharedTask(id) {
+    sharedCache.rows.delete(id);
     await request(`/rest/v1/shared_tasks?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE', headers: { Prefer: 'return=minimal' } });
   }
   async function answerSharedInvite(id, accepted) {

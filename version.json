@@ -1,7 +1,8 @@
 {
-  "version": "87",
+  "version": "88",
   "released": "2026-10-13",
   "notes": [
+    "Ещё экономнее расходуется бесплатный лимит облака: совместные задачи теперь скачиваются целиком (с фото) только когда в них что‑то изменилось, а при обычной проверке раз в 2 минуты приходит лишь короткий список изменений.",
     "Синхронизация снова работает: данные переехали в новое бесплатное облако, потому что старое заблокировало доступ из‑за исчерпанного лимита трафика. Главную причину перерасхода я устранил: служба напоминаний раньше каждую минуту скачивала все задачи целиком вместе с фото, теперь берёт только время и название. После обновления приложение один раз попросит войти снова той же почтой и тем же паролем; задачи на устройствах сохранятся и сами загрузятся в облако. Уведомления на телефоне нужно будет разрешить заново.",
     "Телефон: экран ежедневника теперь прокручивается целиком — раньше прокручивалось только маленькое окошко со списком задач внизу, и казалось, что список не листается. Если облако не отвечает (например, закончился бесплатный лимит), сверху появляется заметное красное предупреждение, что телефон и компьютер сейчас не синхронизируются, а задачи сохраняются на устройстве.",
     "Совместные задачи: принятые совместные задачи теперь видны прямо в ежедневнике на свой день — с меткой «Совместная», организатором и подзадачами; галочка отмечает задачу выполненной для всех участников, подзадачи можно отмечать прямо в списке. Исправлено затирание правок: если два участника одновременно отмечают подзадачи или меняют статус, теперь сохраняются изменения обоих, а не только последнего. Доперевёл на английский оставшиеся подписи совместных задач.",
@@ -68,6 +69,7 @@
     "Добавлены общий прогресс, роли, статусы «В работе», «На проверке» и «Завершено»."
   ],
   "notesEn": [
+    "Uses even less of the free cloud allowance: shared tasks are now downloaded in full (with photos) only when something in them changed; the regular check every 2 minutes fetches just a short list of changes.",
     "Sync works again: data moved to a new free cloud because the old one blocked access after its data allowance ran out. The main cause is fixed: the reminder service used to download every task with its photos every minute, now it reads only the time and title. After the update the app asks you once to sign in again with the same email and password; tasks on your devices are kept and upload on their own. Phone notifications need to be allowed again.",
     "Phone: the planner screen now scrolls as a whole — before, only a small box with the task list at the bottom scrolled, so the list seemed stuck. When the cloud is unreachable (for example, the free limit is used up), a clear red notice appears at the top saying devices are not syncing and tasks are kept on this device.",
     "Shared tasks: accepted shared tasks now appear right in the planner on their day, marked “Shared” with the organizer and subtasks; the checkbox marks the task done for everyone, and subtasks can be ticked right in the list. Fixed lost edits: when two members tick subtasks or change the status at the same time, both changes are now kept, not just the last one. Translated the remaining shared-task labels into English.",
