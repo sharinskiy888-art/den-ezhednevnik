@@ -7,7 +7,7 @@
   <meta name="description" content="Простой ежедневник, который работает офлайн на телефоне и Windows.">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=88">
+  <link rel="stylesheet" href="styles.css?v=89">
   <title>День — ежедневник</title>
   <script>
     (() => {
@@ -265,7 +265,7 @@
       <em id="sharedInvitePromptOwner"></em>
     </div>
     <div class="shared-invite-prompt-actions">
-      <button type="button" class="invite-decline" id="sharedInvitePromptDecline" data-i18n="shared.decline">Отклонить</button>
+      <button type="button" class="invite-decline later" id="sharedInvitePromptDecline" data-i18n="shared.later">Позже</button>
       <button type="button" class="invite-accept" id="sharedInvitePromptAccept" data-i18n="shared.accept">Принять</button>
     </div>
   </aside>
@@ -303,11 +303,26 @@
         <small class="shared-field-hint" data-i18n="task.inviteHint">После входа с указанной почтой участник увидит приглашение по центру экрана и в разделе «Совместные».</small>
         <label><span data-i18n="task.status">Статус выполнения</span>
           <select id="sharedTaskStatus">
+            <option value="new" data-i18n="task.statusNew">Новая — ещё не начата</option>
+            <option value="accepted" data-i18n="task.statusAccepted">Принял</option>
             <option value="open" data-i18n="task.statusOpen">В работе</option>
-            <option value="review" data-i18n="task.statusReview">На проверке</option>
+            <option value="question" data-i18n="task.statusQuestion">Есть вопрос</option>
+            <option value="review" data-i18n="task.statusReview">Готово, на проверке</option>
             <option value="completed" data-i18n="task.statusCompleted">Принято и завершено</option>
           </select>
         </label>
+        <div class="shared-reports" id="sharedReports" hidden>
+          <span class="shared-reports-title" data-i18n="task.reports">Отчёты по задаче</span>
+          <div class="report-list" id="sharedReportList"></div>
+          <textarea id="reportText" rows="2" maxlength="1000" placeholder="Что сделано, вопрос организатору…" data-i18n-placeholder="task.reportPlaceholder"></textarea>
+          <div class="report-pending" id="reportPending" hidden></div>
+          <div class="report-tools">
+            <button type="button" class="secondary-button" id="reportPhotoButton" data-i18n="task.reportPhoto">📷 Фото</button>
+            <button type="button" class="secondary-button" id="reportVoiceButton">🎤 Голос</button>
+            <button type="button" class="primary-button" id="reportSend" data-i18n="task.reportSend">Отправить отчёт</button>
+          </div>
+          <input type="file" id="reportPhotoInput" accept="image/*" hidden>
+        </div>
       </section>
       <label><span data-i18n="task.title">Название</span>
         <span class="voice-field"><input id="taskTitle" maxlength="80" placeholder="Например, подготовить отчёт" required data-i18n-placeholder="task.titlePlaceholder"><button type="button" class="field-voice-button" id="voiceTitleButton" aria-label="Продиктовать название" data-i18n-aria="task.voiceTitleAria">🎙</button></span>
@@ -561,9 +576,9 @@
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastAction" hidden></button></div>
-  <script src="sync-config.js?v=88"></script>
-  <script src="sync.js?v=88"></script>
-  <script src="i18n-en.js?v=88"></script>
-  <script src="app.js?v=88"></script>
+  <script src="sync-config.js?v=89"></script>
+  <script src="sync.js?v=89"></script>
+  <script src="i18n-en.js?v=89"></script>
+  <script src="app.js?v=89"></script>
 </body>
 </html>
