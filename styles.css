@@ -241,3 +241,16 @@ dialog { border-radius:12px;box-shadow:0 20px 55px rgba(25,41,57,.22); }.close-b
 .finance-limit.over .finance-limit-bar em { background:#d64545; }.finance-limit.over small { color:#c03636;font-weight:750; }
 .finance-breakdown-row.limit-over { border-color:#e8a3a3;background:#fff6f6; }.finance-breakdown-row.limit-over b { color:#c03636; }
 .finance-category-chip.over-limit { border-color:#e8a3a3;background:#fff6f6; }
+
+/* Предупреждение «облако недоступно» */
+.cloud-banner { display:flex;gap:10px;align-items:flex-start;margin:0 0 12px;padding:11px 13px;border:1px solid #f0b4ad;border-radius:10px;background:#fff1ef;color:#9b2c22;font-size:13px;line-height:1.4; }
+.cloud-banner[hidden] { display:none; }
+.cloud-banner b { font-size:16px;line-height:1.2; }
+/* На телефоне прокручивается весь экран ежедневника, а не маленькое окошко со списком внизу */
+@media(max-width:850px){
+  .cloud-banner { flex:0 0 auto;margin:0 0 8px;font-size:12px;padding:9px 11px; }
+  .main-content { overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain; }
+  #plannerView { flex:0 0 auto;overflow:visible;min-height:auto; }
+  #plannerView .tasks-section { flex:0 0 auto;overflow:visible;min-height:auto; }
+  #plannerView .task-list { flex:0 0 auto;overflow:visible;min-height:auto; }
+}

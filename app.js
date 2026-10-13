@@ -11,7 +11,7 @@ const NOTIFICATION_KEY = 'day-planner-notifications-v1';
 const EXPENSES_KEY = 'day-planner-expenses-v1';
 const FINANCE_LIMITS_KEY = 'day-planner-finance-limits-v1';
 const DELETED_EXPENSES_KEY = 'day-planner-deleted-expenses-v1';
-const APP_VERSION = '85';
+const APP_VERSION = '86';
 const UPDATE_SEEN_KEY = 'day-planner-update-seen-v1';
 const UPDATE_APPLIED_KEY = 'day-planner-update-applied-v1';
 const LANG_KEY = 'day-planner-lang-v1';
@@ -50,7 +50,7 @@ const TRANSLATIONS = { ru: {
   'shared.taskLabel': 'Совместная задача', 'shared.decline': 'Отклонить', 'shared.accept': 'Принять', 'shared.workLabel': 'Общая работа', 'shared.tasksTab': 'Задачи', 'shared.peopleTab': 'Участники', 'shared.invitesTab': 'Приглашения', 'shared.newTask': '＋ Новая совместная задача',
   'reminder.label': 'Напоминание', 'reminder.later': 'Позже', 'reminder.openTask': 'Открыть задачу',
   'common.close': 'Закрыть', 'common.delete': 'Удалить', 'common.cancel': 'Отмена', 'common.save': 'Сохранить',
-  'task.planLabel': 'План', 'task.personal': 'Личная', 'task.shared': 'Совместная', 'task.youOrganize': 'вы организатор', 'task.organizer': 'организатор',
+  'cloud.quota': 'Облако недоступно: закончился бесплатный лимит. Телефон и компьютер сейчас не синхронизируются, задачи хранятся на этом устройстве.', 'cloud.failed': 'Не удалось синхронизировать с облаком. Задачи сохраняются на этом устройстве.', 'task.planLabel': 'План', 'task.personal': 'Личная', 'task.shared': 'Совместная', 'task.youOrganize': 'вы организатор', 'task.organizer': 'организатор',
   'task.inviteMembers': 'Пригласить участников', 'task.emailsPlaceholder': 'email@example.com — каждый адрес с новой строки', 'task.inviteHint': 'После входа с указанной почтой участник увидит приглашение по центру экрана и в разделе «Совместные».',
   'task.status': 'Статус выполнения', 'task.statusOpen': 'В работе', 'task.statusReview': 'На проверке', 'task.statusCompleted': 'Принято и завершено',
   'task.title': 'Название', 'task.titlePlaceholder': 'Например, подготовить отчёт', 'task.voiceTitleAria': 'Продиктовать название',
@@ -115,7 +115,7 @@ const TRANSLATIONS = { ru: {
   'shared.taskLabel': 'Shared task', 'shared.decline': 'Decline', 'shared.accept': 'Accept', 'shared.workLabel': 'Shared work', 'shared.tasksTab': 'Tasks', 'shared.peopleTab': 'Members', 'shared.invitesTab': 'Invites', 'shared.newTask': '＋ New shared task',
   'reminder.label': 'Reminder', 'reminder.later': 'Later', 'reminder.openTask': 'Open task',
   'common.close': 'Close', 'common.delete': 'Delete', 'common.cancel': 'Cancel', 'common.save': 'Save',
-  'task.planLabel': 'Plan', 'task.personal': 'Personal', 'task.shared': 'Shared', 'task.youOrganize': 'you organize', 'task.organizer': 'organizer',
+  'cloud.quota': 'Cloud unavailable: the free plan limit is used up. Your phone and computer are not syncing right now; tasks are kept on this device.', 'cloud.failed': 'Could not sync with the cloud. Tasks are saved on this device.', 'task.planLabel': 'Plan', 'task.personal': 'Personal', 'task.shared': 'Shared', 'task.youOrganize': 'you organize', 'task.organizer': 'organizer',
   'task.inviteMembers': 'Invite members', 'task.emailsPlaceholder': 'email@example.com — one address per line', 'task.inviteHint': 'After signing in with that email, the person will see the invite centered on screen and in "Shared".',
   'task.status': 'Status', 'task.statusOpen': 'In progress', 'task.statusReview': 'In review', 'task.statusCompleted': 'Accepted and done',
   'task.title': 'Title', 'task.titlePlaceholder': 'E.g. prepare the report', 'task.voiceTitleAria': 'Dictate title',
@@ -1392,6 +1392,16 @@ function queueCloudSync() {
   if (!window.DaySync?.user()) return;
   clearTimeout(syncTimer); syncTimer = setTimeout(() => performSync(false), 900);
 }
+// Заметное предупреждение сверху экрана, если облако не отвечает: иначе непонятно, почему телефон и компьютер не совпадают.
+function showCloudBanner(error) {
+  const banner = $('#cloudBanner'); if (!banner) return;
+  if (!error || error.sessionExpired || !navigator.onLine) { banner.hidden = true; return; }
+  const quota = error.status === 402 || /\b402\b|quota|exceed/i.test(error.message || '');
+  $('#cloudBannerText').textContent = quota
+    ? tr('cloud.quota')
+    : `${tr('cloud.failed')} ${error.message || ''}`.trim();
+  banner.hidden = false;
+}
 async function performSync(showMessage = true) {
   if (!window.DaySync?.user()) { if (showMessage) toast('Сначала войдите в облако'); return; }
   if (syncInFlight) return;
@@ -1400,6 +1410,7 @@ async function performSync(showMessage = true) {
   try {
     const sentTombstones = { ...deletedIds };
     const result = await window.DaySync.sync('planner_tasks', tasks, sentTombstones, { profile, periodPlans, financeLimits, updatedAt: appStateUpdatedAt });
+    showCloudBanner(null);
     // Задачи, удалённые пока шёл обмен с облаком, не должны вернуться из ответа сервера.
     const deletedDuringSync = Object.keys(deletedIds).filter(id => !(id in sentTombstones));
     tasks = (result.tasks || []).filter(t => !deletedDuringSync.includes(t.id));
@@ -1426,6 +1437,7 @@ async function performSync(showMessage = true) {
     suppressSync = false;
     if (error.sessionExpired) { switchAccountData(); toast(error.message); openSyncDialog(); setSyncStatus('error', 'Нужно войти снова', error.message); }
     else { setSyncStatus('error', 'Ошибка синхронизации', error.message); if (showMessage) toast(error.message); }
+    showCloudBanner(error);
   } finally { syncInFlight = false; }
 }
 async function handleSyncLogin(event) {
@@ -1926,7 +1938,7 @@ window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); instal
 $('#installButton').addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('#installButton').hidden = true; });
 showUpdatedNoticeIfNeeded();
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=85'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
+  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=86'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
   navigator.serviceWorker.addEventListener('message', event => {
     if (event.data?.type !== 'DAY_PUSH') return;
     showReminderAlert(event.data.taskId || '', event.data.title || 'Новое уведомление', event.data.body || '');
