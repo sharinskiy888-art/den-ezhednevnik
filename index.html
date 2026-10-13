@@ -7,7 +7,7 @@
   <meta name="description" content="Простой ежедневник, который работает офлайн на телефоне и Windows.">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=89">
+  <link rel="stylesheet" href="styles.css?v=90">
   <title>День — ежедневник</title>
   <script>
     (() => {
@@ -186,6 +186,7 @@
               <button type="button" class="field-voice-button" id="financeVoiceButton" aria-label="Продиктовать расход" data-i18n-aria="finance.voiceAria">🎙</button>
             </span>
             <p class="finance-hint" id="financeVoiceHint" data-i18n="finance.voiceHint">Нажмите и удерживайте 🎙, скажите покупку и сумму, отпустите</p>
+            <p class="finance-hint" data-i18n="fa.hint">Нажмите на иконку категории, чтобы сразу добавить сумму</p>
             <div class="finance-category-grid" id="financeCategoryGrid"></div>
             <div class="finance-photo-actions">
               <button type="button" class="attachment-button" id="financeCameraButton" data-i18n="finance.camera">📷 Сфотографировать чек</button>
@@ -218,20 +219,6 @@
           </div>
         </section>
 
-        <section class="tasks-section" id="financeHistorySection">
-          <div class="section-heading">
-            <div>
-              <h2 data-i18n="finance.history">История операций</h2>
-              <p id="financeHistorySummary">Пока записей нет</p>
-            </div>
-          </div>
-          <div class="task-list" id="financeList"></div>
-          <div class="empty-state" id="financeEmptyState" hidden>
-            <div class="empty-icon">₽</div>
-            <h3 data-i18n="finance.emptyTitle">Записей пока нет</h3>
-            <p data-i18n="finance.emptyText">Добавьте первую операцию текстом выше — например «кофе 250».</p>
-          </div>
-        </section>
       </div>
     </main>
 
@@ -384,6 +371,47 @@
         <button type="button" class="secondary-button" id="cancelDialog" data-i18n="common.cancel">Отмена</button>
         <button type="submit" class="primary-button" data-i18n="common.save">Сохранить</button>
       </div>
+    </form>
+  </dialog>
+
+  <dialog id="financeHistoryDialog" class="shared-dialog finance-history-dialog">
+    <div class="shared-panel">
+      <div class="dialog-header">
+        <div><span class="card-label" data-i18n="fnav.history">История</span><h2 data-i18n="finance.history">История операций</h2></div>
+        <button type="button" class="close-button" id="closeFinanceHistory" aria-label="Закрыть" data-i18n-aria="common.close">×</button>
+      </div>
+      <div class="fh-filters">
+        <label><span data-i18n="fh.from">С</span><input type="date" id="fhFrom"></label>
+        <label><span data-i18n="fh.to">По</span><input type="date" id="fhTo"></label>
+        <div class="fh-quick" role="group">
+          <button type="button" data-fh-range="month" data-i18n="fh.thisMonth">Этот месяц</button>
+          <button type="button" data-fh-range="last" data-i18n="fh.lastMonth">Прошлый месяц</button>
+          <button type="button" data-fh-range="year" data-i18n="fh.thisYear">Этот год</button>
+        </div>
+        <label><span data-i18n="fh.kind">Тип</span><select id="fhKind"><option value="" data-i18n="fh.all">Все</option><option value="expense" data-i18n="finance.expenseKind">Расход</option><option value="income" data-i18n="finance.incomeKind">Доход</option></select></label>
+        <label><span data-i18n="fh.category">Категория</span><select id="fhCategory"></select></label>
+        <label class="fh-search"><span data-i18n="fh.search">Поиск</span><input type="search" id="fhSearch" placeholder="Например: кофе" data-i18n-placeholder="fh.searchPlaceholder"></label>
+      </div>
+      <p class="fh-summary" id="financeHistorySummary"></p>
+      <div class="task-list" id="financeList"></div>
+      <div class="empty-state" id="financeEmptyState" hidden>
+        <div class="empty-icon">₽</div>
+        <h3 data-i18n="fh.emptyTitle">Ничего не найдено</h3>
+        <p data-i18n="fh.emptyText">Измените даты, категорию или текст поиска.</p>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="financeAddDialog" class="finance-add-dialog">
+    <form id="financeAddForm" method="dialog">
+      <div class="dialog-header">
+        <div class="fa-head"><i id="faIcon"></i><div><span class="card-label" id="faKindLabel">Расход</span><h2 id="faTitle">Категория</h2></div></div>
+        <button type="button" class="close-button" id="closeFinanceAdd" aria-label="Закрыть" data-i18n-aria="common.close">×</button>
+      </div>
+      <label><span data-i18n="fa.amount">Сумма</span><input id="faAmount" type="text" inputmode="decimal" autocomplete="off" required placeholder="0"></label>
+      <label><span data-i18n="fa.note">Комментарий (необязательно)</span><input id="faNote" maxlength="80" placeholder="Например: обед с коллегами" data-i18n-placeholder="fa.notePlaceholder"></label>
+      <label><span data-i18n="fa.date">Дата</span><input id="faDate" type="date" required></label>
+      <button type="submit" class="finance-submit" id="faSubmit" data-i18n="quick.add">Добавить</button>
     </form>
   </dialog>
 
@@ -576,9 +604,9 @@
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastAction" hidden></button></div>
-  <script src="sync-config.js?v=89"></script>
-  <script src="sync.js?v=89"></script>
-  <script src="i18n-en.js?v=89"></script>
-  <script src="app.js?v=89"></script>
+  <script src="sync-config.js?v=90"></script>
+  <script src="sync.js?v=90"></script>
+  <script src="i18n-en.js?v=90"></script>
+  <script src="app.js?v=90"></script>
 </body>
 </html>
