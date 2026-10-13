@@ -41,7 +41,8 @@
     }
     const headers = { apikey: config.anonKey, 'Content-Type': 'application/json', ...(options.headers || {}) };
     if (useAuth && session?.access_token) headers.Authorization = `Bearer ${session.access_token}`;
-    const response = await fetch(`${config.url}${path}`, { ...options, headers });
+    const { raw, ...fetchOptions } = options;
+    const response = await fetch(`${config.url}${path}`, { ...fetchOptions, headers });
     if (!response.ok) {
       if (useAuth && response.status === 401 && session?.access_token) {
         if (!retried && session.refresh_token) {
@@ -57,6 +58,7 @@
       error.retryAfter = Number(response.headers.get('retry-after') || 0);
       throw error;
     }
+    if (raw) return response;
     if (response.status === 204 || response.headers.get('content-length') === '0') return null;
     const text = await response.text(); return text ? JSON.parse(text) : null;
   }
@@ -321,5 +323,21 @@
     await request('/rest/v1/rpc/delete_own_account', { method: 'POST', body: '{}' });
     setSession(null);
   }
-  window.DaySync = { getSession, user, signUp, signIn, signOut, resetPassword, verifyRecoveryCode, consumeRecoveryFromUrl, updatePassword, sync, syncExpenses, loadSharedTasks, loadSharedTask, saveSharedTask, deleteSharedTask, answerSharedInvite, touchPresence, loadSharedPresence, savePushSubscription, deletePushSubscription, deleteAccount };
+  // Фото и голосовые отчёты совместных задач лежат в закрытом хранилище облака, а в задаче — только путь к файлу.
+  // Скачиваются они только при просмотре и запоминаются на устройстве, чтобы не тратить трафик повторно.
+  const MEDIA_CACHE = 'day-shared-media-v1';
+  async function uploadSharedMedia(taskId, blob, extension) {
+    const path = `shared/${taskId}/${crypto.randomUUID()}.${extension}`;
+    await request(`/storage/v1/object/attachments/${path}`, { method: 'POST', headers: { 'Content-Type': blob.type || 'application/octet-stream', 'x-upsert': 'false' }, body: blob });
+    try { const cache = await caches.open(MEDIA_CACHE); await cache.put(`/media/${path}`, new Response(blob, { headers: { 'Content-Type': blob.type } })); } catch {}
+    return path;
+  }
+  async function loadSharedMedia(path) {
+    try { const cache = await caches.open(MEDIA_CACHE); const hit = await cache.match(`/media/${path}`); if (hit) return await hit.blob(); } catch {}
+    const response = await request(`/storage/v1/object/authenticated/attachments/${path}`, { method: 'GET', raw: true });
+    const blob = await response.blob();
+    try { const cache = await caches.open(MEDIA_CACHE); await cache.put(`/media/${path}`, new Response(blob, { headers: { 'Content-Type': blob.type } })); } catch {}
+    return blob;
+  }
+  window.DaySync = { uploadSharedMedia, loadSharedMedia, getSession, user, signUp, signIn, signOut, resetPassword, verifyRecoveryCode, consumeRecoveryFromUrl, updatePassword, sync, syncExpenses, loadSharedTasks, loadSharedTask, saveSharedTask, deleteSharedTask, answerSharedInvite, touchPresence, loadSharedPresence, savePushSubscription, deletePushSubscription, deleteAccount };
 })();
