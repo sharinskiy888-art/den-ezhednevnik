@@ -11,7 +11,7 @@ const NOTIFICATION_KEY = 'day-planner-notifications-v1';
 const EXPENSES_KEY = 'day-planner-expenses-v1';
 const FINANCE_LIMITS_KEY = 'day-planner-finance-limits-v1';
 const DELETED_EXPENSES_KEY = 'day-planner-deleted-expenses-v1';
-const APP_VERSION = '86';
+const APP_VERSION = '87';
 const UPDATE_SEEN_KEY = 'day-planner-update-seen-v1';
 const UPDATE_APPLIED_KEY = 'day-planner-update-applied-v1';
 const LANG_KEY = 'day-planner-lang-v1';
@@ -50,7 +50,7 @@ const TRANSLATIONS = { ru: {
   'shared.taskLabel': 'Совместная задача', 'shared.decline': 'Отклонить', 'shared.accept': 'Принять', 'shared.workLabel': 'Общая работа', 'shared.tasksTab': 'Задачи', 'shared.peopleTab': 'Участники', 'shared.invitesTab': 'Приглашения', 'shared.newTask': '＋ Новая совместная задача',
   'reminder.label': 'Напоминание', 'reminder.later': 'Позже', 'reminder.openTask': 'Открыть задачу',
   'common.close': 'Закрыть', 'common.delete': 'Удалить', 'common.cancel': 'Отмена', 'common.save': 'Сохранить',
-  'cloud.quota': 'Облако недоступно: закончился бесплатный лимит. Телефон и компьютер сейчас не синхронизируются, задачи хранятся на этом устройстве.', 'cloud.failed': 'Не удалось синхронизировать с облаком. Задачи сохраняются на этом устройстве.', 'task.planLabel': 'План', 'task.personal': 'Личная', 'task.shared': 'Совместная', 'task.youOrganize': 'вы организатор', 'task.organizer': 'организатор',
+  'cloud.quota': 'Облако недоступно: закончился бесплатный лимит. Телефон и компьютер сейчас не синхронизируются, задачи хранятся на этом устройстве.', 'cloud.movedTitle': 'Облако обновлено', 'cloud.movedText': 'Войдите ещё раз тем же email и паролем — ваши задачи на этом устройстве сохранены и снова начнут синхронизироваться.', 'cloud.failed': 'Не удалось синхронизировать с облаком. Задачи сохраняются на этом устройстве.', 'task.planLabel': 'План', 'task.personal': 'Личная', 'task.shared': 'Совместная', 'task.youOrganize': 'вы организатор', 'task.organizer': 'организатор',
   'task.inviteMembers': 'Пригласить участников', 'task.emailsPlaceholder': 'email@example.com — каждый адрес с новой строки', 'task.inviteHint': 'После входа с указанной почтой участник увидит приглашение по центру экрана и в разделе «Совместные».',
   'task.status': 'Статус выполнения', 'task.statusOpen': 'В работе', 'task.statusReview': 'На проверке', 'task.statusCompleted': 'Принято и завершено',
   'task.title': 'Название', 'task.titlePlaceholder': 'Например, подготовить отчёт', 'task.voiceTitleAria': 'Продиктовать название',
@@ -115,7 +115,7 @@ const TRANSLATIONS = { ru: {
   'shared.taskLabel': 'Shared task', 'shared.decline': 'Decline', 'shared.accept': 'Accept', 'shared.workLabel': 'Shared work', 'shared.tasksTab': 'Tasks', 'shared.peopleTab': 'Members', 'shared.invitesTab': 'Invites', 'shared.newTask': '＋ New shared task',
   'reminder.label': 'Reminder', 'reminder.later': 'Later', 'reminder.openTask': 'Open task',
   'common.close': 'Close', 'common.delete': 'Delete', 'common.cancel': 'Cancel', 'common.save': 'Save',
-  'cloud.quota': 'Cloud unavailable: the free plan limit is used up. Your phone and computer are not syncing right now; tasks are kept on this device.', 'cloud.failed': 'Could not sync with the cloud. Tasks are saved on this device.', 'task.planLabel': 'Plan', 'task.personal': 'Personal', 'task.shared': 'Shared', 'task.youOrganize': 'you organize', 'task.organizer': 'organizer',
+  'cloud.quota': 'Cloud unavailable: the free plan limit is used up. Your phone and computer are not syncing right now; tasks are kept on this device.', 'cloud.movedTitle': 'Cloud updated', 'cloud.movedText': 'Sign in again with the same email and password — your tasks on this device are kept and will sync again.', 'cloud.failed': 'Could not sync with the cloud. Tasks are saved on this device.', 'task.planLabel': 'Plan', 'task.personal': 'Personal', 'task.shared': 'Shared', 'task.youOrganize': 'you organize', 'task.organizer': 'organizer',
   'task.inviteMembers': 'Invite members', 'task.emailsPlaceholder': 'email@example.com — one address per line', 'task.inviteHint': 'After signing in with that email, the person will see the invite centered on screen and in "Shared".',
   'task.status': 'Status', 'task.statusOpen': 'In progress', 'task.statusReview': 'In review', 'task.statusCompleted': 'Accepted and done',
   'task.title': 'Title', 'task.titlePlaceholder': 'E.g. prepare the report', 'task.voiceTitleAria': 'Dictate title',
@@ -1214,6 +1214,12 @@ async function ensurePushSubscription(forceSave = false) {
   try {
     const registration = await navigator.serviceWorker.ready;
     let subscription = await registration.pushManager.getSubscription();
+    // Ключ уведомлений сменился (новое облако) — старая подписка больше не принимает уведомления, оформляем заново.
+    const currentKey = subscription?.options?.applicationServerKey;
+    if (subscription && currentKey && window.SUPABASE_CONFIG?.vapidPublicKey) {
+      const expected = urlBase64ToUint8Array(window.SUPABASE_CONFIG.vapidPublicKey); const actual = new Uint8Array(currentKey);
+      if (expected.length !== actual.length || expected.some((byte, index) => byte !== actual[index])) { await subscription.unsubscribe(); subscription = null; }
+    }
     if (!subscription) {
       const publicKey = window.SUPABASE_CONFIG?.vapidPublicKey;
       if (!publicKey) throw new Error('Push key is missing');
@@ -1938,7 +1944,7 @@ window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); instal
 $('#installButton').addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('#installButton').hidden = true; });
 showUpdatedNoticeIfNeeded();
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=86'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
+  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=87'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
   navigator.serviceWorker.addEventListener('message', event => {
     if (event.data?.type !== 'DAY_PUSH') return;
     showReminderAlert(event.data.taskId || '', event.data.title || 'Новое уведомление', event.data.body || '');
@@ -1973,6 +1979,12 @@ async function initializeAccount() {
   }
   refreshSyncUi();
   if (window.DaySync?.user()) { await maybeLockApp(); await performSync(false); }
+  else if (localStorage.getItem('day-cloud-moved')) {
+    // Облако переехало на новый адрес: один раз просим войти тем же email и паролем.
+    const email = localStorage.getItem('day-cloud-moved'); localStorage.removeItem('day-cloud-moved');
+    if (email.includes('@')) $('#syncEmail').value = email;
+    openSyncDialog(); setSyncStatus('', tr('cloud.movedTitle'), tr('cloud.movedText'));
+  }
   handleOpenTaskFromUrl();
 }
 window.addEventListener('online', () => { renderConnectionState(); performSync(false); });

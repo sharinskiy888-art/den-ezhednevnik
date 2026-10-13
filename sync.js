@@ -3,8 +3,23 @@
   const SESSION_KEY = 'day-sync-session-v1';
   const STATE_ID = '00000000-0000-4000-8000-000000000001';
 
+  // Вход, выданный другим облаком (после переезда на новый проект Supabase), здесь недействителен:
+  // забываем его и просим войти заново. Локальные задачи при этом не трогаются — они привязаны к id
+  // пользователя, а он при переезде сохраняется.
+  function tokenIssuer(token = '') {
+    try { return JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).iss || ''; } catch { return ''; }
+  }
   function getSession() {
-    try { return JSON.parse(localStorage.getItem(SESSION_KEY)); } catch { return null; }
+    let session = null;
+    try { session = JSON.parse(localStorage.getItem(SESSION_KEY)); } catch { return null; }
+    const issuer = tokenIssuer(session?.access_token);
+    if (issuer && config.url && !issuer.startsWith(config.url)) {
+      localStorage.removeItem(SESSION_KEY);
+      Object.keys(localStorage).filter(key => key.startsWith('day-sync-meta-v1:')).forEach(key => localStorage.removeItem(key));
+      localStorage.setItem('day-cloud-moved', session?.user?.email || '1');
+      return null;
+    }
+    return session;
   }
   function setSession(session) {
     if (session) localStorage.setItem(SESSION_KEY, JSON.stringify(session));
