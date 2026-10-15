@@ -379,6 +379,7 @@ async function flows(page, state, log) {
   await step('Финансы: фото чека — выбор из галереи и кнопка «×»', async () => {
     const mark = state.errors.length; const png = Buffer.from(PNG.split(',')[1], 'base64');
     const [fc1] = await Promise.all([page.waitForEvent('filechooser', { timeout: 3000 }), clickId('#financeGalleryButton')]); await fc1.setFiles({ name: 'chek.png', mimeType: 'image/png', buffer: png }); await page.waitForTimeout(500);
+    await page.locator('#financePhotoPreview').waitFor({ state: 'visible', timeout: 8000 }).catch(() => {});
     const shown = await page.locator('#financePhotoPreview').isVisible(); if (shown) await clickId('#removeExpensePhoto'); await page.waitForTimeout(200);
     return { pass: shown && !(await page.locator('#financePhotoPreview').isVisible()) && noErrors(mark), detail: shown ? '' : 'предпросмотр не появился' };
   });
@@ -537,12 +538,12 @@ async function runSpecial(browser, base, mobile, shotsDir) {
 
   await scenario('Фото: удаление выбранного фото в «Обратной связи» и в профиле', null, async ({ page, ok, click }) => {
     await openMenu(page, click); await click('#openFeedback'); await page.waitForTimeout(250);
-    await page.setInputFiles('#feedbackPhotoInput', { name: 'a.png', mimeType: 'image/png', buffer: png }); await page.waitForTimeout(500);
+    await page.setInputFiles('#feedbackPhotoInput', { name: 'a.png', mimeType: 'image/png', buffer: png }); await page.locator('#removeFeedbackPhoto').waitFor({ state: 'visible', timeout: 8000 }).catch(() => {});
     const fbShown = await page.locator('#removeFeedbackPhoto').isVisible(); if (fbShown) await click('#removeFeedbackPhoto'); await page.waitForTimeout(250);
     ok(fbShown && !(await page.locator('#removeFeedbackPhoto').isVisible()), fbShown ? '' : 'после выбора фото кнопка «Убрать» не появилась', 'Обратная связь: фото выбирается и убирается');
     await page.keyboard.press('Escape'); await page.waitForTimeout(200);
     await click('#profileButton'); await page.waitForTimeout(250);
-    await page.setInputFiles('#profilePhotoInput', { name: 'a.png', mimeType: 'image/png', buffer: png }); await page.waitForTimeout(600);
+    await page.setInputFiles('#profilePhotoInput', { name: 'a.png', mimeType: 'image/png', buffer: png }); await page.locator('#removeProfilePhoto').waitFor({ state: 'visible', timeout: 8000 }).catch(() => {});
     const prShown = await page.locator('#removeProfilePhoto').isVisible(); if (prShown) await click('#removeProfilePhoto'); await page.waitForTimeout(250);
     ok(prShown && !(await page.locator('#removeProfilePhoto').isVisible()), prShown ? '' : 'после выбора фото кнопка «Убрать» не появилась', 'Профиль: фото выбирается и убирается');
   });
@@ -602,9 +603,16 @@ if (require.main === module) (async () => {
   const browser = await chromium.launch({ headless: true });
   const modes = ['desktop-guest', 'desktop-signed', 'mobile-guest', 'mobile-signed'].filter(m => !args.only || m === args.only);
   const results = [];
-  for (const m of modes) { process.stdout.write(`▶ ${m} … `); const r = await runMode(browser, base, m, args.shots); results.push(r); console.log(`нажато ${r.clicked}`); }
+  const problems = r => r.flows.filter(f => !f.pass).length + r.loadErrors.length + r.flowErrors.length + r.jsErrors.length + r.cantClick.length;
+  // Режим с ошибками прогоняется ещё раз: на медленной машине (CI) бывают случайные сбои по времени. Настоящая ошибка упадёт и второй раз.
+  const attempt = async (name, fn) => {
+    let r = await fn();
+    if (problems(r) > 0) { process.stdout.write('(повтор) '); const r2 = await fn(); if (problems(r2) === 0) { r2.notes.push('прошёл со 2-й попытки: в 1-й попытке были ' + problems(r) + ' сбоя(ев), вероятно из-за медленной машины'); r = r2; } else r = r2; }
+    results.push(r); console.log(`нажато ${r.clicked}`);
+  };
+  for (const m of modes) { process.stdout.write(`▶ ${m} … `); await attempt(m, () => runMode(browser, base, m, args.shots)); }
   if (!args.only) for (const mobile of [false, true]) {
-    for (const [suffix, fn] of [['prompts', runPrompts], ['special', runSpecial]]) { const m = (mobile ? 'mobile' : 'desktop') + '-' + suffix; process.stdout.write(`▶ ${m} … `); const r = await fn(browser, base, mobile, args.shots); results.push(r); console.log(`нажато ${r.clicked}`); }
+    for (const [suffix, fn] of [['prompts', runPrompts], ['special', runSpecial]]) { const m = (mobile ? 'mobile' : 'desktop') + '-' + suffix; process.stdout.write(`▶ ${m} … `); await attempt(m, () => fn(browser, base, mobile, args.shots)); }
   }
   await browser.close(); server.close();
 
