@@ -1,7 +1,8 @@
 {
-  "version": "93",
+  "version": "94",
   "released": "2026-10-15",
   "notes": [
+    "Совместные задачи: теперь можно нажать на название задачи (а не только на «•••»), и она откроется — там отчёты, фото и комментарии.",
     "Надёжнее обновления и старые данные: записи из прошлых версий, облака и файла копии теперь автоматически приводятся к текущему формату, поэтому экраны не ломаются на «старых» данных. Автообновление больше не перезагружает страницу, пока открыто окно или вы набираете текст.",
     "«Обратная связь» теперь работает и без входа в облако: достаточно указать свой email для ответа (раньше письмо нельзя было отправить, пока не выполнен вход).",
     "Исправлена кнопка «Планы»: у старых планов не было даты создания, из-за чего экран планов не открывался. Добавлены «Сохранить копию данных» и «Восстановить из копии» в меню (≡) — файл-страховка на случай сбоя облака.",
@@ -74,6 +75,7 @@
     "Добавлены общий прогресс, роли, статусы «В работе», «На проверке» и «Завершено»."
   ],
   "notesEn": [
+    "Shared tasks: tap the task title (not only the ••• button) to open it — reports, photos and comments are inside.",
     "Safer updates and old data: records from earlier versions, the cloud and backup files are now converted to the current format automatically, so screens no longer break on old data. Auto-update no longer reloads the page while a dialog is open or you are typing.",
     "Feedback now works even when you are not signed in to the cloud: just enter your email for the reply (before, you could not send a message without signing in).",
     "Fixed the Plans button: older plans had no creation date, so the Plans screen would not open. Added «Save a data backup» and «Restore from backup» to the menu (≡) as a safety net if the cloud fails.",

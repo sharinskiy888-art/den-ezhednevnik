@@ -11,7 +11,7 @@ const NOTIFICATION_KEY = 'day-planner-notifications-v1';
 const EXPENSES_KEY = 'day-planner-expenses-v1';
 const FINANCE_LIMITS_KEY = 'day-planner-finance-limits-v1';
 const DELETED_EXPENSES_KEY = 'day-planner-deleted-expenses-v1';
-const APP_VERSION = '93';
+const APP_VERSION = '94';
 const UPDATE_SEEN_KEY = 'day-planner-update-seen-v1';
 const UPDATE_APPLIED_KEY = 'day-planner-update-applied-v1';
 const LANG_KEY = 'day-planner-lang-v1';
@@ -855,6 +855,8 @@ function renderTasks() {
   $$('[data-subtask]').forEach(el => el.addEventListener('click', () => toggleSubtask(el.dataset.subtask, Number(el.dataset.subIndex))));
   $$('[data-shared-check]').forEach(el => el.addEventListener('change', () => setSharedTaskCompleted(el.dataset.sharedCheck, el.checked)));
   $$('[data-shared-edit]').forEach(el => el.addEventListener('click', () => openDialog(el.dataset.sharedEdit, 'shared')));
+  // Нажатие на название задачи открывает её так же, как «•••» (раньше открывала только маленькая кнопка справа).
+  $$('#taskList .task-title').forEach(el => el.addEventListener('click', () => el.closest('.task')?.querySelector('[data-edit],[data-shared-edit]')?.click()));
   $$('[data-shared-day-subtask]').forEach(el => el.addEventListener('click', () => toggleSharedSubtask(el.dataset.sharedDaySubtask, Number(el.dataset.subIndex))));
   enableTaskGestures();
 }
@@ -2245,7 +2247,7 @@ window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); instal
 $('#installButton').addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('#installButton').hidden = true; });
 showUpdatedNoticeIfNeeded();
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=93'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
+  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=94'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
   navigator.serviceWorker.addEventListener('message', event => {
     if (event.data?.type !== 'DAY_PUSH') return;
     showReminderAlert(event.data.taskId || '', event.data.title || 'Новое уведомление', event.data.body || '');

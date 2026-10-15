@@ -303,6 +303,12 @@ async function flows(page, state, log) {
     await page.locator('#taskList .task', { hasText: 'Тест через диалог' }).locator('[data-edit]').click(); await page.waitForTimeout(200);
     return (await dialogOpen('taskDialog')) && (await page.inputValue('#taskTitle')) === 'Тест через диалог';
   });
+  await step('Нажатие на название задачи тоже открывает её', async () => {
+    await page.keyboard.press('Escape'); await page.waitForTimeout(150);
+    await page.locator('#taskList .task', { hasText: 'Тест через диалог' }).locator('.task-title').click(); await page.waitForTimeout(200);
+    const ok = (await dialogOpen('taskDialog')) && (await page.inputValue('#taskTitle')) === 'Тест через диалог';
+    return ok;
+  });
   await step('Изменение названия сохраняется', async () => {
     await page.fill('#taskTitle', 'Изменённое название'); await save(); return (await titleVisible('Изменённое название')) === 1;
   });
