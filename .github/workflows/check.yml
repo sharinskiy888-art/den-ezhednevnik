@@ -40,4 +40,9 @@ jobs:
         run: |
           npm i --no-save playwright
           npx playwright install --with-deps chromium
-          node tools/test-buttons.js
+          set +e
+          node tools/test-buttons.js 2>&1 | tee /tmp/test-out.txt
+          code=${PIPESTATUS[0]}
+          { echo '### Результат автотеста кнопок'; echo '```'; grep -E "✗|ИТОГ|Сквозные|▶|Тест упал|Error|Cannot" /tmp/test-out.txt | head -60; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          grep -E "✗|Тест упал|Error|Cannot" /tmp/test-out.txt | head -8 | while IFS= read -r line; do echo "::error::${line:0:300}"; done
+          exit $code
