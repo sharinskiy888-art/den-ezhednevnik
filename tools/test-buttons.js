@@ -83,6 +83,7 @@ function seedData(signedIn, opts = {}) {
   // совместная задача: по умолчанию уже принята (чтобы всплывающее приглашение не перекрывало экран); opts.invite — ждёт ответа
   const inv = !!opts.invite;
   const sharedRow = signedIn ? [{ id: '99999999-9999-4999-8999-999999999999', owner_id: 'u-other', owner_email: 'brother@example.com', invited_emails: inv ? ['tester@example.com'] : [], accepted_emails: inv ? [] : ['tester@example.com'], updated_at: new Date().toISOString(), payload: t('99999999-9999-4999-8999-999999999999', { title: 'Совместная от брата', status: 'new', activity: [] }) }] : [];
+  if (signedIn && opts.owned) sharedRow.splice(0, sharedRow.length, { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', owner_id: 'u-tester-0001', owner_email: 'tester@example.com', invited_emails: [], accepted_emails: ['brother@example.com'], updated_at: new Date().toISOString(), payload: t('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', { title: 'Моя совместная', status: 'open', subtasks: [{ title: 'Пункт А', done: false }], activity: [] }) });
   return { tasks, sharedRow, today };
 }
 
@@ -125,6 +126,12 @@ function handleSupabase(req, res, p) {
     if (p.includes('/auth/v1/user')) return json({ id: userId, email: 'tester@example.com' });
     if (p.includes('/auth/v1/token')) return json({ access_token: 'qa', refresh_token: 'qa', expires_in: 7200, expires_at: Math.floor(Date.now() / 1000) + 7200, user: { id: userId, email: 'tester@example.com' } });
     if (p.includes('/auth/v1/')) return json({});
+    if (p.includes('/rest/v1/shared_tasks') && m === 'PATCH') {
+      let b = {}; try { b = JSON.parse(body || '{}'); } catch {}
+      const id = decodeURIComponent((/id=eq\.([^&]+)/.exec(req.url) || [])[1] || ''); const row = sharedRow.find(r => r.id === id);
+      if (row) { Object.assign(row, b); counter.patches = (counter.patches || 0) + 1; }
+      res.writeHead(204); return res.end();
+    }
     if (p.includes('/rest/v1/shared_tasks') && m === 'GET') return json(sharedRow);
     if (p.includes('/rest/v1/rpc/get_shared_presence')) return json([]);
     if (p.includes('/rest/v1/rpc/answer_shared_invite')) { let b = {}; try { b = JSON.parse(body || '{}'); } catch {} counter.answers.push(!!b.accept_invite); sharedRow.forEach(r => { r.invited_emails = []; if (b.accept_invite) r.accepted_emails = ['tester@example.com']; }); return json({}); }
@@ -487,7 +494,7 @@ async function runSpecial(browser, base, mobile, shotsDir) {
   const IGNORE = /Failed to load resource|net::ERR_FAILED|ERR_BLOCKED|favicon|service worker|ServiceWorker|sw\.js/i;
   const png = Buffer.from(PNG.split(',')[1], 'base64');
   const scenario = async (name, setup, body) => {
-    const { tasks, sharedRow } = seedData(true, {});
+    const { tasks, sharedRow } = seedData(true, (setup && setup.seed) || {});
     const context = await browser.newContext(viewportOpts(mobile));
     await context.addInitScript(initScript({ tasks, signedIn: true, userId }));
     if (setup && setup.init) await context.addInitScript(setup.init);
@@ -552,6 +559,53 @@ async function runSpecial(browser, base, mobile, shotsDir) {
     await page.setInputFiles('#profilePhotoInput', { name: 'a.png', mimeType: 'image/png', buffer: png }); await page.locator('#removeProfilePhoto').waitFor({ state: 'visible', timeout: 8000 }).catch(() => {});
     const prShown = await page.locator('#removeProfilePhoto').isVisible(); if (prShown) await click('#removeProfilePhoto'); await page.waitForTimeout(250);
     ok(prShown && !(await page.locator('#removeProfilePhoto').isVisible()), prShown ? '' : 'после выбора фото кнопка «Убрать» не появилась', 'Профиль: фото выбирается и убирается');
+  });
+
+  /* Окно совместной задачи: исполнитель только отвечает, организатор может редактировать */
+  await scenario('Совместная задача: окно исполнителя (только чтение + мой ответ)', null, async ({ page, ok, click, supa }) => {
+    await page.locator('#taskList .task', { hasText: 'Совместная от брата' }).locator('.task-title').click(); await page.waitForTimeout(300);
+    const view = (await page.locator('#taskDialog[open][data-mode="view"]').count()) === 1; ok(view, 'окно не открылось в режиме просмотра', 'Исполнитель: задача открывается в режиме просмотра');
+    if (!view) return;
+    ok((await page.locator('#sharedView').innerText()).includes('Совместная от брата'), '', 'Исполнитель: название задачи показано текстом');
+    const hidden = [];
+    for (const sel of ['#taskTitle', '#taskDate', '#sharedEmails', '#taskSubtasks', '#taskNote', '#taskCameraButton', '#sharedTaskStatus', '#taskTypeSwitch', '#svEdit', '#svDelete', '#taskForm button[type="submit"]']) if (await page.locator(sel).isVisible()) hidden.push(sel);
+    ok(!hidden.length, 'видны лишние элементы: ' + hidden.join(', '), 'Исполнитель: поля задачи, «Редактировать», «Удалить» и «Сохранить» скрыты');
+    const statuses = await page.locator('#sharedView [data-shared-status]').evaluateAll(list => list.map(b => b.dataset.status));
+    ok(statuses.join() === 'accepted,open,question,review', 'статусы: ' + statuses.join(), 'Исполнитель: доступны статусы «Принял / В работе / Есть вопрос / Готово», «Завершено» нет');
+    const before = supa.patches || 0;
+    await click('#sharedView [data-status="open"]'); for (let i = 0; i < 40 && !((supa.patches || 0) > before && (await page.locator('#sharedView [data-status="open"].active').count()) === 1); i++) await page.waitForTimeout(100);
+    ok((supa.patches || 0) > before && (await page.locator('#sharedView [data-status="open"].active').count()) === 1, 'сохранений: ' + ((supa.patches || 0) - before), 'Исполнитель: кнопка статуса «В работе» сохраняется и подсвечивается');
+    await page.fill('#reportText', 'Сделал, проверьте'); const before2 = supa.patches || 0; await click('#reportSend'); for (let i = 0; i < 40 && !((supa.patches || 0) > before2 && (await page.locator('#sharedReportList').innerText()).includes('Сделал, проверьте')); i++) await page.waitForTimeout(100);
+    ok((supa.patches || 0) > before2 && (await page.locator('#sharedReportList').innerText()).includes('Сделал, проверьте'), 'отчёт не появился в списке', 'Исполнитель: «Отправить отчёт» добавляет отчёт в обсуждение');
+    await click('#svClose'); await page.waitForTimeout(200);
+    ok((await page.locator('#taskDialog[open]').count()) === 0, '', 'Исполнитель: «Закрыть» закрывает окно');
+  });
+
+  await scenario('Совместная задача: окно организатора (просмотр → «Редактировать»)', { seed: { owned: true } }, async ({ page, ok, click }) => {
+    await page.locator('#taskList .task', { hasText: 'Моя совместная' }).locator('[data-shared-edit]').click(); await page.waitForTimeout(300);
+    ok((await page.locator('#taskDialog[open][data-mode="view"]').count()) === 1 && await page.locator('#svEdit').isVisible() && await page.locator('#svDelete').isVisible(), '', 'Организатор: окно в режиме просмотра, есть «Редактировать» и «Удалить»');
+    const st = await page.locator('#sharedView [data-shared-status]').evaluateAll(list => list.map(b => b.dataset.status));
+    ok(st.join() === 'open,completed', 'статусы: ' + st.join(), 'Организатор: кнопки «В работе» и «Завершено»');
+    await click('#svEdit'); await page.waitForTimeout(250);
+    ok((await page.locator('#taskDialog[data-mode="edit"]').count()) === 1 && await page.locator('#taskTitle').isVisible() && await page.locator('#sharedEmails').isEnabled() && !(await page.locator('#sharedView').isVisible()), '', 'Организатор: «Редактировать» открывает полную форму');
+    await page.keyboard.press('Escape'); await page.waitForTimeout(150);
+  });
+
+  /* Все окна: по центру и целиком в экране (ноутбук и телефон) */
+  await scenario('Окна: каждое окно по центру и целиком помещается в экран', null, async ({ page, ok }) => {
+    const res = await page.evaluate(() => {
+      const bad = []; const vw = document.documentElement.clientWidth; const vh = window.innerHeight;
+      document.querySelectorAll('dialog').forEach(d => {
+        try { d.showModal(); } catch { return; }
+        const r = d.getBoundingClientRect(); const cx = (r.left + r.right) / 2;
+        if (d.id !== 'reminderDialog' && Math.abs(cx - vw / 2) > 8) bad.push(d.id + ': не по центру (центр ' + Math.round(cx) + ' из ' + vw + ')');
+        if (r.left < -1 || r.right > vw + 1) bad.push(d.id + ': выходит за ширину экрана');
+        if (r.top < -1 || r.bottom > vh + 1) bad.push(d.id + ': выходит за высоту экрана (' + Math.round(r.top) + '…' + Math.round(r.bottom) + ' из ' + vh + ')');
+        d.close();
+      });
+      return bad;
+    });
+    ok(!res.length, res.join('; '), 'Окна: положение и размер на этом экране');
   });
 
   /* Очень старые и «кривые» данные (прошлые версии, облако, файл копии): экраны не должны ломаться */

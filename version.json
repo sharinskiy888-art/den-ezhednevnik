@@ -1,7 +1,8 @@
 {
-  "version": "94",
+  "version": "95",
   "released": "2026-10-15",
   "notes": [
+    "Совместные задачи стали понятнее: исполнитель открывает задачу в режиме просмотра — название, дата, заметка и подзадачи только для чтения, а внизу блок «Мой ответ»: статус («Принял», «В работе», «Есть вопрос», «Готово, на проверке»), отметки подзадач и отчёты (текст, фото, голос). Менять саму задачу и завершать её может только организатор (кнопка «Редактировать»). Окна на телефоне больше не прижимаются влево: «Вход в облако», «Профиль» и «Добавить расход» теперь стоят ровно.",
     "Совместные задачи: теперь можно нажать на название задачи (а не только на «•••»), и она откроется — там отчёты, фото и комментарии.",
     "Надёжнее обновления и старые данные: записи из прошлых версий, облака и файла копии теперь автоматически приводятся к текущему формату, поэтому экраны не ломаются на «старых» данных. Автообновление больше не перезагружает страницу, пока открыто окно или вы набираете текст.",
     "«Обратная связь» теперь работает и без входа в облако: достаточно указать свой email для ответа (раньше письмо нельзя было отправить, пока не выполнен вход).",
@@ -75,6 +76,7 @@
     "Добавлены общий прогресс, роли, статусы «В работе», «На проверке» и «Завершено»."
   ],
   "notesEn": [
+    "Shared tasks are clearer: the assignee opens the task in read-only view — title, date, note and subtasks cannot be changed — with a “My reply” block below: status (Accepted, In progress, Question, Done — in review), subtask ticks and reports (text, photo, voice). Only the organizer can edit or complete the task (the “Edit” button). Windows on the phone no longer stick to the left: Sign in, Profile and Add expense are now aligned.",
     "Shared tasks: tap the task title (not only the ••• button) to open it — reports, photos and comments are inside.",
     "Safer updates and old data: records from earlier versions, the cloud and backup files are now converted to the current format automatically, so screens no longer break on old data. Auto-update no longer reloads the page while a dialog is open or you are typing.",
     "Feedback now works even when you are not signed in to the cloud: just enter your email for the reply (before, you could not send a message without signing in).",

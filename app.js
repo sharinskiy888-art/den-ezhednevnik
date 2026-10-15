@@ -11,7 +11,7 @@ const NOTIFICATION_KEY = 'day-planner-notifications-v1';
 const EXPENSES_KEY = 'day-planner-expenses-v1';
 const FINANCE_LIMITS_KEY = 'day-planner-finance-limits-v1';
 const DELETED_EXPENSES_KEY = 'day-planner-deleted-expenses-v1';
-const APP_VERSION = '94';
+const APP_VERSION = '95';
 const UPDATE_SEEN_KEY = 'day-planner-update-seen-v1';
 const UPDATE_APPLIED_KEY = 'day-planner-update-applied-v1';
 const LANG_KEY = 'day-planner-lang-v1';
@@ -1048,6 +1048,7 @@ function openDialog(id = null, source = 'personal') {
   pendingAttachment = task?.attachment || (task?.photo ? { name: 'Фотоотчёт.jpg', type: 'image/jpeg', data: task.photo, size: 0 } : null);
   $('#taskId').value = task?.id || ''; $('#dialogTitle').textContent = task ? tr('task.editTitle') : tr('task.newTitle');
   setTaskType(source, !!task);
+  $('#taskDialog').dataset.mode = source === 'shared' && task ? 'view' : 'edit'; renderSharedView(source === 'shared' ? task : null);
   sharedDialogBaseline = source === 'shared' && task ? JSON.parse(JSON.stringify(task)) : null;
   $('#sharedEmails').value = source === 'shared' ? [...(task?.acceptedEmails || []), ...(task?.invitedEmails || [])].filter(email => email !== task?.ownerEmail).join('\n') : '';
   $('#sharedTaskStatus').value = task?.status || 'new'; resetReportComposer(); renderSharedReports(source === 'shared' ? task : null);
@@ -1079,6 +1080,7 @@ async function handleSubmit(event) {
   if (source === 'shared') {
     const account = window.DaySync?.user();
     if (!account) { closeDialog(); toast('Сначала войдите в аккаунт'); openSyncDialog(); return; }
+    if (existing && existing.ownerId !== account.id) { toast(L('Менять задачу может только организатор', 'Only the organizer can change the task')); return; }
     const requestedEmails = parseSharedEmails($('#sharedEmails').value).filter(email => email !== account.email?.toLocaleLowerCase());
     if (!existing && !requestedEmails.length) { toast('Укажите почту хотя бы одного участника'); return; }
     const { autoCarry, priority, repeat, reminder: personalReminder, reminderUtc, notified: personalNotified, ...sharedData } = data;
@@ -1559,7 +1561,7 @@ async function performSync(showMessage = true) {
     const expenseResult = await window.DaySync.syncExpenses(expenses, deletedExpenseIds);
     expenses = (expenseResult.expenses || []).map(normalizeExpense).filter(Boolean); deletedExpenseIds = expenseResult.tombstones || {}; localStorage.setItem(deletedExpensesStorageKey(), JSON.stringify(deletedExpenseIds));
     suppressSync = true; save(); saveExpenses(); suppressSync = false; render(); renderFinance(); renderProfile(); await loadSharedTasks(false); await refreshSharedPresence(); await ensurePushSubscription(false);
-    if ($('#sharedDialog')?.open) renderSharedDialog();
+    if ($('#sharedDialog')?.open) renderSharedDialog(); else refreshSharedView();
     setSyncStatus('connected', 'Синхронизировано', `Задач в облаке: ${tasks.length}`);
     if (showMessage) toast('Данные синхронизированы');
   } catch (error) {
@@ -1817,7 +1819,7 @@ async function refreshSharedPresence() {
     const rows = await window.DaySync.loadSharedPresence();
     sharedPresence = new Map((rows || []).map(row => [String(row.email || '').toLocaleLowerCase(), row.last_seen]));
     sharedPresence.set(currentAccountEmail(), new Date().toISOString());
-    if ($('#sharedDialog')?.open) renderSharedDialog();
+    if ($('#sharedDialog')?.open) renderSharedDialog(); else refreshSharedView();
     const openedSharedTaskId = $('#taskSource')?.value === 'shared' ? $('#taskId')?.value : '';
     if ($('#taskDialog')?.open && openedSharedTaskId) renderSharedTaskPresence(sharedTasks.find(task => task.id === openedSharedTaskId));
   } catch {
@@ -1893,7 +1895,7 @@ async function answerSharedInvitePrompt(accepted) {
   acceptButton.disabled = true; laterButton.disabled = true;
   try {
     await acceptSharedInvite(task.id); markNudgeSeen(task);
-    if ($('#sharedDialog')?.open) renderSharedDialog();
+    if ($('#sharedDialog')?.open) renderSharedDialog(); else refreshSharedView();
     toast(L('Задача принята. Отмечайте статус и присылайте отчёт прямо в задаче', 'Task accepted. Update the status and send reports right in the task'));
   } catch (error) { acceptButton.disabled = false; laterButton.disabled = false; toast(sharedErrorText(error)); }
 }
@@ -1969,7 +1971,8 @@ function renderSharedInvites() {
   if (!invites.length) return '<div class="shared-empty"><strong>Новых приглашений нет</strong>Когда вас пригласят по почте аккаунта, задача появится здесь.</div>';
   return invites.map(task => `<article class="invite-card"><strong>${escapeHtml(task.title)}</strong><small>${escapeHtml(task.ownerEmail)} · ${formatShortDate(task.date)} · ${task.time || 'без времени'}</small><div class="invite-actions single"><button type="button" class="invite-accept" data-answer-invite="${task.id}" data-accept="1">${L('Принять задачу', 'Accept task')}</button></div></article>`).join('');
 }
-function bindSharedContentActions() {
+function bindSharedContentActions(root = $('#sharedContent')) {
+  if (!root) return; const $$ = selector => [...root.querySelectorAll(selector)];
   $$('[data-open-shared]').forEach(button => button.addEventListener('click', () => { $('#sharedDialog').close(); openDialog(button.dataset.openShared, 'shared'); }));
   $$('[data-shared-subtask]').forEach(button => button.addEventListener('click', () => toggleSharedSubtask(button.dataset.sharedSubtask, Number(button.dataset.sharedIndex))));
   $$('[data-answer-invite]').forEach(button => button.addEventListener('click', async () => {
@@ -1987,8 +1990,40 @@ function bindSharedContentActions() {
   }));
   $$('[data-shared-status]').forEach(button => button.addEventListener('click', () => setSharedStatus(button.dataset.sharedStatus, button.dataset.status)));
 }
+// Окно совместной задачи в режиме «просмотр»: задача только для чтения, внизу — «мой ответ» (статус, подзадачи, отчёты).
+// Менять саму задачу может только организатор — кнопкой «Редактировать» (открывается обычная форма).
+function isSharedOwner(task) { return !!task && task.ownerId === window.DaySync?.user()?.id; }
+function renderSharedView(task) {
+  const box = $('#sharedView'); const actions = $('#sharedViewActions'); if (!box || !actions) return;
+  const dialog = $('#taskDialog'); const view = dialog.dataset.mode === 'view' && !!task;
+  box.hidden = !view; actions.hidden = !view;
+  $('#svClose').textContent = L('Закрыть', 'Close'); $('#svEdit').textContent = `✎ ${L('Редактировать', 'Edit')}`; $('#svDelete').textContent = L('Удалить', 'Delete');
+  if (!view) { box.innerHTML = ''; return; }
+  const owner = isSharedOwner(task);
+  $('#svEdit').hidden = !owner; $('#svDelete').hidden = !owner;
+  $('#dialogTitle').textContent = L('Совместная задача', 'Shared task');
+  const att = task.attachment; const subs = task.subtasks || []; const safeUrl = /^(data:|blob:|https:)/i.test(String(att?.data || '').trim());
+  const canNudge = owner && task.status !== 'completed' && [...(task.invitedEmails || []), ...(task.acceptedEmails || [])].some(email => email !== task.ownerEmail);
+  box.innerHTML = `<h3 class="sv-title">${escapeHtml(task.title)}</h3>
+    <p class="sv-meta">${formatShortDate(task.date)} · ${task.time || tr('task.anytime')} · ${owner ? tr('task.youOrganize') : `${tr('task.organizer')}: ${escapeHtml((task.ownerEmail || '').split('@')[0])}`}</p>
+    ${task.note ? `<p class="sv-note">${escapeHtml(task.note)}</p>` : ''}
+    ${safeUrl ? `<div class="sv-attachment">${String(att.type || '').startsWith('image/') ? `<img src="${escapeHtml(att.data)}" alt="${escapeHtml(att.name || '')}">` : `<a href="${escapeHtml(att.data)}" download="${escapeHtml(att.name || 'file')}">📎 ${escapeHtml(att.name || L('Файл', 'File'))}</a>`}${task.proofNote ? `<small>${escapeHtml(task.proofNote)}</small>` : ''}</div>` : ''}
+    ${subs.length ? `<div class="shared-subtasks">${subs.map((item, index) => `<button type="button" class="${item.done ? 'done' : ''}" data-shared-subtask="${task.id}" data-shared-index="${index}"><i>${item.done ? '✓' : ''}</i><span>${escapeHtml(item.title)}</span>${item.doneBy ? `<small>${escapeHtml(item.doneBy.split('@')[0])}</small>` : ''}</button>`).join('')}</div>` : ''}
+    <h4 class="sv-section">${owner ? L('Статус задачи', 'Task status') : L('Мой ответ', 'My reply')}</h4>
+    <div class="sv-status">${sharedStatusLabel(task)}</div>
+    ${sharedStatusButtons(task)}
+    ${canNudge ? `<button type="button" class="repeat-shared-invite" data-nudge-shared="${task.id}">🔔 ${L('Напомнить исполнителю', 'Remind assignee')}</button>` : ''}`;
+  bindSharedContentActions(box);
+}
+function refreshSharedView() {
+  const dialog = $('#taskDialog'); if (!dialog?.open || dialog.dataset.mode !== 'view') return;
+  const task = sharedTasks.find(item => item.id === $('#taskId').value);
+  if (!task) { closeDialog(); toast(L('Эта совместная задача удалена или вам закрыли к ней доступ', 'This shared task was deleted or you no longer have access')); return; }
+  renderSharedView(task); renderSharedReports(task); renderSharedTaskPresence(task);
+}
 function renderSharedDialog() {
   if (!$('#sharedDialog')) return;
+  refreshSharedView();
   renderSharedBadges(); renderSharedSummary();
   $$('[data-shared-tab]').forEach(button => button.classList.toggle('active', button.dataset.sharedTab === currentSharedTab));
   if (currentSharedTab === 'people') $('#sharedContent').innerHTML = renderSharedPeople();
@@ -2174,7 +2209,7 @@ bindHoldToTalk('voiceNoteButton', () => startVoiceForField('taskNote', 'voiceNot
 $('#addButton').addEventListener('click', () => activeTab === 'finance' ? focusFinanceEntry('expense') : openDialog()); $('#mobileAddButton').addEventListener('click', () => activeTab === 'finance' ? focusFinanceEntry('expense') : openDialog());
 $$('[data-finance-nav]').forEach(b => b.addEventListener('click', () => goFinanceSection(b.dataset.financeNav))); $('#mobileNewTaskButton').addEventListener('click', () => openDialog()); $('#emptyAddButton').addEventListener('click', () => openDialog());
 $$('[data-task-type]').forEach(button => button.addEventListener('click', () => setTaskType(button.dataset.taskType)));
-$('#closeDialog').addEventListener('click', closeDialog); $('#cancelDialog').addEventListener('click', closeDialog); $('#taskForm').addEventListener('submit', handleSubmit); $('#deleteTask').addEventListener('click', deleteCurrent);
+$('#closeDialog').addEventListener('click', closeDialog); $('#svClose').addEventListener('click', closeDialog); $('#svDelete').addEventListener('click', deleteCurrent); $('#svEdit').addEventListener('click', () => { const task = sharedTasks.find(item => item.id === $('#taskId').value); if (!isSharedOwner(task)) return; $('#taskDialog').dataset.mode = 'edit'; renderSharedView(null); $('#dialogTitle').textContent = tr('task.editTitle'); $('#taskTitle').focus(); }); $('#cancelDialog').addEventListener('click', closeDialog); $('#taskForm').addEventListener('submit', handleSubmit); $('#deleteTask').addEventListener('click', deleteCurrent);
 $('#taskCameraButton').addEventListener('click', () => $('#taskCameraInput').click()); $('#taskGalleryButton').addEventListener('click', () => $('#taskGalleryInput').click()); $('#taskDocumentButton').addEventListener('click', () => $('#taskDocumentInput').click());
 ['taskCameraInput', 'taskGalleryInput', 'taskDocumentInput'].forEach(id => $('#' + id).addEventListener('change', e => { prepareAttachment(e.target.files[0]); e.target.value = ''; }));
 $('#removePhoto').addEventListener('click', () => { pendingPhoto = null; pendingAttachment = null; renderPhotoPreview(); });
@@ -2247,7 +2282,7 @@ window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); instal
 $('#installButton').addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('#installButton').hidden = true; });
 showUpdatedNoticeIfNeeded();
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=94'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
+  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=95'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
   navigator.serviceWorker.addEventListener('message', event => {
     if (event.data?.type !== 'DAY_PUSH') return;
     showReminderAlert(event.data.taskId || '', event.data.title || 'Новое уведомление', event.data.body || '');

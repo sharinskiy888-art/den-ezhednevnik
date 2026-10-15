@@ -279,3 +279,19 @@ dialog { border-radius:12px;box-shadow:0 20px 55px rgba(25,41,57,.22); }.close-b
 .fa-head{display:flex;align-items:center;gap:12px}.fa-head i{width:42px;height:42px;display:grid;place-items:center;border-radius:12px;color:white;font-size:20px;font-style:normal}
 
 .task-title { cursor:pointer; }
+
+/* Совместная задача: режим «просмотр» (задача только для чтения + «мой ответ») */
+#taskDialog[data-mode="view"] #taskForm > :not(.dialog-header):not(input):not(#sharedView):not(#sharedTaskFields):not(#sharedViewActions) { display:none !important; }
+#taskDialog[data-mode="view"] #sharedTaskFields > :not(#sharedTaskPresence):not(#sharedReports) { display:none !important; }
+#taskDialog[data-mode="view"] #sharedTaskFields { margin-top:12px; }
+#taskDialog:not([data-mode="view"]) #sharedViewActions { display:none !important; }
+.shared-view[hidden], .shared-view-actions[hidden], .shared-view-actions [hidden] { display:none !important; }
+.sv-title { margin:0 0 4px; font-size:20px; overflow-wrap:anywhere; }
+.sv-meta { margin:0 0 10px; color:var(--muted); font-size:12px; }
+.sv-note { margin:0 0 10px; padding:10px 12px; border-radius:9px; background:var(--bg); font-size:13px; white-space:pre-wrap; overflow-wrap:anywhere; }
+.sv-attachment { margin:0 0 10px; display:grid; gap:6px; } .sv-attachment img { max-width:100%; border-radius:9px; } .sv-attachment small { color:var(--muted); }
+.sv-section { margin:16px 0 6px; font-size:13px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+.sv-status { margin-bottom:2px; }
+.shared-view-actions { display:flex; gap:8px; justify-content:flex-end; margin-top:14px; }
+/* Телефон: окна-«шторки» занимают всю ширину и стоят по центру (раньше часть окон прижималась влево на 14 px) */
+@media(max-width:850px){ dialog.sync-dialog, dialog.profile-dialog, dialog.finance-add-dialog, dialog.reminder-dialog { width:100%; max-width:none; margin:auto 0 0; border-radius:18px 18px 0 0; } }

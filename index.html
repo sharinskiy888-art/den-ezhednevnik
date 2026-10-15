@@ -7,7 +7,7 @@
   <meta name="description" content="Простой ежедневник, который работает офлайн на телефоне и Windows.">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=94">
+  <link rel="stylesheet" href="styles.css?v=95">
   <title>День — ежедневник</title>
   <script>
     (() => {
@@ -278,6 +278,7 @@
       </div>
       <input type="hidden" id="taskId">
       <input type="hidden" id="taskSource" value="personal">
+      <section class="shared-view" id="sharedView" hidden></section>
       <div class="task-type-switch" id="taskTypeSwitch" role="group" aria-label="Тип задачи">
         <button type="button" class="active" data-task-type="personal" data-i18n="task.personal">Личная</button>
         <button type="button" data-task-type="shared" data-i18n="task.shared">Совместная</button>
@@ -370,6 +371,11 @@
         <button type="button" class="danger-button" id="deleteTask" hidden data-i18n="common.delete">Удалить</button>
         <button type="button" class="secondary-button" id="cancelDialog" data-i18n="common.cancel">Отмена</button>
         <button type="submit" class="primary-button" data-i18n="common.save">Сохранить</button>
+      </div>
+      <div class="dialog-actions shared-view-actions" id="sharedViewActions" hidden>
+        <button type="button" class="danger-button" id="svDelete" hidden></button>
+        <button type="button" class="secondary-button" id="svEdit" hidden></button>
+        <button type="button" class="primary-button" id="svClose"></button>
       </div>
     </form>
   </dialog>
@@ -607,9 +613,9 @@
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastAction" hidden></button></div>
-  <script src="sync-config.js?v=94"></script>
-  <script src="sync.js?v=94"></script>
-  <script src="i18n-en.js?v=94"></script>
-  <script src="app.js?v=94"></script>
+  <script src="sync-config.js?v=95"></script>
+  <script src="sync.js?v=95"></script>
+  <script src="i18n-en.js?v=95"></script>
+  <script src="app.js?v=95"></script>
 </body>
 </html>
