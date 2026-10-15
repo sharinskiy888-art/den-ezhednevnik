@@ -548,6 +548,43 @@ async function runSpecial(browser, base, mobile, shotsDir) {
     ok(prShown && !(await page.locator('#removeProfilePhoto').isVisible()), prShown ? '' : 'после выбора фото кнопка «Убрать» не появилась', 'Профиль: фото выбирается и убирается');
   });
 
+  /* Обратная связь: весь путь от кнопки до отправки (formsubmit.co подменён заглушкой — настоящие письма не уходят) */
+  const APPV = (/APP_VERSION = '(\d+)'/.exec(fs.readFileSync(path.join(ROOT, 'app.js'), 'utf-8')) || [])[1];
+  const hookFormsubmit = async (context, hits, state) => context.route(u => u.hostname === 'formsubmit.co', async route => {
+    const req = route.request(); hits.push((req.postDataBuffer() || Buffer.alloc(0)).toString('utf-8'));
+    const okAns = state.mode === 'ok';
+    await route.fulfill({ status: okAns ? 200 : 500, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: okAns ? '{"success":"true"}' : '{"success":"false","message":"qa"}' });
+  });
+  const sendFeedback = async (page, click, text, email, withPhoto) => {
+    await openMenu(page, click); await click('#openFeedback'); await page.waitForTimeout(250);
+    await page.fill('#feedbackText', text);
+    if (email) await page.fill('#feedbackReplyEmail', email);
+    if (withPhoto) { await page.setInputFiles('#feedbackPhotoInput', { name: 'a.png', mimeType: 'image/png', buffer: png }); await page.locator('#removeFeedbackPhoto').waitFor({ state: 'visible', timeout: 8000 }).catch(() => {}); }
+    await click('#feedbackSubmitButton'); await page.waitForTimeout(600);
+  };
+  await scenario('Обратная связь (вошедший): отправка с фото, затем сбой сети', null, async ({ page, ok, click, context }) => {
+    const hits = []; const st = { mode: 'ok' }; await hookFormsubmit(context, hits, st);
+    await sendFeedback(page, click, 'Тест обратной связи', '', true);
+    const closed = (await page.locator('#feedbackDialog[open]').count()) === 0; const body = hits[0] || '';
+    ok(closed && hits.length === 1 && body.includes('Тест обратной связи') && body.includes('tester@example.com') && body.includes(APPV) && /filename="[^"]+\.jpg"/.test(body), `окно закрылось: ${closed}; запросов: ${hits.length}; текст/почта/версия/фото в запросе: ${body.includes('Тест обратной связи')}/${body.includes('tester@example.com')}/${body.includes(APPV)}/${/filename=/.test(body)}`, 'Обратная связь: сообщение с фото уходит со всеми полями');
+    st.mode = 'fail'; await sendFeedback(page, click, 'Второе сообщение', '', false);
+    const stillOpen = (await page.locator('#feedbackDialog[open]').count()) === 1; const kept = await page.inputValue('#feedbackText'); const label = (await page.locator('#feedbackSubmitButton').innerText()).trim(); const enabled = await page.locator('#feedbackSubmitButton').isEnabled();
+    ok(stillOpen && kept === 'Второе сообщение' && enabled && /Отправить/.test(label), `окно открыто: ${stillOpen}; текст сохранён: ${kept === 'Второе сообщение'}; кнопка снова активна: ${enabled} («${label}»)`, 'Обратная связь: при сбое отправки текст не теряется, кнопка снова активна');
+    st.mode = 'ok'; await click('#feedbackSubmitButton'); await page.waitForTimeout(600);
+    ok((await page.locator('#feedbackDialog[open]').count()) === 0 && hits.length === 3, 'повторная отправка после сбоя прошла', 'Обратная связь: повторная отправка после сбоя проходит');
+  });
+  await scenario('Обратная связь (без входа в облако): нужен email, затем отправка', { init: `localStorage.removeItem('__qa_nosession');` }, async ({ page, ok, click, context }) => {
+    const hits = []; const st = { mode: 'ok' }; await hookFormsubmit(context, hits, st);
+    await page.evaluate(() => localStorage.removeItem('day-sync-session-v1')); await page.reload({ waitUntil: 'load' }); await page.waitForTimeout(900);
+    await page.evaluate(() => localStorage.removeItem('day-sync-session-v1'));
+    await sendFeedback(page, click, 'Без входа', '', false);
+    const blocked = hits.length === 0 && (await page.locator('#feedbackDialog[open]').count()) === 1 && !(await page.locator('#feedbackReplyEmail').evaluate(e => e.readOnly));
+    ok(blocked, `без email запрос не ушёл: ${hits.length === 0}; поле email доступно для ввода: ${!(await page.locator('#feedbackReplyEmail').evaluate(e => e.readOnly))}`, 'Обратная связь без входа: без email отправка не идёт, поле email можно заполнить');
+    await page.fill('#feedbackReplyEmail', 'user@example.com'); await click('#feedbackSubmitButton'); await page.waitForTimeout(600);
+    const body = hits[0] || '';
+    ok((await page.locator('#feedbackDialog[open]').count()) === 0 && hits.length === 1 && body.includes('user@example.com') && body.includes('Без входа'), `запросов: ${hits.length}; email в запросе: ${body.includes('user@example.com')}`, 'Обратная связь без входа: с указанным email сообщение уходит');
+  });
+
   await scenario('Автообновление: найдена новая версия → приложение само переходит на неё', { fakeVersion: 1 }, async ({ page, ok, errors }) => {
     await page.waitForTimeout(2500);
     ok(/[?&]v=999/.test(page.url()) && errors.length === 0, 'адрес после загрузки: ' + page.url().replace(base, '') + (errors.length ? ' | ' + errors.join(' | ') : ''));
@@ -611,8 +648,8 @@ if (require.main === module) (async () => {
     results.push(r); console.log(`нажато ${r.clicked}`);
   };
   for (const m of modes) { process.stdout.write(`▶ ${m} … `); await attempt(m, () => runMode(browser, base, m, args.shots)); }
-  if (!args.only) for (const mobile of [false, true]) {
-    for (const [suffix, fn] of [['prompts', runPrompts], ['special', runSpecial]]) { const m = (mobile ? 'mobile' : 'desktop') + '-' + suffix; process.stdout.write(`▶ ${m} … `); await attempt(m, () => fn(browser, base, mobile, args.shots)); }
+  if (!args.only || /special|prompts/.test(args.only)) for (const mobile of [false, true]) {
+    for (const [suffix, fn] of [['prompts', runPrompts], ['special', runSpecial]]) { const m = (mobile ? 'mobile' : 'desktop') + '-' + suffix; if (args.only && args.only !== m) continue; process.stdout.write(`▶ ${m} … `); await attempt(m, () => fn(browser, base, mobile, args.shots)); }
   }
   await browser.close(); server.close();
 

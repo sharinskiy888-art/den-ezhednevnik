@@ -11,7 +11,7 @@ const NOTIFICATION_KEY = 'day-planner-notifications-v1';
 const EXPENSES_KEY = 'day-planner-expenses-v1';
 const FINANCE_LIMITS_KEY = 'day-planner-finance-limits-v1';
 const DELETED_EXPENSES_KEY = 'day-planner-deleted-expenses-v1';
-const APP_VERSION = '91';
+const APP_VERSION = '92';
 const UPDATE_SEEN_KEY = 'day-planner-update-seen-v1';
 const UPDATE_APPLIED_KEY = 'day-planner-update-applied-v1';
 const LANG_KEY = 'day-planner-lang-v1';
@@ -72,7 +72,7 @@ const TRANSLATIONS = { ru: {
   'update.appLabel': 'Приложение', 'update.title': 'Обновления', 'update.latestVersion': 'Последняя версия', 'update.defaultNote': 'Центр обновлений и ручная установка новой версии.', 'update.updateApp': 'Обновить приложение', 'update.hint': 'Задачи, фотографии и настройки при обновлении не удаляются.',
   'update.accountSubtitle': 'Войти или зарегистрироваться', 'update.notificationsSubtitle': 'Напоминания и сводка дел', 'update.feedback': 'Обратная связь', 'update.feedbackSubtitle': 'Сообщить о проблеме, приложить фото',
   'notif.remindersLabel': 'Напоминания', 'notif.exactTitle': 'По времени задачи', 'notif.exactText': 'В точное время, указанное в напоминании', 'notif.dailyTitle': 'Сводка на сегодня', 'notif.dailyText': 'Количество дел и ближайшие задачи', 'notif.dailyTime': 'Время сводки', 'notif.overdueTitle': 'Просроченные дела', 'notif.overdueText': 'Один раз в день, если остались незавершённые задачи', 'notif.test': 'Проверить уведомление', 'notif.save': 'Сохранить настройки', 'notif.hint': 'На iPhone уведомления работают для ежедневника, добавленного на экран «Домой». После входа в аккаунт серверные push-уведомления приходят и при закрытом приложении.',
-  'feedback.helpLabel': 'Помощь разработчику', 'feedback.describe': 'Опишите проблему или предложение', 'feedback.placeholder': 'Что произошло? Что вы нажимали? Что ожидали увидеть?', 'feedback.voiceAria': 'Надиктовать текст', 'feedback.replyEmail': 'Email отправителя', 'feedback.emailPlaceholder': 'Будет взят из аккаунта', 'feedback.attachPhoto': '▧ Прикрепить фото проблемы', 'feedback.removePhotoAria': 'Убрать фото', 'feedback.send': 'Отправить разработчику', 'feedback.hint': 'Сообщение уйдёт разработчику в фоне. Фото перед отправкой автоматически уменьшается. Ответ придёт на email вашего аккаунта.',
+  'feedback.helpLabel': 'Помощь разработчику', 'feedback.describe': 'Опишите проблему или предложение', 'feedback.placeholder': 'Что произошло? Что вы нажимали? Что ожидали увидеть?', 'feedback.voiceAria': 'Надиктовать текст', 'feedback.replyEmail': 'Email отправителя', 'feedback.emailPlaceholder': 'Будет взят из аккаунта', 'feedback.attachPhoto': '▧ Прикрепить фото проблемы', 'feedback.removePhotoAria': 'Убрать фото', 'feedback.send': 'Отправить разработчику', 'feedback.hint': 'Сообщение уйдёт разработчику в фоне. Фото перед отправкой автоматически уменьшается. Ответ придёт на email аккаунта или на тот, что вы укажете.',
   'sync.cloudLabel': 'Облако', 'sync.title': 'Синхронизация', 'sync.email': 'Email', 'sync.password': 'Пароль', 'sync.passwordPlaceholder': 'Не менее 8 символов', 'sync.signUp': 'Регистрация', 'sync.signIn': 'Войти', 'sync.forgotPassword': 'Забыли пароль? Получить новое письмо',
   'sync.recoveryNote': 'Откройте только самое новое письмо. Нажмите в нём «Reset password». Если письмо содержит цифровой код, его можно ввести ниже.', 'sync.codeFromEmail': 'Код из письма', 'sync.codePlaceholder': '6–8 цифр', 'sync.checkCode': 'Проверить код', 'sync.resendCode': 'Отправить новый код', 'sync.backToLogin': 'Вернуться ко входу',
   'sync.codeConfirmedNote': 'Код подтверждён. Придумайте новый пароль — старый пароль вводить не нужно.', 'sync.newPassword': 'Новый пароль', 'sync.repeatPassword': 'Повторите пароль', 'sync.saveNewPassword': 'Сохранить новый пароль',
@@ -138,7 +138,7 @@ const TRANSLATIONS = { ru: {
   'update.appLabel': 'App', 'update.title': 'Updates', 'update.latestVersion': 'Latest version', 'update.defaultNote': 'Update center and manual install of the new version.', 'update.updateApp': 'Update app', 'update.hint': 'Tasks, photos and settings are kept when updating.',
   'update.accountSubtitle': 'Sign in or register', 'update.notificationsSubtitle': 'Reminders and daily summary', 'update.feedback': 'Feedback', 'update.feedbackSubtitle': 'Report an issue, attach a photo',
   'notif.remindersLabel': 'Reminders', 'notif.exactTitle': 'At task time', 'notif.exactText': 'At the exact time set in the reminder', 'notif.dailyTitle': "Today's summary", 'notif.dailyText': 'Task count and upcoming tasks', 'notif.dailyTime': 'Summary time', 'notif.overdueTitle': 'Overdue tasks', 'notif.overdueText': 'Once a day, if unfinished tasks remain', 'notif.test': 'Test notification', 'notif.save': 'Save settings', 'notif.hint': 'On iPhone, notifications work for the planner added to the Home Screen. After signing in, server push notifications arrive even when the app is closed.',
-  'feedback.helpLabel': 'Help the developer', 'feedback.describe': 'Describe the issue or suggestion', 'feedback.placeholder': 'What happened? What did you tap? What did you expect?', 'feedback.voiceAria': 'Dictate text', 'feedback.replyEmail': 'Reply email', 'feedback.emailPlaceholder': "Taken from your account", 'feedback.attachPhoto': '▧ Attach a photo of the issue', 'feedback.removePhotoAria': 'Remove photo', 'feedback.send': 'Send to developer', 'feedback.hint': 'The message is sent to the developer in the background. Photos are shrunk automatically before sending. The reply arrives at your account email.',
+  'feedback.helpLabel': 'Help the developer', 'feedback.describe': 'Describe the issue or suggestion', 'feedback.placeholder': 'What happened? What did you tap? What did you expect?', 'feedback.voiceAria': 'Dictate text', 'feedback.replyEmail': 'Reply email', 'feedback.emailPlaceholder': "Taken from your account", 'feedback.attachPhoto': '▧ Attach a photo of the issue', 'feedback.removePhotoAria': 'Remove photo', 'feedback.send': 'Send to developer', 'feedback.hint': 'The message is sent to the developer in the background. Photos are shrunk automatically before sending. The reply arrives at your account email or the one you enter.',
   'sync.cloudLabel': 'Cloud', 'sync.title': 'Sync', 'sync.email': 'Email', 'sync.password': 'Password', 'sync.passwordPlaceholder': 'At least 8 characters', 'sync.signUp': 'Sign up', 'sync.signIn': 'Sign in', 'sync.forgotPassword': 'Forgot password? Get a new email',
   'sync.recoveryNote': 'Open only the newest email. Click "Reset password" in it. If the email contains a numeric code, you can enter it below.', 'sync.codeFromEmail': 'Code from the email', 'sync.codePlaceholder': '6–8 digits', 'sync.checkCode': 'Check code', 'sync.resendCode': 'Send a new code', 'sync.backToLogin': 'Back to sign in',
   'sync.codeConfirmedNote': 'Code confirmed. Choose a new password — you do not need the old one.', 'sync.newPassword': 'New password', 'sync.repeatPassword': 'Repeat password', 'sync.saveNewPassword': 'Save new password',
@@ -1369,7 +1369,7 @@ async function openNotificationDialog() { $('#updateDialog').close(); renderNoti
 async function saveNotificationSettings(event) { event.preventDefault(); notificationSettings = { exact: $('#notifyExact').checked, daily: $('#notifyDaily').checked, dailyTime: $('#notifyDailyTime').value || '09:00', overdue: $('#notifyOverdue').checked }; localStorage.setItem(notificationStorageKey(), JSON.stringify(notificationSettings)); await ensurePushSubscription(true); $('#notificationDialog').close(); checkReminders(); toast('Настройки уведомлений сохранены на этом устройстве'); }
 async function testNotification() { if (!('Notification' in window) || Notification.permission !== 'granted') { await enableNotifications(); return; } const shown = await showAppNotification('Проверка — День', { body: 'Уведомления работают правильно.', tag: 'notification-test' }); toast(shown ? 'Проверочное уведомление отправлено' : 'Не удалось показать уведомление'); }
 
-function resetFeedbackForm() { $('#feedbackForm').reset(); const accountEmail = window.DaySync?.user()?.email || ''; $('#feedbackReplyEmail').value = accountEmail; feedbackPhoto = null; $('#feedbackFile').hidden = true; $('#feedbackFileName').textContent = ''; }
+function resetFeedbackForm() { $('#feedbackForm').reset(); const accountEmail = window.DaySync?.user()?.email || ''; const replyInput = $('#feedbackReplyEmail'); replyInput.value = accountEmail; replyInput.readOnly = !!accountEmail; if (!accountEmail) replyInput.placeholder = L('Ваш email — сюда придёт ответ', 'Your email — the reply will go here'); feedbackPhoto = null; $('#feedbackFile').hidden = true; $('#feedbackFileName').textContent = ''; }
 async function chooseFeedbackPhoto(file) {
   if (!file) return;
   if (!file.type.startsWith('image/')) { toast('Выберите фотографию или изображение'); return; }
@@ -1393,15 +1393,17 @@ function feedbackMessage(text, replyEmail) { const accountEmail = window.DaySync
 async function submitFeedback(event) {
   event.preventDefault();
   const accountEmail = window.DaySync?.user()?.email || '';
-  if (!accountEmail) { $('#feedbackDialog').close(); toast('Сначала войдите в свой аккаунт'); openSyncDialog(); return; }
+  const replyEmail = accountEmail || $('#feedbackReplyEmail').value.trim(); // без входа в облако тоже можно написать — достаточно указать email
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(replyEmail)) { toast(L('Укажите email, на который прислать ответ', 'Enter the email for the reply')); $('#feedbackReplyEmail').focus(); return; }
   const textValue = $('#feedbackText').value.trim();
   if (!textValue) return;
   const button = $('#feedbackSubmitButton');
   button.disabled = true; button.textContent = 'Отправляем…';
   try {
     const data = new FormData();
-    data.append('email', accountEmail);
-    data.append('Отправитель', accountEmail);
+    data.append('email', replyEmail);
+    data.append('Отправитель', replyEmail);
+    data.append('Аккаунт', accountEmail || 'без входа в облако');
     data.append('Версия приложения', APP_VERSION);
     data.append('Текст обращения', textValue);
     data.append('_subject', `Обратная связь — День, версия ${APP_VERSION}`);
@@ -1411,7 +1413,7 @@ async function submitFeedback(event) {
     const response = await fetch('https://formsubmit.co/ajax/75397e76b5b257f37da54b02fc3f7c85', { method: 'POST', headers: { Accept: 'application/json' }, body: data });
     const result = await response.json().catch(() => ({}));
     if (!response.ok || result.success === false) throw new Error(result.message || 'Ошибка отправки');
-    $('#feedbackDialog').close(); resetFeedbackForm(); toast(`Сообщение отправлено. Ответ придёт на ${accountEmail}`);
+    $('#feedbackDialog').close(); resetFeedbackForm(); toast(`Сообщение отправлено. Ответ придёт на ${replyEmail}`);
   } catch {
     toast('Не удалось отправить. Проверьте интернет и попробуйте ещё раз.');
   } finally {
@@ -2214,7 +2216,7 @@ window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); instal
 $('#installButton').addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('#installButton').hidden = true; });
 showUpdatedNoticeIfNeeded();
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=91'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
+  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=92'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
   navigator.serviceWorker.addEventListener('message', event => {
     if (event.data?.type !== 'DAY_PUSH') return;
     showReminderAlert(event.data.taskId || '', event.data.title || 'Новое уведомление', event.data.body || '');
