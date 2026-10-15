@@ -11,7 +11,7 @@ const NOTIFICATION_KEY = 'day-planner-notifications-v1';
 const EXPENSES_KEY = 'day-planner-expenses-v1';
 const FINANCE_LIMITS_KEY = 'day-planner-finance-limits-v1';
 const DELETED_EXPENSES_KEY = 'day-planner-deleted-expenses-v1';
-const APP_VERSION = '92';
+const APP_VERSION = '93';
 const UPDATE_SEEN_KEY = 'day-planner-update-seen-v1';
 const UPDATE_APPLIED_KEY = 'day-planner-update-applied-v1';
 const LANG_KEY = 'day-planner-lang-v1';
@@ -245,6 +245,29 @@ let deletedExpenseIds = loadDeletedExpenseIds();
 let activeTab = 'planner';
 let financeKind = 'expense';
 
+// Приведение данных любого возраста к текущему формату: старые записи (из прошлых версий, из облака, из файла копии)
+// не должны ломать экраны. Функции безопасно вызывать повторно.
+function isDay(x) { return /^\d{4}-\d{2}-\d{2}$/.test(x); } // функция, а не const: нужна ещё до того, как выполнится остальной код файла
+function normalizeTask(t) {
+  if (!t || typeof t !== 'object') return null;
+  return { autoCarry: false, reminder: '', notified: false, photo: null, attachment: null, photoCapturedAt: '', proofNote: '', repeat: 'none', carryCount: 0, note: '', time: '', completed: false, ...t,
+    id: typeof t.id === 'string' && t.id ? t.id : crypto.randomUUID(),
+    title: String(t.title ?? ''), date: isDay(t.date) ? t.date : toKey(new Date()),
+    priority: ['low', 'normal', 'high'].includes(t.priority) ? t.priority : 'normal',
+    subtasks: Array.isArray(t.subtasks) ? t.subtasks.filter(x => x && typeof x === 'object').map(x => ({ ...x, title: String(x.title ?? ''), done: !!x.done })) : [],
+    updatedAt: t.updatedAt || new Date(0).toISOString() };
+}
+function normalizePlan(p) {
+  if (!p || typeof p !== 'object') return null;
+  return { ...p, id: typeof p.id === 'string' && p.id ? p.id : crypto.randomUUID(), text: String(p.text ?? ''),
+    createdAt: p.createdAt || (isDay(p.anchorDate) ? `${p.anchorDate}T00:00:00.000Z` : new Date(0).toISOString()) };
+}
+function normalizeExpense(e) {
+  if (!e || typeof e !== 'object') return null;
+  const stamp = e.occurredAt || e.updatedAt || new Date(0).toISOString();
+  return { kind: 'expense', ...e, id: typeof e.id === 'string' && e.id ? e.id : crypto.randomUUID(), title: String(e.title ?? ''),
+    amount: Number.isFinite(Number(e.amount)) ? Number(e.amount) : 0, occurredAt: stamp, updatedAt: e.updatedAt || stamp };
+}
 function loadTasks() {
   try {
     let current = localStorage.getItem(taskStorageKey());
@@ -255,7 +278,7 @@ function loadTasks() {
     }
     const legacy = accountSuffix() === 'guest' ? localStorage.getItem(STORAGE_KEY) || localStorage.getItem(LEGACY_KEY) : null;
     const parsed = JSON.parse(current || legacy || 'null');
-    if (Array.isArray(parsed)) return parsed.map(t => ({ autoCarry: false, reminder: '', notified: false, photo: null, attachment: null, photoCapturedAt: '', proofNote: '', repeat: 'none', subtasks: [], carryCount: 0, updatedAt: new Date(0).toISOString(), ...t }));
+    if (Array.isArray(parsed)) return parsed.map(normalizeTask).filter(Boolean);
     return seedTasks();
   } catch { return seedTasks(); }
 }
@@ -275,7 +298,7 @@ function markDeleted(tombstones, key, id) {
 }
 function loadDeletedIds() { return loadTombstones(deletedStorageKey()); }
 function loadExpenses() {
-  try { return JSON.parse(localStorage.getItem(expensesStorageKey()) || '[]'); } catch { return []; }
+  try { const list = JSON.parse(localStorage.getItem(expensesStorageKey()) || '[]'); return Array.isArray(list) ? list.map(normalizeExpense).filter(Boolean) : []; } catch { return []; }
 }
 function loadDeletedExpenseIds() { return loadTombstones(deletedExpensesStorageKey()); }
 function loadProfile() {
@@ -286,14 +309,14 @@ function loadPeriodPlans() {
   try {
     const value = JSON.parse(localStorage.getItem(planStorageKey()) || '[]');
     if (!Array.isArray(value)) return [];
-    return value.map(plan => {
+    return value.filter(plan => plan && typeof plan === 'object').map(plan => {
       if (plan.plannedDate) return { ...plan, scope: 'all', anchorDate: plan.plannedDate };
       let anchorDate = plan.anchorDate;
       if (!anchorDate && plan.scope === 'week') anchorDate = plan.period;
       if (!anchorDate && plan.scope === 'month') anchorDate = `${plan.period}-01`;
       if (!anchorDate && plan.scope === 'year') anchorDate = `${plan.period}-01-01`;
       return { ...plan, scope: 'all', anchorDate: anchorDate || todayKey };
-    });
+    }).map(normalizePlan);
   }
   catch { return []; }
 }
@@ -1483,10 +1506,10 @@ async function importBackup(file) {
       });
       return { list: [...map.values()], added: changed.size };
     };
-    const t = mergeById(tasks, data.tasks, deletedIds); tasks = t.list;
-    const e = mergeById(expenses, data.expenses, deletedExpenseIds); expenses = e.list;
+    const t = mergeById(tasks, (Array.isArray(data.tasks) ? data.tasks : []).filter(x => x && typeof x.id === 'string').map(normalizeTask), deletedIds); tasks = t.list;
+    const e = mergeById(expenses, (Array.isArray(data.expenses) ? data.expenses : []).filter(x => x && typeof x.id === 'string').map(normalizeExpense), deletedExpenseIds); expenses = e.list;
     const known = new Set(periodPlans.map(plan => plan.id));
-    (Array.isArray(data.periodPlans) ? data.periodPlans : []).forEach(plan => { if (plan && plan.id && !known.has(plan.id)) periodPlans.push(plan); });
+    (Array.isArray(data.periodPlans) ? data.periodPlans : []).filter(x => x && typeof x.id === 'string').map(normalizePlan).forEach(plan => { if (plan && !known.has(plan.id)) periodPlans.push(plan); });
     if (data.financeLimits && typeof data.financeLimits === 'object') { financeLimits = { ...data.financeLimits, ...financeLimits }; try { localStorage.setItem(financeLimitsStorageKey(), JSON.stringify(financeLimits)); } catch {} }
     const saved = [save(), saveExpenses(), savePeriodPlans()].every(Boolean); render(); renderFinance();
     if (saved) toast(L(`Восстановлено: задач ${t.added}, операций ${e.added}`, `Restored: ${t.added} tasks, ${e.added} transactions`));
@@ -1517,7 +1540,7 @@ async function performSync(showMessage = true) {
     showCloudBanner(null);
     // Задачи, удалённые пока шёл обмен с облаком, не должны вернуться из ответа сервера.
     const deletedDuringSync = Object.keys(deletedIds).filter(id => !(id in sentTombstones));
-    tasks = (result.tasks || []).filter(t => !deletedDuringSync.includes(t.id));
+    tasks = (result.tasks || []).map(normalizeTask).filter(t => t && !deletedDuringSync.includes(t.id));
     deletedIds = { ...(result.tombstones || {}), ...Object.fromEntries(deletedDuringSync.map(id => [id, deletedIds[id]])) };
     localStorage.setItem(deletedStorageKey(), JSON.stringify(deletedIds));
     const remoteState = result.appState;
@@ -1532,7 +1555,7 @@ async function performSync(showMessage = true) {
       localStorage.setItem(stateUpdatedStorageKey(), appStateUpdatedAt);
     }
     const expenseResult = await window.DaySync.syncExpenses(expenses, deletedExpenseIds);
-    expenses = expenseResult.expenses || []; deletedExpenseIds = expenseResult.tombstones || {}; localStorage.setItem(deletedExpensesStorageKey(), JSON.stringify(deletedExpenseIds));
+    expenses = (expenseResult.expenses || []).map(normalizeExpense).filter(Boolean); deletedExpenseIds = expenseResult.tombstones || {}; localStorage.setItem(deletedExpensesStorageKey(), JSON.stringify(deletedExpenseIds));
     suppressSync = true; save(); saveExpenses(); suppressSync = false; render(); renderFinance(); renderProfile(); await loadSharedTasks(false); await refreshSharedPresence(); await ensurePushSubscription(false);
     if ($('#sharedDialog')?.open) renderSharedDialog();
     setSyncStatus('connected', 'Синхронизировано', `Задач в облаке: ${tasks.length}`);
@@ -1698,6 +1721,7 @@ function renderUpdateCenter() {
   $('#applyUpdateButton').disabled = !available;
   $('#applyUpdateButton').textContent = 'Установить обновление';
 }
+let updateRetryTimer = 0;
 async function checkForAppUpdate(showFeedback = false, autoInstall = false) {
   try {
     await new Promise((resolve, reject) => {
@@ -1706,7 +1730,12 @@ async function checkForAppUpdate(showFeedback = false, autoInstall = false) {
     const release = window.DAY_APP_RELEASE || {}; latestAppVersion = String(release.version || APP_VERSION); latestUpdateNotes = Array.isArray(release.notes) && release.notes.length ? release.notes : latestUpdateNotes;
     refreshUpdateIndicator(); renderUpdateCenter();
     const available = compareAppVersions(latestAppVersion, APP_VERSION) > 0;
-    if (autoInstall && available) { await applyAppUpdate(true); return; }
+    if (autoInstall && available) {
+      // Не перезагружаем страницу, пока открыто окно или набирается текст: пользователь не должен потерять ввод. Повтор через полминуты.
+      const typing = document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName) && document.activeElement.value;
+      if (document.querySelector('dialog[open]') || typing) { clearTimeout(updateRetryTimer); updateRetryTimer = setTimeout(() => checkForAppUpdate(false, true), 30000); return; }
+      await applyAppUpdate(true); return;
+    }
     if (showFeedback) toast(compareAppVersions(latestAppVersion, APP_VERSION) > 0 ? `Доступна версия ${latestAppVersion}` : 'Установлена последняя версия');
   } catch { if (showFeedback) toast('Не удалось проверить обновление. Проверьте интернет.'); }
 }
@@ -2216,7 +2245,7 @@ window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); instal
 $('#installButton').addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('#installButton').hidden = true; });
 showUpdatedNoticeIfNeeded();
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=92'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
+  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=93'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
   navigator.serviceWorker.addEventListener('message', event => {
     if (event.data?.type !== 'DAY_PUSH') return;
     showReminderAlert(event.data.taskId || '', event.data.title || 'Новое уведомление', event.data.body || '');

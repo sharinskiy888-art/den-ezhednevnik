@@ -548,6 +548,25 @@ async function runSpecial(browser, base, mobile, shotsDir) {
     ok(prShown && !(await page.locator('#removeProfilePhoto').isVisible()), prShown ? '' : 'после выбора фото кнопка «Убрать» не появилась', 'Профиль: фото выбирается и убирается');
   });
 
+  /* Очень старые и «кривые» данные (прошлые версии, облако, файл копии): экраны не должны ломаться */
+  const legacyInit = `if (!localStorage.getItem('__qa_legacy')) { localStorage.setItem('__qa_legacy', '1');
+    const d = new Date(); const today = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); const sfx = 'u-tester-0001';
+    localStorage.setItem('day-planner-tasks-v2:' + sfx, JSON.stringify([{ id: 'l1', title: 'Очень старая задача', date: today }, { title: 'Без id и даты' }, { id: 'l3', title: 'Битые подзадачи', date: today, priority: 'urgent', subtasks: [null, { title: 'х' }, 'строка'] }, null, 'мусор', 42]));
+    localStorage.setItem('day-planner-period-plans-v1:' + sfx, JSON.stringify([{ text: 'план без всего' }, { id: 'p9', scope: 'week', period: '2026-10-12', text: 'старый формат' }, null, 7]));
+    localStorage.setItem('day-planner-expenses-v1:' + sfx, JSON.stringify([{ title: 'Старый расход', amount: '150', category: 'food' }, { id: 'e2', kind: 'income', amount: 1000 }, { amount: 'abc' }, null, 'x'])); }`;
+  await scenario('Старые данные: экраны открываются без ошибок', { init: legacyInit }, async ({ page, ok, click, errors }) => {
+    const titles = await page.locator('#taskList .task-title').allInnerTexts();
+    ok(['Очень старая задача', 'Без id и даты', 'Битые подзадачи'].every(t => titles.some(x => x.includes(t))), 'задачи на экране: ' + titles.join(' | '), 'Старые данные: «кривые» задачи показываются в списке');
+    await page.locator('#taskList .task', { hasText: 'Битые подзадачи' }).locator('[data-edit]').click(); await page.waitForTimeout(250);
+    ok((await page.locator('#taskDialog[open]').count()) === 1, '', 'Старые данные: задача с битыми подзадачами открывается'); await page.keyboard.press('Escape'); await page.waitForTimeout(150);
+    await click(mobile ? '#mobilePlansButton' : '#desktopPlansButton'); await page.waitForTimeout(300);
+    const planText = await page.locator('#reminderDialog').innerText().catch(() => ''); ok((await page.locator('#reminderDialog[open]').count()) === 1, 'окно планов открылось', 'Старые данные: «Планы» открываются'); await page.keyboard.press('Escape'); await page.waitForTimeout(150);
+    await click('#tabFinance'); await page.waitForTimeout(300);
+    ok(await page.locator('#financeView').isVisible(), '', 'Старые данные: «Финансы» открываются');
+    await page.evaluate(() => { const b = document.querySelector('[data-finance-nav="history"]'); if (b) b.click(); else if (typeof openFinanceHistory === 'function') openFinanceHistory(); }); await page.waitForTimeout(400);
+    const hist = (await page.locator('#financeHistoryDialog[open]').count()) === 1; ok(hist, hist ? '' : 'окно истории не открылось', 'Старые данные: «История» финансов открывается');
+  });
+
   /* Обратная связь: весь путь от кнопки до отправки (formsubmit.co подменён заглушкой — настоящие письма не уходят) */
   const APPV = (/APP_VERSION = '(\d+)'/.exec(fs.readFileSync(path.join(ROOT, 'app.js'), 'utf-8')) || [])[1];
   const hookFormsubmit = async (context, hits, state) => context.route(u => u.hostname === 'formsubmit.co', async route => {

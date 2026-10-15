@@ -1,7 +1,8 @@
 {
-  "version": "92",
+  "version": "93",
   "released": "2026-10-15",
   "notes": [
+    "Надёжнее обновления и старые данные: записи из прошлых версий, облака и файла копии теперь автоматически приводятся к текущему формату, поэтому экраны не ломаются на «старых» данных. Автообновление больше не перезагружает страницу, пока открыто окно или вы набираете текст.",
     "«Обратная связь» теперь работает и без входа в облако: достаточно указать свой email для ответа (раньше письмо нельзя было отправить, пока не выполнен вход).",
     "Исправлена кнопка «Планы»: у старых планов не было даты создания, из-за чего экран планов не открывался. Добавлены «Сохранить копию данных» и «Восстановить из копии» в меню (≡) — файл-страховка на случай сбоя облака.",
     "«Финансы»: список операций внизу страницы убран. История теперь открывается отдельным окном из левой панели (на телефоне — из нижнего меню): выберите даты («Этот месяц», «Прошлый месяц», «Этот год» или свои), тип, категорию и найдите нужную операцию поиском; там же её можно удалить. Иконки категорий стали кнопками: нажмите на иконку — откроется окошко, введите сумму (и при желании комментарий и дату) — расход или доход добавлен.",
@@ -73,6 +74,7 @@
     "Добавлены общий прогресс, роли, статусы «В работе», «На проверке» и «Завершено»."
   ],
   "notesEn": [
+    "Safer updates and old data: records from earlier versions, the cloud and backup files are now converted to the current format automatically, so screens no longer break on old data. Auto-update no longer reloads the page while a dialog is open or you are typing.",
     "Feedback now works even when you are not signed in to the cloud: just enter your email for the reply (before, you could not send a message without signing in).",
     "Fixed the Plans button: older plans had no creation date, so the Plans screen would not open. Added «Save a data backup» and «Restore from backup» to the menu (≡) as a safety net if the cloud fails.",
     "Finance: the entry list at the bottom of the page is gone. History now opens in its own window from the left sidebar (bottom menu on the phone): pick dates (This month, Last month, This year or your own), type and category, and search for the entry you need; you can delete it there too. Category icons are now buttons: tap an icon, enter the amount (optionally a comment and date) and the expense or income is added.",
