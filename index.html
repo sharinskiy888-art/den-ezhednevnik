@@ -7,7 +7,7 @@
   <meta name="description" content="Простой ежедневник, который работает офлайн на телефоне и Windows.">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=90">
+  <link rel="stylesheet" href="styles.css?v=91">
   <title>День — ежедневник</title>
   <script>
     (() => {
@@ -484,6 +484,9 @@
       <div class="menu-tools" aria-label="Дополнительные возможности">
         <button type="button" class="menu-tool" id="openAccountFromMenu"><span>👤</span><div><strong id="accountMenuTitle">Аккаунт</strong><small id="accountMenuSubtitle" data-i18n="update.accountSubtitle">Войти или зарегистрироваться</small></div><b>›</b></button>
         <button type="button" class="menu-tool" id="openNotificationSettings"><span>🔔</span><div><strong data-i18n="nav.notifications">Уведомления</strong><small data-i18n="update.notificationsSubtitle">Напоминания и сводка дел</small></div><b>›</b></button>
+        <button type="button" class="menu-tool" id="exportBackup"><span>💾</span><div><strong data-i18n="backup.export">Сохранить копию данных</strong><small data-i18n="backup.exportSub">Файл с задачами, планами и финансами</small></div><b>›</b></button>
+        <button type="button" class="menu-tool" id="importBackup"><span>📥</span><div><strong data-i18n="backup.import">Восстановить из копии</strong><small data-i18n="backup.importSub">Добавит недостающие записи из файла</small></div><b>›</b></button>
+        <input type="file" id="importBackupInput" accept="application/json,.json" hidden>
         <button type="button" class="menu-tool" id="openFeedback"><span>✉</span><div><strong data-i18n="update.feedback">Обратная связь</strong><small data-i18n="update.feedbackSubtitle">Сообщить о проблеме, приложить фото</small></div><b>›</b></button>
       </div>
     </div>
@@ -604,9 +607,9 @@
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastAction" hidden></button></div>
-  <script src="sync-config.js?v=90"></script>
-  <script src="sync.js?v=90"></script>
-  <script src="i18n-en.js?v=90"></script>
-  <script src="app.js?v=90"></script>
+  <script src="sync-config.js?v=91"></script>
+  <script src="sync.js?v=91"></script>
+  <script src="i18n-en.js?v=91"></script>
+  <script src="app.js?v=91"></script>
 </body>
 </html>

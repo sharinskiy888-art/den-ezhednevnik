@@ -11,7 +11,7 @@ const NOTIFICATION_KEY = 'day-planner-notifications-v1';
 const EXPENSES_KEY = 'day-planner-expenses-v1';
 const FINANCE_LIMITS_KEY = 'day-planner-finance-limits-v1';
 const DELETED_EXPENSES_KEY = 'day-planner-deleted-expenses-v1';
-const APP_VERSION = '90';
+const APP_VERSION = '91';
 const UPDATE_SEEN_KEY = 'day-planner-update-seen-v1';
 const UPDATE_APPLIED_KEY = 'day-planner-update-applied-v1';
 const LANG_KEY = 'day-planner-lang-v1';
@@ -50,6 +50,7 @@ const TRANSLATIONS = { ru: {
   'shared.taskLabel': 'Совместная задача', 'shared.decline': 'Отклонить', 'shared.accept': 'Принять', 'shared.workLabel': 'Общая работа', 'shared.tasksTab': 'Задачи', 'shared.peopleTab': 'Участники', 'shared.invitesTab': 'Приглашения', 'shared.newTask': '＋ Новая совместная задача',
   'reminder.label': 'Напоминание', 'reminder.later': 'Позже', 'reminder.openTask': 'Открыть задачу',
   'common.close': 'Закрыть', 'common.delete': 'Удалить', 'common.cancel': 'Отмена', 'common.save': 'Сохранить',
+  'backup.export': 'Сохранить копию данных', 'backup.exportSub': 'Файл с задачами, планами и финансами', 'backup.import': 'Восстановить из копии', 'backup.importSub': 'Добавит недостающие записи из файла',
   'cloud.quota': 'Облако недоступно: закончился бесплатный лимит. Телефон и компьютер сейчас не синхронизируются, задачи хранятся на этом устройстве.', 'cloud.movedTitle': 'Облако обновлено', 'cloud.movedText': 'Войдите ещё раз тем же email и паролем — ваши задачи на этом устройстве сохранены и снова начнут синхронизироваться.', 'cloud.failed': 'Не удалось синхронизировать с облаком. Задачи сохраняются на этом устройстве.', 'task.planLabel': 'План', 'task.personal': 'Личная', 'task.shared': 'Совместная', 'task.youOrganize': 'вы организатор', 'task.organizer': 'организатор',
   'task.inviteMembers': 'Пригласить участников', 'task.emailsPlaceholder': 'email@example.com — каждый адрес с новой строки', 'task.inviteHint': 'После входа с указанной почтой участник увидит приглашение по центру экрана и в разделе «Совместные».',
   'task.status': 'Статус выполнения', 'task.statusNew': 'Новая — ещё не начата', 'task.statusAccepted': 'Принял', 'task.statusOpen': 'В работе', 'task.statusQuestion': 'Есть вопрос', 'task.statusReview': 'Готово, на проверке', 'task.statusCompleted': 'Принято и завершено', 'shared.later': 'Позже', 'task.reports': 'Отчёты по задаче', 'task.reportPlaceholder': 'Что сделано, вопрос организатору…', 'task.reportPhoto': '📷 Фото', 'task.reportSend': 'Отправить отчёт',
@@ -115,6 +116,7 @@ const TRANSLATIONS = { ru: {
   'shared.taskLabel': 'Shared task', 'shared.decline': 'Decline', 'shared.accept': 'Accept', 'shared.workLabel': 'Shared work', 'shared.tasksTab': 'Tasks', 'shared.peopleTab': 'Members', 'shared.invitesTab': 'Invites', 'shared.newTask': '＋ New shared task',
   'reminder.label': 'Reminder', 'reminder.later': 'Later', 'reminder.openTask': 'Open task',
   'common.close': 'Close', 'common.delete': 'Delete', 'common.cancel': 'Cancel', 'common.save': 'Save',
+  'backup.export': 'Save a data backup', 'backup.exportSub': 'A file with tasks, plans and finance', 'backup.import': 'Restore from backup', 'backup.importSub': 'Adds missing items from the file',
   'cloud.quota': 'Cloud unavailable: the free plan limit is used up. Your phone and computer are not syncing right now; tasks are kept on this device.', 'cloud.movedTitle': 'Cloud updated', 'cloud.movedText': 'Sign in again with the same email and password — your tasks on this device are kept and will sync again.', 'cloud.failed': 'Could not sync with the cloud. Tasks are saved on this device.', 'task.planLabel': 'Plan', 'task.personal': 'Personal', 'task.shared': 'Shared', 'task.youOrganize': 'you organize', 'task.organizer': 'organizer',
   'task.inviteMembers': 'Invite members', 'task.emailsPlaceholder': 'email@example.com — one address per line', 'task.inviteHint': 'After signing in with that email, the person will see the invite centered on screen and in "Shared".',
   'task.status': 'Status', 'task.statusNew': 'New — not started', 'task.statusAccepted': 'Accepted', 'task.statusOpen': 'In progress', 'task.statusQuestion': 'Has a question', 'task.statusReview': 'Done, in review', 'task.statusCompleted': 'Accepted and done', 'shared.later': 'Later', 'task.reports': 'Task reports', 'task.reportPlaceholder': 'What was done, a question for the organizer…', 'task.reportPhoto': '📷 Photo', 'task.reportSend': 'Send report',
@@ -1254,7 +1256,7 @@ function renderPlanningDialog() {
   $('#planPeriodTitle').textContent = names[currentPlanningView]; $('#planPeriodLabel').textContent = planningPeriodLabel();
   $('#planDate').removeAttribute('min'); $('#planDate').removeAttribute('max');
   const key = planningPeriodKey();
-  const list = periodPlans.filter(plan => periodKeyForPlanDate(currentPlanningView, plan.plannedDate || plan.anchorDate || todayKey) === key).sort((a, b) => (a.plannedDate || a.anchorDate || '9999-12-31').localeCompare(b.plannedDate || b.anchorDate || '9999-12-31') || a.createdAt.localeCompare(b.createdAt));
+  const list = periodPlans.filter(plan => periodKeyForPlanDate(currentPlanningView, plan.plannedDate || plan.anchorDate || todayKey) === key).sort((a, b) => (a.plannedDate || a.anchorDate || '9999-12-31').localeCompare(b.plannedDate || b.anchorDate || '9999-12-31') || (a.createdAt || '').localeCompare(b.createdAt || ''));
   $('#periodPlanList').innerHTML = list.length ? list.map(plan => `<article class="period-plan"><span>•</span><div class="period-plan-content"><p>${escapeHtml(plan.text)}</p>${plan.plannedDate ? `<time datetime="${plan.plannedDate}">До ${fromKey(plan.plannedDate).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}</time>` : '<time>Без точной даты · этот период</time>'}</div><button type="button" data-delete-plan="${plan.id}" aria-label="Удалить план">×</button></article>`).join('') : '<div class="plan-empty">На этот период планов пока нет. Добавьте первый пункт или перейдите стрелками к другому периоду.</div>';
   $$('[data-delete-plan]').forEach(button => button.addEventListener('click', () => { periodPlans = periodPlans.filter(plan => plan.id !== button.dataset.deletePlan); savePeriodPlans(); renderPlanningDialog(); }));
 }
@@ -1455,6 +1457,38 @@ function openSyncDialog() {
   if ($('#profileDialog').open) $('#profileDialog').close();
   refreshSyncUi(); $('#pinSetupInput').value = ''; $('#syncDialog').showModal();
   setTimeout(() => { if (!$('#syncConnected').hidden) $('#pinSetupInput').focus(); }, 50);
+}
+// Резервная копия: файл на устройстве — страховка на случай сбоя облака или ошибки при обновлении.
+function exportBackup() {
+  const data = { app: 'den-ezhednevnik', version: APP_VERSION, exportedAt: new Date().toISOString(), tasks, deletedIds, expenses, deletedExpenseIds, periodPlans, financeLimits, profile: { ...profile, photo: '' } };
+  const url = URL.createObjectURL(new Blob([JSON.stringify(data)], { type: 'application/json' }));
+  const link = document.createElement('a'); link.href = url; link.download = `den-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1500);
+  toast(L('Копия сохранена в файл', 'Backup saved to a file'));
+}
+async function importBackup(file) {
+  try {
+    const data = JSON.parse(await file.text());
+    if (data?.app !== 'den-ezhednevnik' || !Array.isArray(data.tasks)) throw new Error('format');
+    const newer = (a, b) => new Date(a || 0) > new Date(b || 0);
+    const mergeById = (list, incoming, tombs) => {
+      const map = new Map(list.map(item => [item.id, item])); const changed = new Set();
+      (Array.isArray(incoming) ? incoming : []).forEach(item => {
+        if (!item || typeof item.id !== 'string') return;
+        if (tombs[item.id] && !newer(item.updatedAt, tombs[item.id])) return;
+        const current = map.get(item.id);
+        if (!current || newer(item.updatedAt, current.updatedAt)) { map.set(item.id, item); changed.add(item.id); }
+      });
+      return { list: [...map.values()], added: changed.size };
+    };
+    const t = mergeById(tasks, data.tasks, deletedIds); tasks = t.list;
+    const e = mergeById(expenses, data.expenses, deletedExpenseIds); expenses = e.list;
+    const known = new Set(periodPlans.map(plan => plan.id));
+    (Array.isArray(data.periodPlans) ? data.periodPlans : []).forEach(plan => { if (plan && plan.id && !known.has(plan.id)) periodPlans.push(plan); });
+    if (data.financeLimits && typeof data.financeLimits === 'object') { financeLimits = { ...data.financeLimits, ...financeLimits }; try { localStorage.setItem(financeLimitsStorageKey(), JSON.stringify(financeLimits)); } catch {} }
+    const saved = [save(), saveExpenses(), savePeriodPlans()].every(Boolean); render(); renderFinance();
+    if (saved) toast(L(`Восстановлено: задач ${t.added}, операций ${e.added}`, `Restored: ${t.added} tasks, ${e.added} transactions`));
+  } catch { toast(L('Это не файл копии «День» — ничего не изменено', 'This is not a Day backup file — nothing was changed')); }
 }
 function queueCloudSync() {
   if (!window.DaySync?.user()) return;
@@ -2117,6 +2151,7 @@ $('#promptApplyUpdate').addEventListener('click', applyPromptedUpdate);
 $('#focusCard').addEventListener('click', () => { const id = $('#focusCard').dataset.focusTask; if (id) openDialog(id); });
 $('#openNotificationSettings').addEventListener('click', openNotificationDialog); $('#closeNotificationSettings').addEventListener('click', () => $('#notificationDialog').close()); $('#notificationForm').addEventListener('submit', saveNotificationSettings); $('#testNotification').addEventListener('click', testNotification);
 $('#reminderAlertDismiss').addEventListener('click', hideReminderAlert); $('#reminderAlertOpen').addEventListener('click', () => openNotificationTask());
+$('#exportBackup').addEventListener('click', () => { $('#updateDialog').close(); exportBackup(); }); $('#importBackup').addEventListener('click', () => $('#importBackupInput').click()); $('#importBackupInput').addEventListener('change', async event => { const file = event.target.files[0]; event.target.value = ''; if (file) { $('#updateDialog').close(); await importBackup(file); } });
 $('#openFeedback').addEventListener('click', () => { $('#updateDialog').close(); resetFeedbackForm(); $('#feedbackDialog').showModal(); }); $('#closeFeedback').addEventListener('click', () => $('#feedbackDialog').close()); bindHoldToTalk('feedbackVoiceButton', () => startVoiceForField('feedbackText', 'feedbackVoiceButton', { prompt: 'Слушаю описание проблемы', success: 'Текст обратной связи добавлен' })); $('#chooseFeedbackPhoto').addEventListener('click', () => $('#feedbackPhotoInput').click()); $('#feedbackPhotoInput').addEventListener('change', event => { chooseFeedbackPhoto(event.target.files[0]); event.target.value = ''; }); $('#removeFeedbackPhoto').addEventListener('click', () => { feedbackPhoto = null; $('#feedbackFile').hidden = true; $('#feedbackFileName').textContent = ''; }); $('#feedbackForm').addEventListener('submit', submitFeedback);
 $('#closeReminders').addEventListener('click', () => $('#reminderDialog').close()); $('#enableNotifications').addEventListener('click', enableNotifications);
 function openPlansDialog() { currentPlanningView = 'week'; planningAnchorDate = selectedDate; renderPlanningDialog(); $('#reminderDialog').showModal(); }
@@ -2179,7 +2214,7 @@ window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); instal
 $('#installButton').addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('#installButton').hidden = true; });
 showUpdatedNoticeIfNeeded();
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=90'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
+  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=91'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
   navigator.serviceWorker.addEventListener('message', event => {
     if (event.data?.type !== 'DAY_PUSH') return;
     showReminderAlert(event.data.taskId || '', event.data.title || 'Новое уведомление', event.data.body || '');

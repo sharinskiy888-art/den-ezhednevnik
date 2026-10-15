@@ -1,7 +1,8 @@
 {
-  "version": "90",
-  "released": "2026-10-13",
+  "version": "91",
+  "released": "2026-10-15",
   "notes": [
+    "Исправлена кнопка «Планы»: у старых планов не было даты создания, из-за чего экран планов не открывался. Добавлены «Сохранить копию данных» и «Восстановить из копии» в меню (≡) — файл-страховка на случай сбоя облака.",
     "«Финансы»: список операций внизу страницы убран. История теперь открывается отдельным окном из левой панели (на телефоне — из нижнего меню): выберите даты («Этот месяц», «Прошлый месяц», «Этот год» или свои), тип, категорию и найдите нужную операцию поиском; там же её можно удалить. Иконки категорий стали кнопками: нажмите на иконку — откроется окошко, введите сумму (и при желании комментарий и дату) — расход или доход добавлен.",
     "Совместные задачи как поручения: исполнитель больше не может отказаться — в окне по центру экрана «Новая задача от …» есть только «Принять задачу» и «Позже». Организатор нажимает «🔔 Напомнить исполнителю» сколько угодно раз — у исполнителя всплывает окно и приходит уведомление на телефон. Статусы исполнителя: «Принял», «В работе», «Есть вопрос», «Готово, на проверке»; организатор отмечает «Завершено» и видит, кто и когда поменял статус. В задаче появились отчёты: текст, фото (сжимается) и голосовое сообщение до 2 минут; организатору приходит уведомление о новом отчёте. Фото и голос хранятся отдельно и скачиваются только при нажатии — бесплатный лимит облака не тратится зря.",
     "Ещё экономнее расходуется бесплатный лимит облака: совместные задачи теперь скачиваются целиком (с фото) только когда в них что‑то изменилось, а при обычной проверке раз в 2 минуты приходит лишь короткий список изменений.",
@@ -71,6 +72,7 @@
     "Добавлены общий прогресс, роли, статусы «В работе», «На проверке» и «Завершено»."
   ],
   "notesEn": [
+    "Fixed the Plans button: older plans had no creation date, so the Plans screen would not open. Added «Save a data backup» and «Restore from backup» to the menu (≡) as a safety net if the cloud fails.",
     "Finance: the entry list at the bottom of the page is gone. History now opens in its own window from the left sidebar (bottom menu on the phone): pick dates (This month, Last month, This year or your own), type and category, and search for the entry you need; you can delete it there too. Category icons are now buttons: tap an icon, enter the amount (optionally a comment and date) and the expense or income is added.",
     "Shared tasks work as assignments: the assignee can no longer decline — the centered “New task from …” window has only “Accept task” and “Later”. The organizer can tap “🔔 Remind assignee” any number of times; the assignee gets a pop-up and a phone notification. Assignee statuses: Accepted, In progress, Has a question, Done (in review); the organizer marks Completed and sees who changed the status and when. Tasks now have reports: text, a photo (compressed) and a voice message up to 2 minutes; the organizer is notified of new reports. Photos and voice are stored separately and downloaded only when opened, so the free cloud allowance is not wasted.",
     "Uses even less of the free cloud allowance: shared tasks are now downloaded in full (with photos) only when something in them changed; the regular check every 2 minutes fetches just a short list of changes.",

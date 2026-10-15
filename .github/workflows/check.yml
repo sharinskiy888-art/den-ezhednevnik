@@ -1,0 +1,43 @@
+name: Check
+
+# Проверка перед публикацией: версия везде одинаковая, синтаксис, и автотест каждой кнопки в браузере.
+on:
+  pull_request:
+  workflow_call:   # вызывается из pages.yml: публикация идёт только если проверка зелёная
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Синтаксис JS
+        run: |
+          node --check app.js
+          node --check sync.js
+          node --check i18n-en.js
+          node --check version.js
+          node --check sw.js
+          node -e "JSON.parse(require('fs').readFileSync('version.json','utf8'))"
+      - name: Версия одинаковая во всех файлах
+        run: |
+          V=$(node -e "global.window={};require('./version.js');console.log(window.DAY_APP_RELEASE.version)")
+          echo "version.js = $V"
+          J=$(node -e "console.log(JSON.parse(require('fs').readFileSync('version.json','utf8')).version)")
+          [ "$J" = "$V" ] || { echo "version.json ($J) != version.js ($V)"; exit 1; }
+          grep -q "APP_VERSION = '$V'" app.js || { echo "app.js: APP_VERSION не $V"; exit 1; }
+          grep -q "sw.js?v=$V" app.js || { echo "app.js: register sw.js?v не $V"; exit 1; }
+          grep -q "day-planner-v$V'" sw.js || { echo "sw.js: CACHE не v$V"; exit 1; }
+          BAD=$(grep -ohE "\?v=[0-9]+" index.html sw.js | grep -v "^?v=$V$" || true)
+          [ -z "$BAD" ] || { echo "Есть ?v= не $V: $BAD"; exit 1; }
+          echo "?v= везде $V"
+      - name: Автотест всех кнопок (Playwright)
+        run: |
+          npm i --no-save playwright
+          npx playwright install --with-deps chromium
+          node tools/test-buttons.js
