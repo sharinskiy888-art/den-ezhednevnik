@@ -295,4 +295,4 @@ dialog { border-radius:12px;box-shadow:0 20px 55px rgba(25,41,57,.22); }.close-b
 .shared-view-actions { display:flex; gap:8px; justify-content:flex-end; margin-top:14px; }
 /* Телефон: окна-«шторки» занимают всю ширину и стоят по центру (раньше часть окон прижималась влево на 14 px) */
 @media(max-width:850px){ dialog.sync-dialog, dialog.profile-dialog, dialog.finance-add-dialog, dialog.reminder-dialog { width:100%; max-width:none; margin:auto 0 0; border-radius:18px 18px 0 0; } }
-.tag.overdue-tag { background:#fdecea; color:#b3261e; font-weight:700; }
+.tag.overdue-tag { background:var(--danger-soft); color:var(--coral); font-weight:700; }

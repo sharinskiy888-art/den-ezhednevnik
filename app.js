@@ -1304,7 +1304,7 @@ async function detachPushSubscription() {
   try {
     const registration = await navigator.serviceWorker?.ready; const subscription = await registration?.pushManager?.getSubscription();
     if (subscription) {
-      try { await window.DaySync?.deletePushSubscription?.(subscription.endpoint); } catch {}
+      try { await Promise.race([window.DaySync?.deletePushSubscription?.(subscription.endpoint), new Promise(resolve => setTimeout(resolve, 3000))]); } catch {}
       await subscription.unsubscribe();
     }
   } catch {}
@@ -1332,10 +1332,10 @@ async function ensurePushSubscription(forceSave = false) {
       subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(publicKey) });
       forceSave = true;
     }
+    try { localStorage.setItem(PUSH_OWNER_KEY, accountId); } catch {}
     if (forceSave || Date.now() - pushSubscriptionRegisteredAt > 10 * 60 * 1000) {
       await window.DaySync.savePushSubscription(subscription, document.documentElement.lang || 'ru', notificationSettings);
       pushSubscriptionRegisteredAt = Date.now();
-      try { localStorage.setItem(PUSH_OWNER_KEY, accountId); } catch {}
     }
     pushSubscriptionActive = true; return true;
   } catch {
