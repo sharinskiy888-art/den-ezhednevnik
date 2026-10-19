@@ -11,7 +11,7 @@ const NOTIFICATION_KEY = 'day-planner-notifications-v1';
 const EXPENSES_KEY = 'day-planner-expenses-v1';
 const FINANCE_LIMITS_KEY = 'day-planner-finance-limits-v1';
 const DELETED_EXPENSES_KEY = 'day-planner-deleted-expenses-v1';
-const APP_VERSION = '96';
+const APP_VERSION = '97';
 const UPDATE_SEEN_KEY = 'day-planner-update-seen-v1';
 const UPDATE_APPLIED_KEY = 'day-planner-update-applied-v1';
 const LANG_KEY = 'day-planner-lang-v1';
@@ -71,7 +71,7 @@ const TRANSLATIONS = { ru: {
   'plans.when': 'Когда планируется', 'plans.optional': 'необязательно', 'plans.inputPlaceholder': 'Например: заниматься английским', 'plans.hint': 'Один план виден в своей неделе, месяце и году. Можно написать несколько пунктов с новой строки.', 'plans.addToList': 'Добавить в список',
   'update.appLabel': 'Приложение', 'update.title': 'Обновления', 'update.latestVersion': 'Последняя версия', 'update.defaultNote': 'Центр обновлений и ручная установка новой версии.', 'update.updateApp': 'Обновить приложение', 'update.hint': 'Задачи, фотографии и настройки при обновлении не удаляются.',
   'update.accountSubtitle': 'Войти или зарегистрироваться', 'update.notificationsSubtitle': 'Напоминания и сводка дел', 'update.feedback': 'Обратная связь', 'update.feedbackSubtitle': 'Сообщить о проблеме, приложить фото',
-  'notif.remindersLabel': 'Напоминания', 'notif.exactTitle': 'По времени задачи', 'notif.exactText': 'В точное время, указанное в напоминании', 'notif.dailyTitle': 'Сводка на сегодня', 'notif.dailyText': 'Количество дел и ближайшие задачи', 'notif.dailyTime': 'Время сводки', 'notif.overdueTitle': 'Просроченные дела', 'notif.overdueText': 'Один раз в день, если остались незавершённые задачи', 'notif.test': 'Проверить уведомление', 'notif.save': 'Сохранить настройки', 'notif.hint': 'На iPhone уведомления работают для ежедневника, добавленного на экран «Домой». После входа в аккаунт серверные push-уведомления приходят и при закрытом приложении.',
+  'notif.remindersLabel': 'Напоминания', 'notif.exactTitle': 'По времени задачи', 'notif.exactText': 'В точное время, указанное в напоминании', 'notif.dailyTitle': 'Сводка на сегодня', 'notif.dailyText': 'Количество дел и ближайшие задачи', 'notif.dailyTime': 'Первое напоминание в', 'notif.repeat': 'Как часто напоминать', 'notif.repeatOnce': 'Один раз в день', 'notif.repeatTwice': 'Два раза в день', 'notif.repeatHourly2': 'Каждые 2 часа (до 21:00)', 'notif.repeatHourly': 'Каждый час (до 21:00)', 'notif.dailyTime2': 'Второе напоминание в', 'notif.overdueTitle': 'Просроченные дела', 'notif.overdueText': 'Один раз в день, если остались незавершённые задачи', 'notif.test': 'Проверить уведомление', 'notif.save': 'Сохранить настройки', 'notif.hint': 'На iPhone уведомления работают для ежедневника, добавленного на экран «Домой». После входа в аккаунт серверные push-уведомления приходят и при закрытом приложении.',
   'feedback.helpLabel': 'Помощь разработчику', 'feedback.describe': 'Опишите проблему или предложение', 'feedback.placeholder': 'Что произошло? Что вы нажимали? Что ожидали увидеть?', 'feedback.voiceAria': 'Надиктовать текст', 'feedback.replyEmail': 'Email отправителя', 'feedback.emailPlaceholder': 'Будет взят из аккаунта', 'feedback.attachPhoto': '▧ Прикрепить фото проблемы', 'feedback.removePhotoAria': 'Убрать фото', 'feedback.send': 'Отправить разработчику', 'feedback.hint': 'Сообщение уйдёт разработчику в фоне. Фото перед отправкой автоматически уменьшается. Ответ придёт на email аккаунта или на тот, что вы укажете.',
   'sync.cloudLabel': 'Облако', 'sync.title': 'Синхронизация', 'sync.email': 'Email', 'sync.password': 'Пароль', 'sync.passwordPlaceholder': 'Не менее 8 символов', 'sync.signUp': 'Регистрация', 'sync.signIn': 'Войти', 'sync.forgotPassword': 'Забыли пароль? Получить новое письмо',
   'sync.recoveryNote': 'Откройте только самое новое письмо. Нажмите в нём «Reset password». Если письмо содержит цифровой код, его можно ввести ниже.', 'sync.codeFromEmail': 'Код из письма', 'sync.codePlaceholder': '6–8 цифр', 'sync.checkCode': 'Проверить код', 'sync.resendCode': 'Отправить новый код', 'sync.backToLogin': 'Вернуться ко входу',
@@ -80,7 +80,7 @@ const TRANSLATIONS = { ru: {
   'sync.note': 'У каждого email свой отдельный ежедневник. На общем устройстве нажмите «Сменить пользователя», прежде чем другой человек войдёт в свой аккаунт.',
   'pin.enter': 'Введите PIN', 'pin.hint': 'Четыре цифры для быстрого входа в ежедневник.', 'pin.codeAria': 'PIN-код', 'pin.open': 'Открыть ежедневник', 'pin.usePassword': 'Войти по почте и паролю',
   'profile.personalDataLabel': 'Личные данные', 'profile.myProfile': 'Мой профиль', 'profile.chooseAria': 'Выбрать фотографию из галереи', 'profile.photoAlt': 'Фотография профиля',
-  'profile.photo': 'Фотография', 'profile.photoHint': 'Будет показана в правом верхнем углу', 'profile.takePhoto': 'Сделать фото', 'profile.removePhoto': 'Удалить фото',
+  'profile.photo': 'Фотография', 'profile.theme': 'Цвет оформления', 'profile.photoHint': 'Будет показана в правом верхнем углу', 'profile.takePhoto': 'Сделать фото', 'profile.removePhoto': 'Удалить фото',
   'profile.howToAddress': 'Как к вам обращаться', 'profile.namePlaceholder': 'Например, Александр', 'profile.note': 'Здесь можно изменить имя и фотографию профиля.'
 }, en: {
   'nav.today': 'Today', 'nav.upcoming': 'Upcoming', 'nav.completed': 'Completed', 'nav.shared': 'Shared', 'nav.plans': 'Plans', 'nav.notifications': 'Notifications',
@@ -137,7 +137,7 @@ const TRANSLATIONS = { ru: {
   'plans.when': 'Target date', 'plans.optional': 'optional', 'plans.inputPlaceholder': 'E.g. practice English', 'plans.hint': 'A plan is shown in its own week, month and year. You can enter several items, one per line.', 'plans.addToList': 'Add to list',
   'update.appLabel': 'App', 'update.title': 'Updates', 'update.latestVersion': 'Latest version', 'update.defaultNote': 'Update center and manual install of the new version.', 'update.updateApp': 'Update app', 'update.hint': 'Tasks, photos and settings are kept when updating.',
   'update.accountSubtitle': 'Sign in or register', 'update.notificationsSubtitle': 'Reminders and daily summary', 'update.feedback': 'Feedback', 'update.feedbackSubtitle': 'Report an issue, attach a photo',
-  'notif.remindersLabel': 'Reminders', 'notif.exactTitle': 'At task time', 'notif.exactText': 'At the exact time set in the reminder', 'notif.dailyTitle': "Today's summary", 'notif.dailyText': 'Task count and upcoming tasks', 'notif.dailyTime': 'Summary time', 'notif.overdueTitle': 'Overdue tasks', 'notif.overdueText': 'Once a day, if unfinished tasks remain', 'notif.test': 'Test notification', 'notif.save': 'Save settings', 'notif.hint': 'On iPhone, notifications work for the planner added to the Home Screen. After signing in, server push notifications arrive even when the app is closed.',
+  'notif.remindersLabel': 'Reminders', 'notif.exactTitle': 'At task time', 'notif.exactText': 'At the exact time set in the reminder', 'notif.dailyTitle': "Today's summary", 'notif.dailyText': 'Task count and upcoming tasks', 'notif.dailyTime': 'First reminder at', 'notif.repeat': 'How often to remind', 'notif.repeatOnce': 'Once a day', 'notif.repeatTwice': 'Twice a day', 'notif.repeatHourly2': 'Every 2 hours (until 9 pm)', 'notif.repeatHourly': 'Every hour (until 9 pm)', 'notif.dailyTime2': 'Second reminder at', 'notif.overdueTitle': 'Overdue tasks', 'notif.overdueText': 'Once a day, if unfinished tasks remain', 'notif.test': 'Test notification', 'notif.save': 'Save settings', 'notif.hint': 'On iPhone, notifications work for the planner added to the Home Screen. After signing in, server push notifications arrive even when the app is closed.',
   'feedback.helpLabel': 'Help the developer', 'feedback.describe': 'Describe the issue or suggestion', 'feedback.placeholder': 'What happened? What did you tap? What did you expect?', 'feedback.voiceAria': 'Dictate text', 'feedback.replyEmail': 'Reply email', 'feedback.emailPlaceholder': "Taken from your account", 'feedback.attachPhoto': '▧ Attach a photo of the issue', 'feedback.removePhotoAria': 'Remove photo', 'feedback.send': 'Send to developer', 'feedback.hint': 'The message is sent to the developer in the background. Photos are shrunk automatically before sending. The reply arrives at your account email or the one you enter.',
   'sync.cloudLabel': 'Cloud', 'sync.title': 'Sync', 'sync.email': 'Email', 'sync.password': 'Password', 'sync.passwordPlaceholder': 'At least 8 characters', 'sync.signUp': 'Sign up', 'sync.signIn': 'Sign in', 'sync.forgotPassword': 'Forgot password? Get a new email',
   'sync.recoveryNote': 'Open only the newest email. Click "Reset password" in it. If the email contains a numeric code, you can enter it below.', 'sync.codeFromEmail': 'Code from the email', 'sync.codePlaceholder': '6–8 digits', 'sync.checkCode': 'Check code', 'sync.resendCode': 'Send a new code', 'sync.backToLogin': 'Back to sign in',
@@ -146,7 +146,7 @@ const TRANSLATIONS = { ru: {
   'sync.note': 'Each email has its own separate planner. On a shared device, tap "Switch user" before someone else signs into their account.',
   'pin.enter': 'Enter PIN', 'pin.hint': 'Four digits for quick sign-in to the planner.', 'pin.codeAria': 'PIN', 'pin.open': 'Open planner', 'pin.usePassword': 'Sign in with email and password',
   'profile.personalDataLabel': 'Personal data', 'profile.myProfile': 'My profile', 'profile.chooseAria': 'Choose a photo from gallery', 'profile.photoAlt': 'Profile photo',
-  'profile.photo': 'Photo', 'profile.photoHint': 'Shown in the top-right corner', 'profile.takePhoto': 'Take a photo', 'profile.removePhoto': 'Remove photo',
+  'profile.photo': 'Photo', 'profile.theme': 'Color theme', 'profile.photoHint': 'Shown in the top-right corner', 'profile.takePhoto': 'Take a photo', 'profile.removePhoto': 'Remove photo',
   'profile.howToAddress': 'What should we call you', 'profile.namePlaceholder': 'E.g. Alex', 'profile.note': 'You can change your name and profile photo here.'
 } };
 const LOCALE = () => appLang === 'en' ? 'en-US' : 'ru-RU';
@@ -214,7 +214,7 @@ let feedbackPhoto = null;
 let pushSubscriptionActive = false;
 let pushSubscriptionRegisteredAt = 0;
 let pendingNotificationTaskId = '';
-const defaultNotificationSettings = { exact: true, daily: true, dailyTime: '09:00', overdue: true };
+const defaultNotificationSettings = { exact: true, daily: true, dailyTime: '09:00', repeat: 'once', dailyTime2: '18:00', overdue: true };
 function loadNotificationSettings() { try { return { ...defaultNotificationSettings, ...JSON.parse(localStorage.getItem(notificationStorageKey()) || '{}') }; } catch { return { ...defaultNotificationSettings }; } }
 let notificationSettings = loadNotificationSettings();
 let pinUnlocked = false;
@@ -1378,6 +1378,14 @@ function updateAppBadge() {
   const count = tasks.filter(task => !task.completed && task.date <= todayKey).length;
   if (navigator.setAppBadge) { if (count) navigator.setAppBadge(count).catch(() => {}); else navigator.clearAppBadge?.().catch(() => {}); }
 }
+// Времена напоминаний за день (в минутах от полуночи) по настройке «Как часто напоминать».
+function notificationSlots(settings) {
+  const toMinutes = value => { const [h, m] = String(value || '').split(':').map(Number); return Number.isFinite(h) ? h * 60 + (m || 0) : null; };
+  const first = toMinutes(settings.dailyTime) ?? 540; const last = 21 * 60; const mode = settings.repeat || 'once';
+  if (mode === 'twice') return [...new Set([first, toMinutes(settings.dailyTime2) ?? 1080])].sort((a, b) => a - b);
+  if (mode === 'hourly' || mode === 'hourly2') { const step = mode === 'hourly' ? 60 : 120; const list = []; for (let t = first; t <= Math.max(last, first); t += step) list.push(t); return list; }
+  return [first];
+}
 async function checkReminders() {
   const now = new Date(); updateAppBadge();
   const due = tasks.filter(t => !t.completed && t.reminder && !t.notified && new Date(t.reminder) <= now);
@@ -1391,10 +1399,14 @@ async function checkReminders() {
   }
   if (due.length) { save(); if (notificationSettings.exact && $('#reminderDialog').open === false) toast(`Напоминание: ${due[0].title}`); }
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
-  const minutesNow = now.getHours() * 60 + now.getMinutes(); const [dailyHour, dailyMinute] = notificationSettings.dailyTime.split(':').map(Number); const dailyAt = dailyHour * 60 + dailyMinute;
+  const minutesNow = now.getHours() * 60 + now.getMinutes();
   const todayTasks = tasks.filter(task => !task.completed && task.date === todayKey).sort((a, b) => (a.time || '99:99').localeCompare(b.time || '99:99'));
-  if (notificationSettings.daily && todayTasks.length && minutesNow >= dailyAt && !localStorage.getItem(notificationStampKey('daily'))) {
-    const preview = todayTasks.slice(0, 3).map(task => task.title).join(' · '); await showAppNotification(`Сегодня дел: ${todayTasks.length}`, { body: preview, tag: `daily-${todayKey}` }); localStorage.setItem(notificationStampKey('daily'), '1');
+  // Расписание повторов: у каждого времени своя отметка «уже напомнили»; если приложение открыли поздно, напоминание одно (последнее), а не пачка.
+  const slots = notificationSlots(notificationSettings); const reached = slots.filter(slot => minutesNow >= slot);
+  const slotKey = slot => notificationStampKey(`daily-${slot}`);
+  if (notificationSettings.daily && reached.length && reached.some(slot => !localStorage.getItem(slotKey(slot)))) {
+    reached.forEach(slot => localStorage.setItem(slotKey(slot), '1'));
+    if (todayTasks.length) { const first = reached.length === 1 && slots[0] === reached[0]; const preview = todayTasks.slice(0, 3).map(task => task.title).join(' · '); await showAppNotification(first ? `Сегодня дел: ${todayTasks.length}` : `Осталось дел на сегодня: ${todayTasks.length}`, { body: preview, tag: `daily-${todayKey}`, renotify: true }); }
   }
   const overdue = tasks.filter(task => !task.completed && task.date < todayKey);
   if (notificationSettings.overdue && overdue.length && !localStorage.getItem(notificationStampKey('overdue'))) {
@@ -1403,13 +1415,23 @@ async function checkReminders() {
 }
 
 function renderNotificationSettings() {
-  notificationSettings = loadNotificationSettings(); $('#notifyExact').checked = notificationSettings.exact; $('#notifyDaily').checked = notificationSettings.daily; $('#notifyDailyTime').value = notificationSettings.dailyTime; $('#notifyOverdue').checked = notificationSettings.overdue;
+  notificationSettings = loadNotificationSettings(); $('#notifyExact').checked = notificationSettings.exact; $('#notifyDaily').checked = notificationSettings.daily; $('#notifyDailyTime').value = notificationSettings.dailyTime; $('#notifyRepeat').value = notificationSettings.repeat || 'once'; $('#notifyDailyTime2').value = notificationSettings.dailyTime2 || '18:00'; $('#notifyTime2Row').hidden = $('#notifyRepeat').value !== 'twice'; $('#notifyOverdue').checked = notificationSettings.overdue;
   const state = $('#notificationPermissionState'); const supported = 'Notification' in window; const permission = supported ? Notification.permission : 'unsupported';
   state.className = `permission-state ${permission === 'granted' ? 'allowed' : permission === 'denied' ? 'blocked' : ''}`;
   state.textContent = permission === 'granted' ? (pushSubscriptionActive ? '✓ Фоновые push-уведомления подключены на этом устройстве.' : '✓ Системные уведомления разрешены. Войдите в аккаунт для работы при закрытом приложении.') : permission === 'denied' ? 'Уведомления заблокированы. Разрешите их в настройках браузера или телефона.' : supported ? 'Сначала разрешите приложению показывать уведомления.' : 'Это устройство или браузер не поддерживает системные уведомления.';
 }
 async function openNotificationDialog() { $('#updateDialog').close(); renderNotificationSettings(); $('#notificationDialog').showModal(); if ('Notification' in window && Notification.permission === 'default') await enableNotifications(); }
-async function saveNotificationSettings(event) { event.preventDefault(); notificationSettings = { exact: $('#notifyExact').checked, daily: $('#notifyDaily').checked, dailyTime: $('#notifyDailyTime').value || '09:00', overdue: $('#notifyOverdue').checked }; localStorage.setItem(notificationStorageKey(), JSON.stringify(notificationSettings)); await ensurePushSubscription(true); $('#notificationDialog').close(); checkReminders(); toast('Настройки уведомлений сохранены на этом устройстве'); }
+async function saveNotificationSettings(event) { event.preventDefault(); notificationSettings = { exact: $('#notifyExact').checked, daily: $('#notifyDaily').checked, dailyTime: $('#notifyDailyTime').value || '09:00', repeat: $('#notifyRepeat').value || 'once', dailyTime2: $('#notifyDailyTime2').value || '18:00', overdue: $('#notifyOverdue').checked }; localStorage.setItem(notificationStorageKey(), JSON.stringify(notificationSettings)); await ensurePushSubscription(true); $('#notificationDialog').close(); checkReminders(); toast('Настройки уведомлений сохранены на этом устройстве'); }
+// Цветовая тема: хранится на устройстве; в разметке стоит data-theme (пусто = синяя).
+const THEME_COLORS = { blue: '#0e3764', green: '#0f5a43', crimson: '#8a1c2b', purple: '#4b2a8c', graphite: '#2a3140' };
+function applyTheme(name) {
+  const theme = THEME_COLORS[name] ? name : 'blue';
+  if (theme === 'blue') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = theme;
+  try { localStorage.setItem('day-theme-v1', theme === 'blue' ? '' : theme); } catch {}
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', THEME_COLORS[theme]);
+  const names = { blue: L('Синий', 'Blue'), green: L('Зелёный', 'Green'), crimson: L('Бордовый', 'Crimson'), purple: L('Фиолетовый', 'Purple'), graphite: L('Графит', 'Graphite') };
+  $$('[data-theme-choice]').forEach(button => { button.setAttribute('aria-pressed', String(button.dataset.themeChoice === theme)); button.setAttribute('aria-label', names[button.dataset.themeChoice]); });
+}
 async function testNotification() { if (!('Notification' in window) || Notification.permission !== 'granted') { await enableNotifications(); return; } const shown = await showAppNotification('Проверка — День', { body: 'Уведомления работают правильно.', tag: 'notification-test' }); toast(shown ? 'Проверочное уведомление отправлено' : 'Не удалось показать уведомление'); }
 
 function resetFeedbackForm() { $('#feedbackForm').reset(); const accountEmail = window.DaySync?.user()?.email || ''; const replyInput = $('#feedbackReplyEmail'); replyInput.value = accountEmail; replyInput.readOnly = !!accountEmail; if (!accountEmail) replyInput.placeholder = L('Ваш email — сюда придёт ответ', 'Your email — the reply will go here'); feedbackPhoto = null; $('#feedbackFile').hidden = true; $('#feedbackFileName').textContent = ''; }
@@ -2233,6 +2255,8 @@ $('#taskTimeMode').addEventListener('change', updateTimeMode);
 $('#updateButton').addEventListener('click', async () => { renderUpdateCenter(); $('#updateDialog').showModal(); await checkForAppUpdate(false); }); $('#closeUpdate').addEventListener('click', () => $('#updateDialog').close()); $('#applyUpdateButton').addEventListener('click', () => applyAppUpdate(false));
 $('#promptApplyUpdate').addEventListener('click', applyPromptedUpdate);
 $('#focusCard').addEventListener('click', () => { const id = $('#focusCard').dataset.focusTask; if (id) openDialog(id); });
+$('#notifyRepeat').addEventListener('change', () => { $('#notifyTime2Row').hidden = $('#notifyRepeat').value !== 'twice'; });
+$$('[data-theme-choice]').forEach(button => button.addEventListener('click', () => applyTheme(button.dataset.themeChoice)));
 $('#openNotificationSettings').addEventListener('click', openNotificationDialog); $('#closeNotificationSettings').addEventListener('click', () => $('#notificationDialog').close()); $('#notificationForm').addEventListener('submit', saveNotificationSettings); $('#testNotification').addEventListener('click', testNotification);
 $('#reminderAlertDismiss').addEventListener('click', hideReminderAlert); $('#reminderAlertOpen').addEventListener('click', () => openNotificationTask());
 $('#exportBackup').addEventListener('click', () => { $('#updateDialog').close(); exportBackup(); }); $('#importBackup').addEventListener('click', () => $('#importBackupInput').click()); $('#importBackupInput').addEventListener('change', async event => { const file = event.target.files[0]; event.target.value = ''; if (file) { $('#updateDialog').close(); await importBackup(file); } });
@@ -2298,7 +2322,7 @@ window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); instal
 $('#installButton').addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('#installButton').hidden = true; });
 showUpdatedNoticeIfNeeded();
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=96'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
+  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=97'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
   navigator.serviceWorker.addEventListener('message', event => {
     if (event.data?.type !== 'DAY_PUSH') return;
     showReminderAlert(event.data.taskId || '', event.data.title || 'Новое уведомление', event.data.body || '');
@@ -2356,3 +2380,4 @@ setInterval(() => { if (document.visibilityState === 'visible' && navigator.onLi
 
 document.documentElement.lang = appLang; $$('.lang-button').forEach(b => b.classList.toggle('active', b.dataset.lang === appLang)); applyStaticTranslations();
 runAutoCarry(); save(); render(); renderProfile(); renderConnectionState(); refreshUpdateIndicator(); initializeAccount(); checkReminders(); setInterval(checkReminders, 30000);
+applyTheme(localStorage.getItem('day-theme-v1') || 'blue');

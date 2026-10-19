@@ -612,6 +612,29 @@ async function runSpecial(browser, base, mobile, shotsDir) {
     ok(!titles.includes('Чужая старая задача'), 'видно: ' + titles.join(' | '), 'Аккаунты: «общие» старые задачи не подхватываются новым аккаунтом');
   });
 
+  /* Цветовая тема и частота напоминаний */
+  await scenario('Тема: выбор цвета меняет оформление и запоминается', null, async ({ page, ok, click }) => {
+    await click('#profileButton'); await page.waitForTimeout(250);
+    await click('[data-theme-choice="green"]'); await page.waitForTimeout(150);
+    const read = () => page.evaluate(() => ({ t: document.documentElement.dataset.theme || '', v: getComputedStyle(document.documentElement).getPropertyValue('--violet').trim(), meta: document.querySelector('meta[name="theme-color"]').content }));
+    const g = await read(); ok(g.t === 'green' && g.v === '#0f5a43' && g.meta === '#0f5a43', JSON.stringify(g), 'Тема: «Зелёный» меняет основной цвет и цвет шапки браузера');
+    await page.keyboard.press('Escape'); await page.reload({ waitUntil: 'load' }); await page.waitForTimeout(800);
+    const r = await read(); ok(r.t === 'green' && r.v === '#0f5a43', JSON.stringify(r), 'Тема: выбор сохраняется после перезапуска');
+    await click('#profileButton'); await page.waitForTimeout(250); await click('[data-theme-choice="blue"]'); await page.waitForTimeout(150);
+    const b = await read(); ok(b.t === '' && b.v === '#0e3764', JSON.stringify(b), 'Тема: «Синий» возвращает основной цвет');
+  });
+
+  await scenario('Уведомления: частота напоминаний выбирается и сохраняется', null, async ({ page, ok, click }) => {
+    const slots = await page.evaluate(() => ({ once: notificationSlots({ dailyTime: '09:00', repeat: 'once' }).length, twice: notificationSlots({ dailyTime: '09:00', dailyTime2: '18:30', repeat: 'twice' }).join(), h2: notificationSlots({ dailyTime: '09:00', repeat: 'hourly2' }).length, h: notificationSlots({ dailyTime: '09:00', repeat: 'hourly' }).length, late: notificationSlots({ dailyTime: '22:00', repeat: 'hourly' }).length }));
+    ok(slots.once === 1 && slots.twice === '540,1110' && slots.h2 === 7 && slots.h === 13 && slots.late === 1, JSON.stringify(slots), 'Уведомления: расписание «раз/два раза в день, каждые 2 часа, каждый час» считается верно');
+    await openMenu(page, click); await click('#openNotificationSettings'); await page.waitForTimeout(300);
+    ok(!(await page.locator('#notifyTime2Row').isVisible()), '', 'Уведомления: «Второе напоминание» скрыто при «Один раз в день»');
+    await page.selectOption('#notifyRepeat', 'twice'); await page.waitForTimeout(100);
+    ok(await page.locator('#notifyTime2Row').isVisible(), '', 'Уведомления: «Два раза в день» показывает второе время');
+    await page.fill('#notifyDailyTime2', '19:15'); await page.locator('#notificationForm button[type="submit"]').click(); await page.waitForTimeout(500);
+    const saved = await page.evaluate(() => JSON.stringify(notificationSettings)); ok(/"repeat":"twice"/.test(saved) && /19:15/.test(saved), saved, 'Уведомления: частота и время сохраняются');
+  });
+
   /* Все окна: по центру и целиком в экране (ноутбук и телефон) */
   await scenario('Окна: каждое окно по центру и целиком помещается в экран', null, async ({ page, ok }) => {
     const res = await page.evaluate(() => {

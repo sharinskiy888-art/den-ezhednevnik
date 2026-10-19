@@ -296,3 +296,15 @@ dialog { border-radius:12px;box-shadow:0 20px 55px rgba(25,41,57,.22); }.close-b
 /* Телефон: окна-«шторки» занимают всю ширину и стоят по центру (раньше часть окон прижималась влево на 14 px) */
 @media(max-width:850px){ dialog.sync-dialog, dialog.profile-dialog, dialog.finance-add-dialog, dialog.reminder-dialog { width:100%; max-width:none; margin:auto 0 0; border-radius:18px 18px 0 0; } }
 .tag.overdue-tag { background:var(--danger-soft); color:var(--coral); font-weight:700; }
+
+/* Цветовые темы: меняются только основной цвет и его светлый оттенок */
+:root[data-theme="green"] { --violet:#0f5a43; --violet-soft:#dcefe7; }
+:root[data-theme="crimson"] { --violet:#8a1c2b; --violet-soft:#f5e1e4; }
+:root[data-theme="purple"] { --violet:#4b2a8c; --violet-soft:#e8e1f5; }
+:root[data-theme="graphite"] { --violet:#2a3140; --violet-soft:#e4e7ec; }
+#notifyTime2Row[hidden] { display:none !important; }
+.theme-field { display:grid; gap:8px; margin:0 0 16px; font-size:13px; }
+.theme-picker { display:flex; gap:12px; }
+.theme-picker button { width:36px; height:36px; border-radius:50%; border:3px solid transparent; box-shadow:0 0 0 1px var(--line); padding:0; }
+.theme-picker button[aria-pressed="true"] { border-color:#fff; box-shadow:0 0 0 3px var(--violet); }
+.theme-picker [data-theme-choice="blue"] { background:#0e3764; } .theme-picker [data-theme-choice="green"] { background:#0f5a43; } .theme-picker [data-theme-choice="crimson"] { background:#8a1c2b; } .theme-picker [data-theme-choice="purple"] { background:#4b2a8c; } .theme-picker [data-theme-choice="graphite"] { background:#2a3140; }

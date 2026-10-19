@@ -301,6 +301,8 @@
         exact: settings.exact !== false,
         daily: settings.daily !== false,
         dailyTime: settings.dailyTime || '09:00',
+        repeat: settings.repeat || 'once',
+        dailyTime2: settings.dailyTime2 || '18:00',
         overdue: settings.overdue !== false
       },
       updated_at: new Date().toISOString()

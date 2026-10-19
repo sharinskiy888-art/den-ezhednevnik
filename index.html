@@ -4,10 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#0e3764">
+  <script>try{var t=localStorage.getItem("day-theme-v1");if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
   <meta name="description" content="Простой ежедневник, который работает офлайн на телефоне и Windows.">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=96">
+  <link rel="stylesheet" href="styles.css?v=97">
   <title>День — ежедневник</title>
   <script>
     (() => {
@@ -507,7 +508,9 @@
       <div class="permission-state" id="notificationPermissionState"></div>
       <label class="setting-toggle"><span><strong data-i18n="notif.exactTitle">По времени задачи</strong><small data-i18n="notif.exactText">В точное время, указанное в напоминании</small></span><input type="checkbox" id="notifyExact" checked></label>
       <label class="setting-toggle"><span><strong data-i18n="notif.dailyTitle">Сводка на сегодня</strong><small data-i18n="notif.dailyText">Количество дел и ближайшие задачи</small></span><input type="checkbox" id="notifyDaily" checked></label>
-      <label class="notification-time"><span data-i18n="notif.dailyTime">Время сводки</span><input type="time" id="notifyDailyTime" value="09:00"></label>
+      <label class="notification-time"><span data-i18n="notif.dailyTime">Первое напоминание в</span><input type="time" id="notifyDailyTime" value="09:00"></label>
+      <label class="notification-time"><span data-i18n="notif.repeat">Как часто напоминать</span><select id="notifyRepeat"><option value="once" data-i18n="notif.repeatOnce">Один раз в день</option><option value="twice" data-i18n="notif.repeatTwice">Два раза в день</option><option value="hourly2" data-i18n="notif.repeatHourly2">Каждые 2 часа (до 21:00)</option><option value="hourly" data-i18n="notif.repeatHourly">Каждый час (до 21:00)</option></select></label>
+      <label class="notification-time" id="notifyTime2Row"><span data-i18n="notif.dailyTime2">Второе напоминание в</span><input type="time" id="notifyDailyTime2" value="18:00"></label>
       <label class="setting-toggle"><span><strong data-i18n="notif.overdueTitle">Просроченные дела</strong><small data-i18n="notif.overdueText">Один раз в день, если остались незавершённые задачи</small></span><input type="checkbox" id="notifyOverdue" checked></label>
       <button type="button" class="secondary-button notification-test" id="testNotification" data-i18n="notif.test">Проверить уведомление</button>
       <button type="submit" class="primary-button notification-save" data-i18n="notif.save">Сохранить настройки</button>
@@ -606,6 +609,10 @@
           <input type="file" id="profileCameraInput" accept="image/*" capture="user" hidden>
         </div>
         <label><span data-i18n="profile.howToAddress">Как к вам обращаться</span><input id="profileName" maxlength="40" placeholder="Например, Александр" data-i18n-placeholder="profile.namePlaceholder"></label>
+        <div class="theme-field"><strong data-i18n="profile.theme">Цвет оформления</strong>
+          <div class="theme-picker" id="themePicker" role="group" aria-label="Цвет оформления" data-i18n-aria="profile.theme">
+            <button type="button" data-theme-choice="blue" aria-label="Синий"></button><button type="button" data-theme-choice="green" aria-label="Зелёный"></button><button type="button" data-theme-choice="crimson" aria-label="Бордовый"></button><button type="button" data-theme-choice="purple" aria-label="Фиолетовый"></button><button type="button" data-theme-choice="graphite" aria-label="Графит"></button>
+          </div></div>
         <p class="profile-note" data-i18n="profile.note">Здесь можно изменить имя и фотографию профиля.</p>
         <div class="profile-actions"><button type="submit" class="primary-button" data-i18n="common.save">Сохранить</button></div>
       </form>
@@ -613,9 +620,9 @@
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastAction" hidden></button></div>
-  <script src="sync-config.js?v=96"></script>
-  <script src="sync.js?v=96"></script>
-  <script src="i18n-en.js?v=96"></script>
-  <script src="app.js?v=96"></script>
+  <script src="sync-config.js?v=97"></script>
+  <script src="sync.js?v=97"></script>
+  <script src="i18n-en.js?v=97"></script>
+  <script src="app.js?v=97"></script>
 </body>
 </html>
