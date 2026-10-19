@@ -174,7 +174,7 @@ const $$ = (selector) => [...document.querySelectorAll(selector)];
 const pad = (n) => String(n).padStart(2, '0');
 const toKey = (date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 const fromKey = (key) => { const [y, m, d] = key.split('-').map(Number); return new Date(y, m - 1, d); };
-const todayKey = toKey(new Date());
+let todayKey = toKey(new Date());
 
 const accountSuffix = () => window.DaySync?.user()?.id || 'guest';
 const taskStorageKey = () => `${STORAGE_KEY}:${accountSuffix()}`;
@@ -1387,6 +1387,9 @@ function notificationSlots(settings) {
   return [first];
 }
 async function checkReminders() {
+  // Приложение могло стоять открытым с вчера: «сегодня» обновляем, иначе напоминания и просрочка считаются по старой дате.
+  const nowKey = toKey(new Date());
+  if (nowKey !== todayKey) { const followToday = selectedDate === todayKey; todayKey = nowKey; if (followToday) selectedDate = nowKey; runAutoCarry(); save(); render(); renderFinance(); }
   const now = new Date(); updateAppBadge();
   const due = tasks.filter(t => !t.completed && t.reminder && !t.notified && new Date(t.reminder) <= now);
   for (const task of due) {
@@ -1404,9 +1407,11 @@ async function checkReminders() {
   // Расписание повторов: у каждого времени своя отметка «уже напомнили»; если приложение открыли поздно, напоминание одно (последнее), а не пачка.
   const slots = notificationSlots(notificationSettings); const reached = slots.filter(slot => minutesNow >= slot);
   const slotKey = slot => notificationStampKey(`daily-${slot}`);
-  if (notificationSettings.daily && reached.length && reached.some(slot => !localStorage.getItem(slotKey(slot)))) {
+  const legacyDone = !!localStorage.getItem(notificationStampKey('daily')); // отметка прошлых версий: первое напоминание сегодня уже было
+  const stamped = slot => !!localStorage.getItem(slotKey(slot)) || (legacyDone && slot === slots[0]);
+  if (notificationSettings.daily && todayTasks.length && reached.some(slot => !stamped(slot))) {
     reached.forEach(slot => localStorage.setItem(slotKey(slot), '1'));
-    if (todayTasks.length) { const first = reached.length === 1 && slots[0] === reached[0]; const preview = todayTasks.slice(0, 3).map(task => task.title).join(' · '); await showAppNotification(first ? `Сегодня дел: ${todayTasks.length}` : `Осталось дел на сегодня: ${todayTasks.length}`, { body: preview, tag: `daily-${todayKey}`, renotify: true }); }
+    { const first = reached.length === 1 && slots[0] === reached[0]; const preview = todayTasks.slice(0, 3).map(task => task.title).join(' · '); await showAppNotification(first ? `Сегодня дел: ${todayTasks.length}` : `Осталось дел на сегодня: ${todayTasks.length}`, { body: preview, tag: `daily-${todayKey}`, renotify: true }); }
   }
   const overdue = tasks.filter(task => !task.completed && task.date < todayKey);
   if (notificationSettings.overdue && overdue.length && !localStorage.getItem(notificationStampKey('overdue'))) {
@@ -1425,7 +1430,7 @@ async function saveNotificationSettings(event) { event.preventDefault(); notific
 // Цветовая тема: хранится на устройстве; в разметке стоит data-theme (пусто = синяя).
 const THEME_COLORS = { blue: '#0e3764', green: '#0f5a43', crimson: '#8a1c2b', purple: '#4b2a8c', graphite: '#2a3140' };
 function applyTheme(name) {
-  const theme = THEME_COLORS[name] ? name : 'blue';
+  const theme = Object.hasOwn(THEME_COLORS, name) ? name : 'blue';
   if (theme === 'blue') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = theme;
   try { localStorage.setItem('day-theme-v1', theme === 'blue' ? '' : theme); } catch {}
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', THEME_COLORS[theme]);
@@ -2380,4 +2385,4 @@ setInterval(() => { if (document.visibilityState === 'visible' && navigator.onLi
 
 document.documentElement.lang = appLang; $$('.lang-button').forEach(b => b.classList.toggle('active', b.dataset.lang === appLang)); applyStaticTranslations();
 runAutoCarry(); save(); render(); renderProfile(); renderConnectionState(); refreshUpdateIndicator(); initializeAccount(); checkReminders(); setInterval(checkReminders, 30000);
-applyTheme(localStorage.getItem('day-theme-v1') || 'blue');
+try { applyTheme(localStorage.getItem('day-theme-v1') || 'blue'); } catch { applyTheme('blue'); }

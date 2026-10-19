@@ -635,6 +635,12 @@ async function runSpecial(browser, base, mobile, shotsDir) {
     const saved = await page.evaluate(() => JSON.stringify(notificationSettings)); ok(/"repeat":"twice"/.test(saved) && /19:15/.test(saved), saved, 'Уведомления: частота и время сохраняются');
   });
 
+  /* Приложение открыто со вчера: «сегодня» обновляется само */
+  await scenario('Смена дня: «сегодня» обновляется без перезапуска', null, async ({ page, ok }) => {
+    const r = await page.evaluate(async () => { const real = todayKey; todayKey = '2000-01-01'; selectedDate = '2000-01-01'; await checkReminders(); return { fixed: todayKey === real, followed: selectedDate === real }; });
+    ok(r.fixed && r.followed, JSON.stringify(r), 'Смена дня: дата «сегодня» и выбранный день обновляются сами');
+  });
+
   /* Все окна: по центру и целиком в экране (ноутбук и телефон) */
   await scenario('Окна: каждое окно по центру и целиком помещается в экран', null, async ({ page, ok }) => {
     const res = await page.evaluate(() => {
