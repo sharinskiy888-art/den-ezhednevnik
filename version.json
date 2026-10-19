@@ -1,7 +1,8 @@
 {
-  "version": "95",
+  "version": "96",
   "released": "2026-10-15",
   "notes": [
+    "Основной синий цвет стал темнее и насыщеннее во всех разделах. Совместные задачи больше не пропадают вместе со своим днём: пока задача не завершена, она остаётся в «Сегодня» с меткой «Просрочена». Защита от чужих данных: при выходе из аккаунта уведомления отключаются на этом устройстве (новый аккаунт на том же компьютере больше не получает напоминания старого), а старые «общие» данные не подхватываются новым аккаунтом.",
     "Совместные задачи стали понятнее: исполнитель открывает задачу в режиме просмотра — название, дата, заметка и подзадачи только для чтения, а внизу блок «Мой ответ»: статус («Принял», «В работе», «Есть вопрос», «Готово, на проверке»), отметки подзадач и отчёты (текст, фото, голос). Менять саму задачу и завершать её может только организатор (кнопка «Редактировать»). Окна на телефоне больше не прижимаются влево: «Вход в облако», «Профиль» и «Добавить расход» теперь стоят ровно.",
     "Совместные задачи: теперь можно нажать на название задачи (а не только на «•••»), и она откроется — там отчёты, фото и комментарии.",
     "Надёжнее обновления и старые данные: записи из прошлых версий, облака и файла копии теперь автоматически приводятся к текущему формату, поэтому экраны не ломаются на «старых» данных. Автообновление больше не перезагружает страницу, пока открыто окно или вы набираете текст.",
@@ -76,6 +77,7 @@
     "Добавлены общий прогресс, роли, статусы «В работе», «На проверке» и «Завершено»."
   ],
   "notesEn": [
+    "The main blue is now darker and richer everywhere. Shared tasks no longer disappear with their day: until completed they stay in “Today” marked “Overdue”. Protection from other accounts’ data: signing out now turns off notifications on this device (a new account on the same computer no longer receives the old account’s reminders), and old shared local data is no longer picked up by a new account.",
     "Shared tasks are clearer: the assignee opens the task in read-only view — title, date, note and subtasks cannot be changed — with a “My reply” block below: status (Accepted, In progress, Question, Done — in review), subtask ticks and reports (text, photo, voice). Only the organizer can edit or complete the task (the “Edit” button). Windows on the phone no longer stick to the left: Sign in, Profile and Add expense are now aligned.",
     "Shared tasks: tap the task title (not only the ••• button) to open it — reports, photos and comments are inside.",
     "Safer updates and old data: records from earlier versions, the cloud and backup files are now converted to the current format automatically, so screens no longer break on old data. Auto-update no longer reloads the page while a dialog is open or you are typing.",

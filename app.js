@@ -11,7 +11,7 @@ const NOTIFICATION_KEY = 'day-planner-notifications-v1';
 const EXPENSES_KEY = 'day-planner-expenses-v1';
 const FINANCE_LIMITS_KEY = 'day-planner-finance-limits-v1';
 const DELETED_EXPENSES_KEY = 'day-planner-deleted-expenses-v1';
-const APP_VERSION = '95';
+const APP_VERSION = '96';
 const UPDATE_SEEN_KEY = 'day-planner-update-seen-v1';
 const UPDATE_APPLIED_KEY = 'day-planner-update-applied-v1';
 const LANG_KEY = 'day-planner-lang-v1';
@@ -176,7 +176,6 @@ const toKey = (date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad
 const fromKey = (key) => { const [y, m, d] = key.split('-').map(Number); return new Date(y, m - 1, d); };
 const todayKey = toKey(new Date());
 
-const migrateExistingAccount = !!window.DaySync?.user();
 const accountSuffix = () => window.DaySync?.user()?.id || 'guest';
 const taskStorageKey = () => `${STORAGE_KEY}:${accountSuffix()}`;
 const deletedStorageKey = () => `${DELETED_KEY}:${accountSuffix()}`;
@@ -271,11 +270,7 @@ function normalizeExpense(e) {
 function loadTasks() {
   try {
     let current = localStorage.getItem(taskStorageKey());
-    if (!current && migrateExistingAccount && window.DaySync?.user()) {
-      current = localStorage.getItem(STORAGE_KEY) || localStorage.getItem(LEGACY_KEY);
-      if (current) localStorage.setItem(taskStorageKey(), current);
-      localStorage.removeItem(STORAGE_KEY); localStorage.removeItem(LEGACY_KEY);
-    }
+    // Старые «общие» данные (до появления аккаунтов) больше не подхватываются чужим аккаунтом: они видны только без входа.
     const legacy = accountSuffix() === 'guest' ? localStorage.getItem(STORAGE_KEY) || localStorage.getItem(LEGACY_KEY) : null;
     const parsed = JSON.parse(current || legacy || 'null');
     if (Array.isArray(parsed)) return parsed.map(normalizeTask).filter(Boolean);
@@ -808,8 +803,12 @@ function visibleSharedTasks() {
   if (searchQuery) return list.filter(t => `${t.title} ${t.note || ''} ${(t.subtasks || []).map(s => s.title).join(' ')}`.toLocaleLowerCase('ru').includes(searchQuery));
   if (currentView === 'upcoming') return list.filter(t => t.date >= todayKey && t.status !== 'completed');
   if (currentView === 'completed') return list.filter(t => t.status === 'completed');
-  return list.filter(t => t.date >= start && t.date <= end);
+  // Незавершённая совместная задача не пропадает вместе со своим днём: пока она не завершена, она показывается
+  // в любом периоде, который включает сегодня, как просроченная.
+  const includesToday = todayKey >= start && todayKey <= end;
+  return list.filter(t => (t.date >= start && t.date <= end) || (includesToday && isSharedOverdue(t)));
 }
+function isSharedOverdue(t) { return !!t?.date && t.date < todayKey && t.status !== 'completed'; }
 function renderTaskRow(t) {
     const subDone = (t.subtasks || []).filter(s => s.done).length;
     const carryLabel = t.carryCount ? `${tr('task.carriedOver')} ${carryDayLabel(t.carryCount)}` : tr('task.autoCarryTag');
@@ -830,8 +829,8 @@ function renderSharedTaskRow(t) {
   return `<article class="task shared-day-task ${done ? 'completed' : ''}" data-shared-task-id="${t.id}">
     <input class="check" type="checkbox" data-shared-check="${t.id}" ${done ? 'checked' : ''} aria-label="${tr('task.markDoneAria')} ${escapeHtml(t.title)}">
     <div class="task-main"><div class="task-title">${escapeHtml(t.title)}</div><div class="task-meta">
-      <span>${currentPeriod !== 'day' || currentView !== 'today' ? formatShortDate(t.date) + ' · ' : ''}${t.time || tr('task.anytime')}</span>
-      <span class="tag shared-tag">◎ ${tr('task.shared')}</span><span class="tag">${owner}</span>
+      <span>${currentPeriod !== 'day' || currentView !== 'today' || isSharedOverdue(t) ? formatShortDate(t.date) + ' · ' : ''}${t.time || tr('task.anytime')}</span>
+      ${isSharedOverdue(t) ? `<span class="tag overdue-tag">⏰ ${L('Просрочена', 'Overdue')}</span>` : ''}<span class="tag shared-tag">◎ ${tr('task.shared')}</span><span class="tag">${owner}</span>
       ${t.status === 'review' ? `<span class="tag">${tr('task.statusReview')}</span>` : ''}
       ${(t.subtasks || []).length ? `<span class="tag checklist">☑ ${subDone}/${t.subtasks.length}</span>` : ''}
     </div>${(t.subtasks || []).length ? `<div class="subtask-list">${t.subtasks.map((s, i) => `<button type="button" class="subtask ${s.done ? 'done' : ''}" data-shared-day-subtask="${t.id}" data-sub-index="${i}"><i>${s.done ? '✓' : ''}</i>${escapeHtml(s.title)}${s.done && s.doneBy ? ` <small>${escapeHtml(s.doneBy.split('@')[0])}</small>` : ''}</button>`).join('')}</div>` : ''}</div><button class="more-button" data-shared-edit="${t.id}" aria-label="${tr('task.editAria')} ${escapeHtml(t.title)}">•••</button></article>`;
@@ -1298,6 +1297,20 @@ function urlBase64ToUint8Array(value = '') {
   const base64 = (value + padding).replace(/-/g, '+').replace(/_/g, '/');
   const raw = atob(base64); return Uint8Array.from([...raw].map(char => char.charCodeAt(0)));
 }
+// Push-подписка принадлежит устройству, а не аккаунту: после выхода или смены аккаунта её нужно отвязать,
+// иначе это устройство продолжит получать напоминания прежнего аккаунта.
+const PUSH_OWNER_KEY = 'day-push-owner-v1';
+async function detachPushSubscription() {
+  try {
+    const registration = await navigator.serviceWorker?.ready; const subscription = await registration?.pushManager?.getSubscription();
+    if (subscription) {
+      try { await window.DaySync?.deletePushSubscription?.(subscription.endpoint); } catch {}
+      await subscription.unsubscribe();
+    }
+  } catch {}
+  try { localStorage.removeItem(PUSH_OWNER_KEY); } catch {}
+  pushSubscriptionActive = false; pushSubscriptionRegisteredAt = 0;
+}
 async function ensurePushSubscription(forceSave = false) {
   if (!window.DaySync?.user() || !window.DaySync?.savePushSubscription || !('serviceWorker' in navigator) || !('PushManager' in window) || Notification.permission !== 'granted') {
     pushSubscriptionActive = false; return false;
@@ -1305,6 +1318,8 @@ async function ensurePushSubscription(forceSave = false) {
   try {
     const registration = await navigator.serviceWorker.ready;
     let subscription = await registration.pushManager.getSubscription();
+    const accountId = window.DaySync.user().id; let owner = ''; try { owner = localStorage.getItem(PUSH_OWNER_KEY) || ''; } catch {}
+    if (subscription && owner !== accountId) { await subscription.unsubscribe(); subscription = null; }
     // Ключ уведомлений сменился (новое облако) — старая подписка больше не принимает уведомления, оформляем заново.
     const currentKey = subscription?.options?.applicationServerKey;
     if (subscription && currentKey && window.SUPABASE_CONFIG?.vapidPublicKey) {
@@ -1320,6 +1335,7 @@ async function ensurePushSubscription(forceSave = false) {
     if (forceSave || Date.now() - pushSubscriptionRegisteredAt > 10 * 60 * 1000) {
       await window.DaySync.savePushSubscription(subscription, document.documentElement.lang || 'ru', notificationSettings);
       pushSubscriptionRegisteredAt = Date.now();
+      try { localStorage.setItem(PUSH_OWNER_KEY, accountId); } catch {}
     }
     pushSubscriptionActive = true; return true;
   } catch {
@@ -1680,9 +1696,9 @@ async function unlockWithPin(event) {
   markPinUnlocked(); $('#pinDialog').close(); performSync(false);
 }
 async function useAccountPassword() {
-  $('#pinDialog').close(); save(); await window.DaySync.signOut(); pinUnlocked = false; switchAccountData(); $('#syncDialog').showModal();
+  $('#pinDialog').close(); save(); await detachPushSubscription(); await window.DaySync.signOut(); pinUnlocked = false; switchAccountData(); $('#syncDialog').showModal();
 }
-async function handleSyncLogout() { save(); await window.DaySync.signOut(); pinUnlocked = false; switchAccountData(); toast('Вы вышли. Личные задачи этого аккаунта скрыты.'); }
+async function handleSyncLogout() { save(); await detachPushSubscription(); await window.DaySync.signOut(); pinUnlocked = false; switchAccountData(); toast('Вы вышли. Личные задачи этого аккаунта скрыты.'); }
 
 function compareAppVersions(left, right) {
   const a = String(left).split('.').map(Number); const b = String(right).split('.').map(Number);
@@ -2282,7 +2298,7 @@ window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); instal
 $('#installButton').addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('#installButton').hidden = true; });
 showUpdatedNoticeIfNeeded();
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=95'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
+  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=96'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
   navigator.serviceWorker.addEventListener('message', event => {
     if (event.data?.type !== 'DAY_PUSH') return;
     showReminderAlert(event.data.taskId || '', event.data.title || 'Новое уведомление', event.data.body || '');

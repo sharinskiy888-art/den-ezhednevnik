@@ -83,6 +83,9 @@ function seedData(signedIn, opts = {}) {
   // совместная задача: по умолчанию уже принята (чтобы всплывающее приглашение не перекрывало экран); opts.invite — ждёт ответа
   const inv = !!opts.invite;
   const sharedRow = signedIn ? [{ id: '99999999-9999-4999-8999-999999999999', owner_id: 'u-other', owner_email: 'brother@example.com', invited_emails: inv ? ['tester@example.com'] : [], accepted_emails: inv ? [] : ['tester@example.com'], updated_at: new Date().toISOString(), payload: t('99999999-9999-4999-8999-999999999999', { title: 'Совместная от брата', status: 'new', activity: [] }) }] : [];
+  if (signedIn && opts.overdue) sharedRow.push(
+    { id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', owner_id: 'u-other', owner_email: 'brother@example.com', invited_emails: [], accepted_emails: ['tester@example.com'], updated_at: new Date().toISOString(), payload: t('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', { title: 'Просроченная совместная', date: yesterday, status: 'open', activity: [] }) },
+    { id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', owner_id: 'u-other', owner_email: 'brother@example.com', invited_emails: [], accepted_emails: ['tester@example.com'], updated_at: new Date().toISOString(), payload: t('cccccccc-cccc-4ccc-8ccc-cccccccccccc', { title: 'Завершённая вчерашняя', date: yesterday, status: 'completed', completed: true, activity: [] }) });
   if (signedIn && opts.owned) sharedRow.splice(0, sharedRow.length, { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', owner_id: 'u-tester-0001', owner_email: 'tester@example.com', invited_emails: [], accepted_emails: ['brother@example.com'], updated_at: new Date().toISOString(), payload: t('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', { title: 'Моя совместная', status: 'open', subtasks: [{ title: 'Пункт А', done: false }], activity: [] }) });
   return { tasks, sharedRow, today };
 }
@@ -589,6 +592,24 @@ async function runSpecial(browser, base, mobile, shotsDir) {
     await click('#svEdit'); await page.waitForTimeout(250);
     ok((await page.locator('#taskDialog[data-mode="edit"]').count()) === 1 && await page.locator('#taskTitle').isVisible() && await page.locator('#sharedEmails').isEnabled() && !(await page.locator('#sharedView').isVisible()), '', 'Организатор: «Редактировать» открывает полную форму');
     await page.keyboard.press('Escape'); await page.waitForTimeout(150);
+  });
+
+  /* Совместные задачи не теряются вместе со своим днём, пока не завершены */
+  await scenario('Совместные задачи: просроченная остаётся в «Сегодня», завершённая — нет', { seed: { overdue: true } }, async ({ page, ok }) => {
+    const titles = (await page.locator('#taskList .task-title').allInnerTexts());
+    ok(titles.includes('Просроченная совместная'), 'в «Сегодня»: ' + titles.join(' | '), 'Совместные: незавершённая вчерашняя задача показана сегодня');
+    ok(!titles.includes('Завершённая вчерашняя'), '', 'Совместные: завершённая вчерашняя в «Сегодня» не показывается');
+    ok((await page.locator('#taskList .task', { hasText: 'Просроченная совместная' }).locator('.overdue-tag').count()) === 1, '', 'Совместные: у просроченной есть метка «Просрочена»');
+    await page.locator('#taskList .task', { hasText: 'Просроченная совместная' }).locator('[data-shared-check]').check(); await page.waitForTimeout(700);
+    ok((await page.locator('#taskList .task-title', { hasText: 'Просроченная совместная' }).count()) === 0 || (await page.locator('#taskList .task.completed', { hasText: 'Просроченная совместная' }).count()) === 0, '', 'Совместные: после завершения метка просрочки исчезает');
+  });
+
+  /* Чужие данные: старые «общие» ключи не попадают в новый аккаунт */
+  await scenario('Аккаунты: старые общие данные не появляются у нового аккаунта', null, async ({ page, ok }) => {
+    await page.evaluate(() => { localStorage.removeItem('day-planner-tasks-v2:u-tester-0001'); localStorage.setItem('day-planner-tasks-v2', JSON.stringify([{ id: 'old1', title: 'Чужая старая задача', date: toKey(new Date()), priority: 'normal', completed: false }])); });
+    await page.reload({ waitUntil: 'load' }); await page.waitForTimeout(900);
+    const titles = await page.locator('#taskList .task-title').allInnerTexts();
+    ok(!titles.includes('Чужая старая задача'), 'видно: ' + titles.join(' | '), 'Аккаунты: «общие» старые задачи не подхватываются новым аккаунтом');
   });
 
   /* Все окна: по центру и целиком в экране (ноутбук и телефон) */
