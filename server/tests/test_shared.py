@@ -128,6 +128,14 @@ def test_owner_changes_everything_with_full_row(server, team):
     assert get(server, team)['invited_emails'] == []
 
 
+def test_owner_cannot_mark_someone_accepted(server, team):
+    """Принимает поручение только сам приглашённый, организатор не может «принять» за него."""
+    cur = get(server, team)
+    body = {'accepted_emails': cur['accepted_emails'] + [team['invited'].email], 'updated_at': cur['updated_at']}
+    assert server.patch(f"/api/shared/{team['id']}", body, team['owner'].token)[0] == 403
+    assert team['invited'].email not in get(server, team)['accepted_emails']
+
+
 def test_owner_cannot_give_away_ownership_by_patch(server, team):
     status = server.patch(f"/api/shared/{team['id']}", {'owner_id': team['worker'].id, 'owner_email': team['worker'].email}, team['owner'].token)[0]
     assert status == 403

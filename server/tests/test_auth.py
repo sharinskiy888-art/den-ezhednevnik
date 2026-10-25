@@ -104,14 +104,26 @@ def test_refresh_returns_full_session(server, make_user):
     assert new['user']['id'] == u.id and new['refresh_token'] != u.session['refresh_token']
 
 
-def test_reused_refresh_token_revokes_whole_session(server, make_user):
+def test_parallel_refresh_within_grace_is_ok(server, make_user):
+    """Синхронизация и присутствие обновляют вход одновременно одним и тем же токеном — человека не выкидывает."""
     u = make_user()
-    status, new, _ = server.post('/api/auth/refresh', {'refresh_token': u.session['refresh_token']})
+    a = server.post('/api/auth/refresh', {'refresh_token': u.session['refresh_token']})
+    b = server.post('/api/auth/refresh', {'refresh_token': u.session['refresh_token']})
+    assert a[0] == b[0] == 200
+    assert server.get('/api/auth/user', a[1]['access_token'])[0] == 200
+    assert server.get('/api/auth/user', b[1]['access_token'])[0] == 200
+
+
+def test_reused_refresh_token_after_grace_revokes_whole_session(fresh_server):
+    api = fresh_server(DEN_REFRESH_GRACE=1)
+    s = api.login(ADMIN_EMAIL, ADMIN_PASSWORD)
+    status, new, _ = api.post('/api/auth/refresh', {'refresh_token': s['refresh_token']})
     assert status == 200
-    assert server.post('/api/auth/refresh', {'refresh_token': u.session['refresh_token']})[0] == 401
-    # Старый токен кто-то украл и использовал повторно — сессия отзывается целиком, включая новый токен.
-    assert server.post('/api/auth/refresh', {'refresh_token': new['refresh_token']})[0] == 401
-    assert server.get('/api/auth/user', new['access_token'])[0] == 401
+    time.sleep(2)
+    # Старый токен кто-то украл и использовал позже — сессия отзывается целиком, включая новый токен.
+    assert api.post('/api/auth/refresh', {'refresh_token': s['refresh_token']})[0] == 401
+    assert api.post('/api/auth/refresh', {'refresh_token': new['refresh_token']})[0] == 401
+    assert api.get('/api/auth/user', new['access_token'])[0] == 401
 
 
 def test_bad_refresh_token(server):
@@ -162,9 +174,24 @@ def test_restart_keeps_data_and_does_not_recreate_admin(fresh_server, tmp_path):
     api = fresh_server(data_dir=data)
     token = api.login(ADMIN_EMAIL, ADMIN_PASSWORD)['access_token']
     assert api.post('/api/admin/users', {'email': 'stay@den.test', 'password': 'pass-123456'}, token)[0] == 201
+    api.stop()
     again = fresh_server(data_dir=data, DEN_ADMIN_PASSWORD='other-pass-000')
     assert again.post('/api/auth/login', {'email': 'stay@den.test', 'password': 'pass-123456'})[0] == 200
     assert again.post('/api/auth/login', {'email': ADMIN_EMAIL, 'password': ADMIN_PASSWORD})[0] == 200
+
+
+def test_second_server_on_same_folder_refuses(fresh_server, tmp_path):
+    import subprocess, sys, os
+    from conftest import ROOT, SECRET, free_port
+    data = tmp_path / 'locked'
+    fresh_server(data_dir=data)
+    env = {**os.environ, 'DEN_DATA_DIR': str(data), 'DEN_SECRET': SECRET}
+    try:
+        p = subprocess.run([sys.executable, '-m', 'uvicorn', 'server.main:app', '--port', str(free_port())],
+                           cwd=ROOT, env=env, capture_output=True, text=True, timeout=20)
+    except subprocess.TimeoutExpired:
+        pytest.fail('Второй сервер запустился на ту же папку данных')
+    assert p.returncode != 0
 
 
 def test_log_has_no_passwords_or_tokens(server, make_user):
@@ -259,5 +286,5 @@ def test_rate_limit_lifts_after_window(fresh_server):
     for _ in range(5):
         api.post('/api/auth/login', {'email': ADMIN_EMAIL, 'password': 'wrong'})
     assert api.post('/api/auth/login', {'email': ADMIN_EMAIL, 'password': ADMIN_PASSWORD})[0] == 429
-    time.sleep(2.5)
+    time.sleep(3.5)
     assert api.post('/api/auth/login', {'email': ADMIN_EMAIL, 'password': ADMIN_PASSWORD})[0] == 200

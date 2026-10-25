@@ -1,6 +1,7 @@
 """Служебное: CORS, кэш, формат ошибок, обратная связь, автокопии, раздача экранов, секреты."""
 import base64
 import os
+import re
 import sqlite3
 import subprocess
 import sys
@@ -78,7 +79,7 @@ def test_backup_includes_files_folder(server, admin):
     sample = server.data_dir / 'files' / 'shared' / 'probe' / 'x.jpg'
     sample.parent.mkdir(parents=True, exist_ok=True)
     sample.write_bytes(b'probe')
-    server.post('/api/admin/backup', token=admin.token)
+    assert server.post('/api/admin/backup', token=admin.token)[0] == 201
     zips = sorted((server.data_dir / 'backups').glob('files-*.zip'))
     assert zips and 'shared/probe/x.jpg' in zipfile.ZipFile(zips[-1]).namelist()
 
@@ -86,9 +87,12 @@ def test_backup_includes_files_folder(server, admin):
 def test_backups_rotate(fresh_server):
     api = fresh_server(DEN_BACKUP_KEEP=3)
     token = api.login(ADMIN_EMAIL, ADMIN_PASSWORD)['access_token']
+    names = []
     for _ in range(5):
-        assert api.post('/api/admin/backup', token=token)[0] == 201
-        time.sleep(1.1)
+        status, body, _ = api.post('/api/admin/backup', token=token)
+        assert status == 201
+        names.append(body['file'])
+    assert len(set(names)) == 5  # копии подряд в одну секунду не затирают друг друга
     assert len(list((api.data_dir / 'backups').glob('den-*.db'))) == 3
 
 
@@ -104,7 +108,9 @@ def test_secrets_not_in_repository():
     gi = (ROOT / '.gitignore').read_text()
     assert 'den.env' in gi and 'data/' in gi
     code = '\n'.join(p.read_text() for p in (ROOT / 'server').glob('*.py'))
-    assert 'DEN_SECRET' in code and "getenv('DEN_SECRET', '" not in code and 'get("DEN_SECRET", "' not in code
+    # Пустое значение по умолчанию с последующим отказом — нормально; непустое «запасное» значение секрета — нет.
+    assert 'DEN_SECRET' in code
+    assert not re.search(r"""(getenv|\.get)\(\s*['"]DEN_SECRET['"]\s*,\s*['"][^'"]+['"]""", code)
 
 
 def run_without_secret(tmp_path, secret=None):

@@ -123,7 +123,7 @@ def start_server(tmp_path, data_dir=None, **env_extra):
 @pytest.fixture(scope='session')
 def server(tmp_path_factory):
     # Общий сервер с большим лимитом попыток: неудачные входы из разных тестов не должны блокировать друг друга.
-    proc, api = start_server(tmp_path_factory.mktemp('main'), DEN_LOGIN_LIMIT=10000)
+    proc, api = start_server(tmp_path_factory.mktemp('main'), DEN_LOGIN_LIMIT=10000, DEN_FEEDBACK_LIMIT=10000)
     yield api
     proc.terminate()
     proc.wait(10)
@@ -137,11 +137,17 @@ def fresh_server(tmp_path):
     def make(data_dir=None, **env):
         proc, api = start_server(tmp_path, data_dir, **env)
         procs.append(proc)
+
+        def stop():
+            proc.terminate()
+            proc.wait(10)
+        api.stop = stop
         return api
     yield make
     for p in procs:
-        p.terminate()
-        p.wait(10)
+        if p.poll() is None:
+            p.terminate()
+            p.wait(10)
 
 
 @pytest.fixture(scope='session')
