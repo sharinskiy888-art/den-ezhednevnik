@@ -103,6 +103,7 @@ NGINX
 ln -sf /etc/nginx/sites-available/den /etc/nginx/sites-enabled/den
 rm -f /etc/nginx/sites-enabled/default
 nginx -t -q
+systemctl enable --now nginx >/dev/null 2>&1
 systemctl reload nginx
 if [ $TLS = 1 ]; then
   certbot --nginx -d "$DOMAIN" -m "$EMAIL" --agree-tos --non-interactive --redirect
