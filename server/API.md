@@ -167,3 +167,34 @@ Email всегда приводится к нижнему регистру и о
 | `savePushSubscription`, `deletePushSubscription` | `push_subscriptions` | отложено |
 | `deleteAccount` | `rpc/delete_own_account` | не используется экранами; удаляет админ |
 | форма обратной связи (`app.js`) | formsubmit.co | `/api/feedback` |
+
+## 9. CRM — клиенты, объекты, заявки, ТО (`crm.py`, этап 4)
+**Роли CRM** (столбец `users.crm_role`): `manager` — всё; `worker` (монтажник) — только читает назначенные ему заявки, их объекты и клиентов этих объектов, и справочник; пусто — раздела нет (`403`). Админ всегда `manager`.
+Назначает админ: `PUT /api/admin/users/{id}/crm {role: "manager"|"worker"|""}` или `python -m server.admin crm <email> manager|worker|none`.
+
+| Метод и адрес | Кто | Ответ |
+|---|---|---|
+| `GET /api/crm/me` | любой вошедший | `200 {role}` (`""` — раздела нет) |
+| `GET /api/crm/{kind}/heads` | manager, worker | `200 [{id, updated_at, pu}]` — только видимые этой роли |
+| `GET /api/crm/{kind}?ids=…` | manager, worker | `200 [{id, payload, updated_at}]`; невидимые пропускаются |
+| `POST /api/crm/{kind}` | manager | `204`. Тело — список `{id, payload, updated_at}`, как у личных данных. Надгробие — `payload: {id, __deleted: true, updatedAt}` |
+| `DELETE /api/crm/{kind}/{id}` | manager | `204` (убрать истёкшее надгробие) |
+| `POST /api/crm/maintenance` | manager | `200 {created}` — создать заявки ТО по договорам сейчас (сервер делает это сам каждые 10 минут) |
+| `POST /api/files/crm/{object_id}?ext=jpg` | manager | `201 {path: "crm/<object_id>/<uuid>.jpg"}` — фото объекта |
+| `GET /api/files/crm/{object_id}/{name}` | кто видит объект | `200` файл; иначе `404` |
+
+`kind`: `clients, objects, orders, contracts, payments, dict`. Монтажнику `contracts` и `payments` — пустые списки. `id` — буквы, цифры, `-`, `_`, до 90 символов.
+
+**Поля (`payload`).** Неизвестные поля хранятся как есть; известные проверяются (`400`):
+- `clients`: `name` (обязательно), `inn` — строкой, `phone`, `email`, `contact`, `note`.
+- `objects`: `clientId` (обязательно), `address`, `systems` — список строк из справочника, `equipment`, `note`, `photos` — список путей `crm/<id объекта>/…`.
+- `orders`: `objectId` (обязательно), `type` (из справочника), `stage` — `new → kp → work → done → paid`, `assignees` — список email, `due` — `ГГГГ-ММ-ДД`, `sumKop` — целое ≥ 0 (копейки), `note`, `contractId`.
+- `contracts`: `objectId`, `periodMonths` 1–24 (по умолчанию 1), `priceKop`, `nextDate`, `assignees`, `active`, `type` (по умолчанию «ТО»).
+- `payments`: `orderId`, `kind` — `income|expense`, `amountKop` — целое > 0, `date`, `note`.
+- `dict` (одна строка `id = "dict"`): `workTypes`, `systems` — списки строк. Пустой справочник: виды работ «Монтаж, Ремонт, ТО, Проект», системы «АПС, СОУЭ, Видеонаблюдение, Электрика».
+
+**Заявка с исполнителями = поручение.** При записи заявки с непустым `assignees` сервер создаёт или обновляет поручение `id = "crm-<id заявки>"`: организатор — кто записал заявку, приглашены исполнители, название «<вид работ>: <адрес>», дата = `due`, `crmOrderId`. Статусы, отчёты с фото и голосовыми, напоминания — как у любого поручения. Исполнитель убран из заявки — убирается и из поручения. Заявка удалена — поручение удаляется вместе с файлами.
+
+**Договор ТО.** Для активного договора, у которого `nextDate` наступит в ближайшие 7 дней, сервер создаёт заявку `id = "to-<id договора>-<дата>"` (вид «ТО», этап «new», `due = nextDate`, `sumKop = priceKop`, исполнители договора — значит, и поручение) и переносит `nextDate` на `periodMonths` вперёд. Повторный запуск ничего не дублирует.
+
+**Скорость:** поиск и открытие карточки — на устройстве, без ожидания сервера (данные CRM синхронизируются на устройство так же, как задачи). Цель: поиск по любому слову среди 10 000 записей < 100 мс.

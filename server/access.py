@@ -94,6 +94,7 @@ class User:
     email: str
     role: str
     sid: str
+    crm_role: str = ''
 
     @property
     def is_admin(self):
@@ -110,10 +111,10 @@ def user_from_token(con, token):
         return None
     if not isinstance(data, dict) or data.get('exp', 0) < time.time():
         return None
-    row = con.execute('select u.id, u.email, u.role from sessions s join users u on u.id = s.user_id '
+    row = con.execute('select u.id, u.email, u.role, u.crm_role from sessions s join users u on u.id = s.user_id '
                       'where s.id=? and s.user_id=? and s.revoked=0 and s.expires_at>?',
                       (data.get('sid'), data.get('sub'), time.time())).fetchone()
-    return User(row['id'], row['email'], row['role'], data['sid']) if row else None
+    return User(row['id'], row['email'], row['role'], data['sid'], row['crm_role']) if row else None
 
 
 def current_user(request: Request) -> User:
@@ -211,6 +212,14 @@ SHARED_COLUMNS = {'owner_id', 'owner_email', 'invited_emails', 'accepted_emails'
 WORKER_FIELDS = {'status', 'statusBy', 'statusAt', 'completed', 'subtasks', 'reports', 'activity', 'updatedAt'}
 REPORTS_KEPT, ACTIVITY_KEPT = 50, 30  # столько хранит app.js (.slice(-50), .slice(-30))
 NOT_FOUND_SHARED = 'Эта совместная задача удалена или вам закрыли к ней доступ'
+
+
+def check_new_shared_id(task_id):
+    """Поручения crm-… создаёт только сервер из заявок CRM: заранее занять такой id нельзя."""
+    if not SAFE_ID.match(task_id):
+        raise bad('Неверный id поручения', 'bad_field')
+    if task_id.startswith('crm-'):
+        raise forbidden('Такие поручения создаются только из заявок раздела «Клиенты»')
 
 
 def shared_role(row, user: User):
@@ -373,3 +382,40 @@ def check_activity(old, new, me):
                 break  # старое отрезано без причины
             return
     raise forbidden('Историю задачи можно только дополнять своими записями')
+
+
+# --- CRM: руководитель (manager) видит и меняет всё, монтажник (worker) только читает назначенное ему ---
+
+CRM_KINDS = {'clients', 'objects', 'orders', 'contracts', 'payments', 'dict'}
+CRM_ROLES = {'manager', 'worker', ''}
+
+
+def crm_role(user: User):
+    return 'manager' if user.is_admin else (user.crm_role or '')
+
+
+def require_crm(user: User, kind=None, write=False):
+    if kind is not None and kind not in CRM_KINDS:
+        raise ApiError(404, 'Нет такого раздела CRM', 'not_found')
+    role = crm_role(user)
+    if not role:
+        raise forbidden('Раздел «Клиенты» вам не открыт. Попросите администратора.')
+    if write and role != 'manager':
+        raise forbidden('Менять данные CRM может только руководитель')
+    return role
+
+
+def crm_visible(user: User, kind):
+    """Условие SQL на строки CRM, которые видит этот пользователь (таблица crm, псевдоним c)."""
+    if crm_role(user) == 'manager' or kind == 'dict':
+        return 'c.kind=?', (kind,)
+    mine = "select order_id from crm_assignees where email=?"
+    email = user.email.lower()
+    if kind == 'orders':
+        return f'c.kind=? and c.id in ({mine})', (kind, email)
+    if kind == 'objects':
+        return f"c.kind=? and c.id in (select ref from crm where kind='orders' and id in ({mine}))", (kind, email)
+    if kind == 'clients':
+        return (f"c.kind=? and c.id in (select ref from crm where kind='objects' and id in "
+                f"(select ref from crm where kind='orders' and id in ({mine})))"), (kind, email)
+    return '0', ()  # договоры и деньги монтажнику не показываются

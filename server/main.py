@@ -2,6 +2,7 @@
 
 Запуск: python -m uvicorn server.main:app --host 0.0.0.0 --port 8787 (настройки — в den.env).
 """
+import asyncio
 import base64
 import binascii
 import re
@@ -15,10 +16,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from . import auth, backup, db, files, shared, sync
+from . import auth, backup, crm, db, files, shared, sync
 from .access import MAX_BODY, ApiError, RateLimiter, bad, client_ip, field, read_json, require_admin, user_from_token
 
-STATIC_FILES = {'index.html', 'app.js', 'sync.js', 'sync-config.js', 'i18n-en.js', 'styles.css', 'sw.js', 'version.js',
+STATIC_FILES = {'index.html', 'app.js', 'crm.js', 'sync.js', 'sync-config.js', 'i18n-en.js', 'styles.css', 'sw.js', 'version.js',
                 'version.json', 'manifest.webmanifest', 'install.html', 'qr-iphone.svg'}
 PHOTO_RE = re.compile(r'^data:image/(jpeg|png|webp|gif);base64,([A-Za-z0-9+/=]+)$')
 feedback_limiter = RateLimiter(db.FEEDBACK_LIMIT, 60)
@@ -33,8 +34,20 @@ auth.ensure_first_admin(con)
 async def lifespan(app):
     stop = threading.Event()
     backup.start_schedule(stop)
+    task = asyncio.create_task(maintenance_loop())
     yield
     stop.set()
+    task.cancel()
+
+
+async def maintenance_loop():
+    """Каждые 10 минут: заявки ТО по договорам (в том же потоке, что и запросы, — общая база без гонок)."""
+    while True:
+        try:
+            crm.run_maintenance(con)
+        except Exception:
+            traceback.print_exc()
+        await asyncio.sleep(600)
 
 
 app = FastAPI(title='День', docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
@@ -87,6 +100,7 @@ app.include_router(auth.router)
 app.include_router(sync.router)
 app.include_router(shared.router)
 app.include_router(files.router)
+app.include_router(crm.router)
 app.include_router(backup.router)
 
 

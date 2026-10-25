@@ -208,7 +208,7 @@ async def register(request: Request):
 @router.get('/admin/users')
 async def list_users(request: Request):
     require_admin(request)
-    rows = request.app.state.con.execute('select id, email, role, created_at from users order by created_at, email')
+    rows = request.app.state.con.execute('select id, email, role, crm_role, created_at from users order by created_at, email')
     return [dict(r) for r in rows]
 
 

@@ -20,6 +20,7 @@ jobs:
         run: |
           node --check app.js
           node --check sync.js
+          node --check crm.js
           node --check i18n-en.js
           node --check version.js
           node --check sw.js

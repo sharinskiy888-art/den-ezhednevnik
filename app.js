@@ -11,7 +11,7 @@ const NOTIFICATION_KEY = 'day-planner-notifications-v1';
 const EXPENSES_KEY = 'day-planner-expenses-v1';
 const FINANCE_LIMITS_KEY = 'day-planner-finance-limits-v1';
 const DELETED_EXPENSES_KEY = 'day-planner-deleted-expenses-v1';
-const APP_VERSION = '99';
+const APP_VERSION = '100';
 const UPDATE_SEEN_KEY = 'day-planner-update-seen-v1';
 const UPDATE_APPLIED_KEY = 'day-planner-update-applied-v1';
 const LANG_KEY = 'day-planner-lang-v1';
@@ -33,7 +33,7 @@ const TRANSLATIONS = { ru: {
   'finance.openReceiptAria': 'Открыть фото чека', 'finance.hasReceiptTitle': 'Есть фото чека', 'finance.deleteEntryAria': 'Удалить операцию', 'finance.voiceHintFallback': 'Нажмите 🎙 — откроется поле, затем нажмите значок микрофона на клавиатуре и продиктуйте покупку и сумму',
   'toast.enterAmount': 'Укажите сумму, например «кофе 250»', 'toast.entriesAdded': 'Добавлено операций', 'toast.incomeAdded': 'Доход добавлен', 'toast.expenseAdded': 'Расход добавлен', 'toast.entryDeleted': 'Операция удалена',
   'sidebar.dayProgress': 'Прогресс дня', 'sidebar.startSmall': 'Начните с малого',
-  'tabs.planner': 'Ежедневник', 'tabs.finance': 'Финансы',
+  'tabs.planner': 'Ежедневник', 'tabs.finance': 'Финансы', 'tabs.crm': 'Клиенты', 'crm.label': 'Работа', 'crm.orders': 'Заявки', 'crm.clients': 'Клиенты', 'crm.objects': 'Объекты', 'crm.contracts': 'ТО', 'crm.dict': 'Справочник', 'crm.searchPlaceholder': 'Поиск: название, ИНН, телефон, адрес…', 'crm.newClient': '＋ Новый клиент',
   'period.day': 'День', 'period.week': 'Неделя', 'period.month': 'Месяц', 'period.year': 'Год', 'period.today': 'Сегодня', 'period.prevAria': 'Предыдущий период', 'period.nextAria': 'Следующий период',
   'focus.label': 'Фокус дня',
   'stats.done': 'выполнено', 'stats.planned': 'в плане',
@@ -98,7 +98,7 @@ const TRANSLATIONS = { ru: {
   'finance.openReceiptAria': 'Open receipt photo', 'finance.hasReceiptTitle': 'Has a receipt photo', 'finance.deleteEntryAria': 'Delete entry', 'finance.voiceHintFallback': 'Tap 🎙 — the field opens, then tap the microphone icon on your keyboard and dictate the purchase and amount',
   'toast.enterAmount': 'Enter an amount, e.g. "coffee 250"', 'toast.entriesAdded': 'Entries added', 'toast.incomeAdded': 'Income added', 'toast.expenseAdded': 'Expense added', 'toast.entryDeleted': 'Entry deleted',
   'sidebar.dayProgress': 'Day progress', 'sidebar.startSmall': 'Start small',
-  'tabs.planner': 'Planner', 'tabs.finance': 'Finance',
+  'tabs.planner': 'Planner', 'tabs.finance': 'Finance', 'tabs.crm': 'Clients', 'crm.label': 'Work', 'crm.orders': 'Orders', 'crm.clients': 'Clients', 'crm.objects': 'Objects', 'crm.contracts': 'Maintenance', 'crm.dict': 'Lists', 'crm.searchPlaceholder': 'Search: name, tax ID, phone, address…', 'crm.newClient': '＋ New client',
   'period.day': 'Day', 'period.week': 'Week', 'period.month': 'Month', 'period.year': 'Year', 'period.today': 'Today', 'period.prevAria': 'Previous period', 'period.nextAria': 'Next period',
   'focus.label': 'Focus of the day',
   'stats.done': 'done', 'stats.planned': 'planned',
@@ -696,7 +696,8 @@ function goFinanceSection(target) {
 
 function formatLong(key) { return fromKey(key).toLocaleDateString(LOCALE(), { weekday: 'long', day: 'numeric', month: 'long' }); }
 function formatHeaderDate(key) { const text = fromKey(key).toLocaleDateString(LOCALE(), { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }); return text.charAt(0).toLocaleUpperCase(appLang) + text.slice(1); }
-function escapeHtml(value = '') { const d = document.createElement('div'); d.textContent = value; return d.innerHTML; }
+// Кавычки тоже: значения подставляются и внутрь атрибутов (value="…"), иначе «ООО "Ромашка"» обрежется, а чужой текст станет кодом.
+function escapeHtml(value = '') { return String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
 function REPEAT_LABELS() {
   return appLang === 'en'
     ? { daily: 'Every day', weekdays: 'Weekdays', weekly: 'Every week', monthly: 'Every month' }
@@ -1591,6 +1592,7 @@ async function performSync(showMessage = true) {
     const expenseResult = await window.DaySync.syncExpenses(expenses, deletedExpenseIds);
     expenses = (expenseResult.expenses || []).map(normalizeExpense).filter(Boolean); deletedExpenseIds = expenseResult.tombstones || {}; localStorage.setItem(deletedExpensesStorageKey(), JSON.stringify(deletedExpenseIds));
     suppressSync = true; save(); saveExpenses(); suppressSync = false; render(); renderFinance(); renderProfile(); await loadSharedTasks(false); await refreshSharedPresence(); await ensurePushSubscription(false);
+    await window.DayCrm?.sync();
     if ($('#sharedDialog')?.open) renderSharedDialog(); else refreshSharedView();
     setSyncStatus('connected', 'Синхронизировано', `Задач в облаке: ${tasks.length}`);
     if (showMessage) toast('Данные синхронизированы');
@@ -2298,7 +2300,7 @@ window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); instal
 $('#installButton').addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('#installButton').hidden = true; });
 showUpdatedNoticeIfNeeded();
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=99'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
+  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=100'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
   navigator.serviceWorker.addEventListener('message', event => {
     if (event.data?.type !== 'DAY_PUSH') return;
     showReminderAlert(event.data.taskId || '', event.data.title || 'Новое уведомление', event.data.body || '');

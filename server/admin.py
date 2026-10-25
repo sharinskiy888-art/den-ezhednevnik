@@ -16,7 +16,8 @@ HELP = """Команды:
   password <email> <пароль>     задать новый пароль (все входы этого человека закроются)
   delete <email>                удалить пользователя и его личные данные
   feedback                      сообщения обратной связи
-  backup                        сделать копию базы сейчас"""
+  backup                        сделать копию базы сейчас
+  crm <email> manager|worker|none   доступ к разделу «Клиенты»: руководитель, монтажник или нет"""
 
 
 def find(con, email):
@@ -59,6 +60,11 @@ def main(argv):
             u = find(con, args[0])
             auth.delete_account(con, u['id'])
             print(f"Удалён {u['email']}")
+        elif cmd == 'crm' and len(args) == 2 and args[1] in ('manager', 'worker', 'none'):
+            u = find(con, args[0])
+            with db.tx(con):
+                con.execute('update users set crm_role=? where id=?', ('' if args[1] == 'none' else args[1], u['id']))
+            print(f"{u['email']}: раздел «Клиенты» — {({'manager': 'руководитель', 'worker': 'монтажник', 'none': 'нет доступа'})[args[1]]}")
         elif cmd == 'feedback':
             for r in con.execute('select text, email, photo is not null as has_photo, created_at from feedback order by id desc limit 50'):
                 print(f"— {r['created_at']} от {r['email'] or 'без email'}{' (с фото)' if r['has_photo'] else ''}\n{r['text']}\n")

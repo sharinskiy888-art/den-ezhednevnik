@@ -112,6 +112,65 @@ const freePort = () => new Promise(r => { const s = net.createServer(); s.listen
     ok((await api('GET', `/api/shared/${SID}`, null, token)).body.payload.status === 'completed', 'Организатор завершает задачу');
     await d1.evaluate(async id => { await window.DaySync.deleteSharedTask(id); }, SID);
     ok(!fs.existsSync(path.join(data, 'files', 'shared', SID)), 'Удаление поручения убрало и его файлы');
+    // 5. CRM: Шамиль — руководитель, монтажник видит только свою заявку. Всё через окна приложения.
+    const users = (await api('GET', '/api/admin/users', null, admin)).body;
+    const uid = email => users.find(u => u.email === email).id;
+    await api('PUT', `/api/admin/users/${uid('shamil@den.test')}/crm`, { role: 'manager' }, admin);
+    await api('PUT', `/api/admin/users/${uid('montazhnik@den.test')}/crm`, { role: 'worker' }, admin);
+    await d1.evaluate(async () => { await window.DayCrm.sync(); });
+    ok(await d1.locator('#tabCrm').isVisible(), 'Руководителю видна вкладка «Клиенты»');
+    await d1.click('#tabCrm'); await d1.waitForTimeout(400); await d1.click('#crmAdd'); await d1.waitForTimeout(200);
+    await d1.fill('#crmCardForm [name=name]', 'ООО Ромашка'); await d1.fill('#crmCardForm [name=inn]', '7701234567'); await d1.fill('#crmCardForm [name=phone]', '+7 900 111-22-33');
+    await d1.click('#crmCardSave'); await d1.waitForTimeout(300);
+    await d1.click('[data-crm-tab=clients]'); await d1.click('#crmList [data-crm-open=clients]'); await d1.waitForTimeout(200);
+    await d1.click('#crmCardForm [data-crm-new=objects]'); await d1.fill('#crmCardForm [name=address]', 'ул. Ленина, 7'); await d1.check('#crmCardForm input[value="АПС"]');
+    await d1.click('#crmCardSave'); await d1.waitForTimeout(300);
+    await d1.click('#crmCardForm [data-crm-open=objects]'); await d1.waitForTimeout(200); await d1.click('#crmCardForm [data-crm-new=orders]');
+    await d1.fill('#crmCardForm [name=sum]', '150000,50'); await d1.fill('#crmCardForm [name=assignees]', 'montazhnik@den.test'); await d1.fill('#crmCardForm [name=due]', '2026-11-03');
+    await d1.click('#crmCardForm [data-crm-stage=work]'); await d1.click('#crmCardSave'); await d1.waitForTimeout(2500);
+    const orders = (await api('GET', '/api/crm/orders', null, token)).body;
+    ok(orders.length === 1 && orders[0].payload.sumKop === 15000050 && orders[0].payload.stage === 'work', 'Клиент → объект → заявка созданы через окна; сумма 150 000,50 ₽ = 15 000 050 копеек', JSON.stringify(orders[0]?.payload || {}).slice(0, 160));
+    await d1.click('#crmCardForm [data-crm-open=orders]'); await d1.waitForTimeout(200);
+    if (process.env.SHOTS) { await d1.screenshot({ path: path.join(process.env.SHOTS, 'crm-order.png') }); await d1.setViewportSize({ width: 390, height: 844 }); await d1.screenshot({ path: path.join(process.env.SHOTS, 'crm-order-phone.png') }); await d1.setViewportSize({ width: 1280, height: 720 }); }
+    await d1.click('#crmCardForm [data-crm-new=payments][data-kind=income]');
+    await d1.fill('#crmCardForm [name=amount]', '50000'); await d1.click('#crmCardSave'); await d1.waitForTimeout(2000);
+    ok((await api('GET', '/api/crm/payments', null, token)).body[0]?.payload.amountKop === 5000000, 'Приход по заявке записан в копейках');
+    await d1.evaluate(() => { $('#crmCardDialog').close(); $('#crmDialog').close(); });
+    await d3.evaluate(async () => { await window.DayCrm.sync(); await loadSharedTasks(false); });
+    const worker = await d3.evaluate(() => ({ tab: !$('#tabCrm').hidden, orders: window.DayCrm.state.data.orders.size, clients: [...window.DayCrm.state.data.clients.values()].map(c => c.phone), pays: window.DayCrm.state.data.payments.size, invite: sharedInvites().some(t => t.id.startsWith('crm-')) }));
+    ok(worker.tab && worker.orders === 1 && worker.clients[0] === '+7 900 111-22-33' && worker.pays === 0 && worker.invite, 'Монтажник видит свою заявку, объект и телефон клиента, не видит деньги; заявка пришла ему поручением', JSON.stringify(worker));
+    await d3.evaluate(() => document.querySelectorAll('dialog[open]').forEach(d => d.close()));
+    await d3.click('#tabCrm'); await d3.waitForTimeout(300);
+    if (process.env.SHOTS) await d3.screenshot({ path: path.join(process.env.SHOTS, 'crm-worker-list.png') });
+    await d3.click('#crmList [data-crm-open=orders]'); await d3.waitForTimeout(200);
+    ok(!(await d3.locator('#crmCardSave').isVisible()) && await d3.locator('#crmCardForm [name=sum]').evaluate(e => e.readOnly), 'У монтажника карточка только для чтения');
+    await d3.evaluate(() => { $('#crmCardDialog').close(); $('#crmDialog').close(); });
+    const raced = await d1.evaluate(async () => {
+      const running = window.DayCrm.sync(); await new Promise(r => setTimeout(r, 5));
+      const before = window.DayCrm.state.syncing;
+      await window.DayCrm.saveItemForTest({ id: 'race-1', name: 'Сохранён во время синхронизации' });
+      await running; for (let i = 0; i < 50 && window.DayCrm.state.syncing; i++) await new Promise(r => setTimeout(r, 100));
+      return { before, local: window.DayCrm.state.data.clients.has('race-1') };
+    });
+    const onServer = (await api('GET', '/api/crm/clients?ids=race-1', null, token)).body.length === 1;
+    ok(raced.local && onServer, 'Клиент, сохранённый во время синхронизации, не теряется (и на устройстве, и на сервере)', JSON.stringify({ ...raced, onServer }));
+    // Скорость: 10 000 клиентов и 10 000 объектов на устройстве
+    const speed = await d1.evaluate(async () => {
+      const crm = window.DayCrm; const now = new Date().toISOString();
+      for (let i = 0; i < 10000; i++) { crm.state.data.clients.set(`c${i}`, { id: `c${i}`, name: `Клиент ${i} ${['Альфа', 'Бета', 'Гамма'][i % 3]}`, inn: String(7700000000 + i), phone: `+7 900 ${String(i).padStart(7, '0')}`, updatedAt: now });
+        crm.state.data.objects.set(`o${i}`, { id: `o${i}`, clientId: `c${i}`, address: `ул. Тестовая, ${i}`, systems: ['АПС'], updatedAt: now }); }
+      crm.state.index.clients = null; crm.state.index.objects = null;
+      const t0 = performance.now(); crm.search('clients', 'x'); const indexMs = performance.now() - t0;
+      const times = []; for (const q of ['7700009', 'гамма 99', '+7 900 0001234', 'нет такого']) { const t = performance.now(); crm.search('clients', q); times.push(performance.now() - t); }
+      const t1 = performance.now(); crm.search('objects', 'тестовая 9999'); const objMs = performance.now() - t1;
+      $('#tabCrm').click(); await new Promise(r => setTimeout(r, 300)); document.querySelector('[data-crm-tab=clients]').click();
+      const t2 = performance.now(); const input = $('#crmSearch'); input.value = '7700005'; input.dispatchEvent(new Event('input')); const typeMs = performance.now() - t2;
+      const t3 = performance.now(); document.querySelector('#crmList [data-crm-open]').click(); const cardMs = performance.now() - t3;
+      $('#crmCardDialog').close(); $('#crmDialog').close();
+      return { indexMs, search: Math.max(...times), objMs, typeMs, cardMs };
+    });
+    ok(speed.search < 100 && speed.objMs < 100 && speed.typeMs < 100 && speed.cardMs < 100, 'Скорость на 10 000 записей: поиск, ввод в строку поиска и открытие карточки — быстрее 100 мс',
+      `поиск ${speed.search.toFixed(1)} мс, по объектам ${speed.objMs.toFixed(1)} мс, ввод+список ${speed.typeMs.toFixed(1)} мс, карточка ${speed.cardMs.toFixed(1)} мс (первая сборка указателя ${speed.indexMs.toFixed(0)} мс)`);
     ok(errors.length === 0, 'Нет ошибок JavaScript и неожиданных ошибок сервера', errors.slice(0, 5).join(' | '));
     ok(!/Traceback/.test(log), 'В журнале сервера нет сбоев');
   } catch (error) { ok(false, 'Проверка оборвалась', error.message); }

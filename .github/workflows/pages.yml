@@ -32,7 +32,7 @@ jobs:
       - name: Собрать сайт (только файлы приложения — без server/, arhiv/ и служебного)
         run: |
           mkdir _site
-          cp index.html app.js sync.js sync-config.js i18n-en.js styles.css sw.js version.js version.json manifest.webmanifest install.html qr-iphone.svg .nojekyll _site/
+          cp index.html app.js crm.js sync.js sync-config.js i18n-en.js styles.css sw.js version.js version.json manifest.webmanifest install.html qr-iphone.svg .nojekyll _site/
           cp -r assets _site/
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

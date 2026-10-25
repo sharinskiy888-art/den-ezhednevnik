@@ -8,7 +8,7 @@
   <meta name="description" content="Простой ежедневник, который работает офлайн на телефоне и Windows.">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=99">
+  <link rel="stylesheet" href="styles.css?v=100">
   <title>День — ежедневник</title>
 </head>
 <body>
@@ -55,6 +55,7 @@
         <div class="app-tabs" role="group" aria-label="Раздел приложения">
           <button type="button" class="app-tab active" id="tabPlanner" aria-pressed="true" data-i18n="tabs.planner">Ежедневник</button>
           <button type="button" class="app-tab" id="tabFinance" aria-pressed="false" data-i18n="tabs.finance">Финансы</button>
+          <button type="button" class="app-tab" id="tabCrm" hidden data-i18n="tabs.crm">Клиенты</button>
         </div>
         <div class="top-actions">
           <div class="lang-switch" role="group" aria-label="Язык / Language">
@@ -414,6 +415,41 @@
     </form>
   </dialog>
 
+  <dialog id="crmDialog" class="shared-dialog crm-dialog">
+    <div class="shared-panel">
+      <div class="dialog-header">
+        <div><span class="card-label" data-i18n="crm.label">Работа</span><h2 data-i18n="tabs.crm">Клиенты</h2></div>
+        <button type="button" class="close-button" id="closeCrm" aria-label="Закрыть" data-i18n-aria="common.close">×</button>
+      </div>
+      <div class="shared-tabs crm-tabs" role="tablist">
+        <button type="button" class="active" data-crm-tab="orders" data-i18n="crm.orders">Заявки</button>
+        <button type="button" data-crm-tab="clients" data-i18n="crm.clients">Клиенты</button>
+        <button type="button" data-crm-tab="objects" data-i18n="crm.objects">Объекты</button>
+        <button type="button" data-crm-tab="contracts" data-i18n="crm.contracts">ТО</button>
+        <button type="button" data-crm-tab="dict" data-i18n="crm.dict">Справочник</button>
+      </div>
+      <label class="crm-search"><input type="search" id="crmSearch" placeholder="Поиск: название, ИНН, телефон, адрес…" data-i18n-placeholder="crm.searchPlaceholder" aria-label="Поиск" data-i18n-aria="fh.search" autocomplete="off"></label>
+      <p class="fh-summary" id="crmCount"></p>
+      <div class="crm-list" id="crmList"></div>
+      <button type="button" class="primary-button shared-add-button" id="crmAdd" data-i18n="crm.newClient">＋ Новый клиент</button>
+    </div>
+  </dialog>
+
+  <dialog id="crmCardDialog" class="shared-dialog crm-card-dialog">
+    <div class="shared-panel">
+      <div class="dialog-header">
+        <div><span class="card-label" data-i18n="tabs.crm">Клиенты</span><h2 id="crmCardTitle">Карточка</h2></div>
+        <button type="button" class="close-button" id="closeCrmCard" aria-label="Закрыть" data-i18n-aria="common.close">×</button>
+      </div>
+      <form class="crm-card" id="crmCardForm" onsubmit="return false"></form>
+      <div class="dialog-actions">
+        <button type="button" class="danger-button" id="crmCardDelete" data-i18n="common.delete">Удалить</button>
+        <button type="button" class="secondary-button" id="crmCardClose" data-i18n="common.close">Закрыть</button>
+        <button type="button" class="primary-button" id="crmCardSave" data-i18n="common.save">Сохранить</button>
+      </div>
+    </div>
+  </dialog>
+
   <dialog id="sharedDialog" class="shared-dialog">
     <div class="shared-panel">
       <div class="dialog-header">
@@ -605,9 +641,10 @@
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastAction" hidden></button></div>
-  <script src="sync-config.js?v=99"></script>
-  <script src="sync.js?v=99"></script>
-  <script src="i18n-en.js?v=99"></script>
-  <script src="app.js?v=99"></script>
+  <script src="sync-config.js?v=100"></script>
+  <script src="sync.js?v=100"></script>
+  <script src="i18n-en.js?v=100"></script>
+  <script src="app.js?v=100"></script>
+  <script src="crm.js?v=100"></script>
 </body>
 </html>

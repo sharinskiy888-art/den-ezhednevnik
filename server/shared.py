@@ -5,7 +5,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, Response
 
 from . import db, files
-from .access import (NOT_FOUND_SHARED, SAFE_ID, SHARED_COLUMNS, ApiError, bad, check_owner_patch, check_worker_patch,
+from .access import (NOT_FOUND_SHARED, SHARED_COLUMNS, ApiError, bad, check_new_shared_id, check_owner_patch, check_worker_patch,
                      current_user, email_list, field, read_json, require_shared)
 from .sync import MAX_ROW, json_response
 
@@ -108,8 +108,7 @@ async def create(request: Request):
     if not isinstance(body, dict) or set(body) - SHARED_COLUMNS - {'id'}:
         raise bad('Неверная строка поручения', 'bad_row')
     task_id = field(body, 'id', max_len=100)
-    if not SAFE_ID.match(task_id):
-        raise bad('Неверный id поручения', 'bad_field')
+    check_new_shared_id(task_id)
     new = {'invited_emails': email_list(body.get('invited_emails') or [], 'invited_emails'),
            'payload': body.get('payload'), 'updated_at': updated_at(body)}
     text = payload_text(new['payload'])

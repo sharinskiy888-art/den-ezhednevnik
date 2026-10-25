@@ -97,6 +97,14 @@ MIGRATIONS = [
     create table presence (user_id text primary key references users(id) on delete cascade, email text not null,
                            locale text, last_seen text not null);
     """,
+    """
+    alter table users add column crm_role text not null default '';
+    create table crm (kind text not null, id text not null, payload text not null, updated_at text not null, pu text,
+                      ref text, primary key (kind, id));
+    create index crm_ref on crm(kind, ref);
+    create table crm_assignees (order_id text not null, email text not null, primary key (order_id, email));
+    create index crm_assignees_email on crm_assignees(email);
+    """,
 ]
 
 

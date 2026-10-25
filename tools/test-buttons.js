@@ -37,7 +37,7 @@ const ROOT = path.resolve(__dirname, '..');
 const args = Object.fromEntries(process.argv.slice(2).map(a => { const [k, v] = a.replace(/^--/, '').split('='); return [k, v ?? true]; }));
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.webmanifest': 'application/manifest+json', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon' };
 
-const serverState = { fakeVersion: 0, mock: null };
+const serverState = { fakeVersion: 0, mock: null, crmRole: 'manager' };
 function startServer() {
   return new Promise(resolve => {
     const server = http.createServer((req, res) => {
@@ -139,6 +139,8 @@ function handleApi(req, res, p) {
     }
     if (shared && m === 'GET') { const row = sharedRow.find(r => r.id === decodeURIComponent(shared[1])); return row ? json(row) : json({ message: 'Не найдено' }, 404); }
     if (p === '/api/presence' && m === 'GET') return json([]);
+    if (p === '/api/crm/me') return json({ role: serverState.crmRole });
+    if (p.startsWith('/api/crm/') && m === 'POST') { (counter.crm = counter.crm || []).push({ path: p, body: parsed() }); res.writeHead(204); return res.end(); }
     // В обходе кнопок сервер обратной связи «недоступен» (как formsubmit.co без интернета в v97): окно остаётся открытым
     // и проверяется кнопка «×». Успешная отправка проверяется отдельным сценарием «Обратная связь».
     if (p === '/api/feedback') return json({ message: 'Сервер недоступен' }, 503);
@@ -617,6 +619,45 @@ async function runSpecial(browser, base, mobile, shotsDir) {
     const before = supa.patches || 0; await click('#sharedView [data-release-shared]');
     for (let i = 0; i < 40 && (supa.patches || 0) === before; i++) await page.waitForTimeout(100);
     ok(Array.isArray(supa.lastPatch?.accepted_emails) && !supa.lastPatch.accepted_emails.includes('brother@example.com'), 'участники в запросе: ' + JSON.stringify(supa.lastPatch?.accepted_emails), 'Организатор: «Отпустить» убирает исполнителя из участников');
+  });
+
+  await scenario('Клиенты (CRM): клиент → объект → заявка с суммой в копейках через окна', null, async ({ page, ok, click, supa }) => {
+    await page.waitForTimeout(800);
+    if (!(await page.locator('#tabCrm').isVisible())) { ok(false, 'вкладка «Клиенты» не видна руководителю'); return; }
+    await click('#tabCrm'); await page.waitForTimeout(300);
+    ok((await page.locator('#crmDialog[open]').count()) === 1, '', 'CRM: вкладка «Клиенты» открывает окно');
+    await click('#crmAdd'); await page.waitForTimeout(200);
+    await page.fill('#crmCardForm [name=name]', 'ООО "Тест" x" autofocus onfocus="window.__pwned=1'); await page.fill('#crmCardForm [name=inn]', '123'); await click('#crmCardSave'); await page.waitForTimeout(200);
+    ok((await page.locator('#crmCardDialog[open]').count()) === 1, '', 'CRM: неверный ИНН не сохраняется, карточка остаётся открытой');
+    await page.fill('#crmCardForm [name=inn]', '7701234567'); await click('#crmCardSave'); await page.waitForTimeout(300);
+    await click('[data-crm-tab="clients"]'); await page.waitForTimeout(100);
+    ok((await page.locator('#crmList').innerText()).includes('ООО "Тест"'), '', 'CRM: новый клиент появился в списке, кавычки в названии сохранились');
+    await page.fill('#crmSearch', '7701'); await page.waitForTimeout(100);
+    const one = await page.locator('#crmList .crm-row').count(); await page.fill('#crmSearch', 'нет такого'); await page.waitForTimeout(100);
+    ok(one === 1 && (await page.locator('#crmList .crm-row').count()) === 0, '', 'CRM: поиск по ИНН находит, по чужому слову — нет');
+    await page.fill('#crmSearch', ''); await page.waitForTimeout(100);
+    await click('#crmList [data-crm-open="clients"]'); await page.waitForTimeout(200);
+    const name = await page.inputValue('#crmCardForm [name=name]');
+    ok(name === 'ООО "Тест" x" autofocus onfocus="window.__pwned=1' && !(await page.evaluate(() => window.__pwned)), `в поле: «${name}»`, 'CRM: кавычки в данных не обрезают поле и не превращаются в код');
+    await page.fill('#crmCardForm [name=phone]', '+7 999 000-00-00'); await click('#crmCardForm [data-crm-new="objects"]'); await page.waitForTimeout(150);
+    await page.fill('#crmCardForm [name=address]', 'ул. Мира, 1'); await click('#crmCardSave'); await page.waitForTimeout(250);
+    ok((await page.locator('#crmCardTitle').innerText()) === 'Клиент' && (await page.inputValue('#crmCardForm [name=phone]')) === '+7 999 000-00-00', '', 'CRM: после «＋ Объект» правка клиента (телефон) не потерялась');
+    await click('#crmCardForm [data-crm-open="objects"]'); await page.waitForTimeout(200); await click('#crmCardForm [data-crm-new="orders"]'); await page.waitForTimeout(150);
+    await page.fill('#crmCardForm [name=sum]', '12 345,6'); await page.fill('#crmCardForm [name=assignees]', 'brother@example.com'); await click('#crmCardForm [data-crm-stage="kp"]'); await click('#crmCardSave');
+    for (let i = 0; i < 40 && !(supa.crm || []).some(c => c.path === '/api/crm/orders'); i++) await page.waitForTimeout(100);
+    const sent = (supa.crm || []).filter(c => c.path === '/api/crm/orders').flatMap(c => c.body).map(r => r.payload).find(p => p && p.sumKop);
+    ok(sent && sent.sumKop === 1234560 && sent.stage === 'kp' && sent.assignees[0] === 'brother@example.com', 'отправлено: ' + JSON.stringify(sent || {}).slice(0, 120), 'CRM: заявка уходит на сервер — 12 345,60 ₽ = 1 234 560 копеек, этап «КП», исполнитель');
+    await click('#crmCardForm [data-crm-open="orders"]'); await page.waitForTimeout(200); await click('#crmCardForm [data-crm-new="payments"][data-kind="expense"]'); await page.waitForTimeout(150);
+    await page.fill('#crmCardForm [name=amount]', 'abc'); await click('#crmCardSave'); await page.waitForTimeout(150);
+    ok((await page.locator('#crmCardForm [name=amount]').count()) === 1, '', 'CRM: сумма буквами не сохраняется');
+    await page.fill('#crmCardForm [name=amount]', '500'); await click('#crmCardSave'); await page.waitForTimeout(250);
+    ok((await page.locator('#crmCardForm').innerText()).includes('500,00'), '', 'CRM: расход по заявке виден в карточке заявки');
+    await click('#crmCardClose'); await page.waitForTimeout(150);
+    ok((await page.locator('#crmCardTitle').innerText()) === 'Объект', '', 'CRM: «Закрыть» в заявке возвращает к карточке объекта');
+    await click('#closeCrmCard'); await page.waitForTimeout(150); await click('[data-crm-tab="contracts"]'); await click('[data-crm-tab="dict"]'); await page.waitForTimeout(200);
+    ok((await page.locator('#crmCardForm [name=workTypes]').inputValue()).includes('ТО'), '', 'CRM: «Справочник» открывает виды работ и системы');
+    await click('#closeCrmCard'); await click('#closeCrm'); await page.waitForTimeout(150);
+    ok((await page.locator('dialog[open]').count()) === 0, '', 'CRM: «×» закрывает окна');
   });
 
   /* Совместные задачи не теряются вместе со своим днём, пока не завершены */

@@ -4,9 +4,9 @@
   const API = `${String(config.url || '').replace(/\/+$/, '')}/api`;
   const SESSION_KEY = 'day-sync-session-v1';
   const STATE_ID = '00000000-0000-4000-8000-000000000001';
-  // Прежние названия таблиц Supabase остаются в app.js; на сервере они короче.
-  const TABLES = { planner_tasks: 'tasks', planner_expenses: 'expenses' };
-  const tableName = table => TABLES[table] || table;
+  // Прежние названия таблиц Supabase остаются в app.js; на сервере они короче. CRM: «crm:clients» → /crm/clients.
+  const TABLES = { planner_tasks: '/data/tasks', planner_expenses: '/data/expenses' };
+  const tablePath = table => TABLES[table] || (String(table).startsWith('crm:') ? `/crm/${table.slice(4)}` : `/data/${table}`);
 
   // Вход, выданный другим облаком (Supabase или прежний сервер), здесь недействителен: забываем его и просим
   // войти заново. Локальные задачи не трогаются — они привязаны к id пользователя, а он при переезде сохраняется.
@@ -100,7 +100,7 @@
   const TOMBSTONE_TTL_MS = 90 * 24 * 60 * 60 * 1000;
   const isTombstone = payload => !!payload?.__deleted;
   async function pruneRemoteTombstones(table, ids) {
-    for (const id of ids) await request(`/data/${tableName(table)}/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    for (const id of ids) await request(`${tablePath(table)}/${encodeURIComponent(id)}`, { method: 'DELETE' });
   }
   // Экономная синхронизация: сначала с сервера берётся лёгкий список «id + время правки» без
   // содержимого, а полностью скачиваются только строки, чьей версии на устройстве ещё нет.
@@ -115,7 +115,7 @@
   }
   const idsQuery = ids => ids.map(id => encodeURIComponent(String(id))).join(',');
   async function fetchChangedRows(table, known) {
-    const base = `/data/${tableName(table)}`;
+    const base = tablePath(table);
     if (!Object.keys(known).length) return { rows: await request(base, { method: 'GET' }) || [], serverIds: null };
     const heads = await request(`${base}/heads`, { method: 'GET' }) || [];
     const ids = heads.filter(row => known[row.id] !== (row.pu || row.updated_at)).map(row => row.id);
@@ -162,8 +162,15 @@
     tombstones.forEach((deletedAt, id) => { if (known[id] !== deletedAt) rows.push({ user_id: sessionUser.id, id, payload: { id, __deleted: true, updatedAt: deletedAt }, updated_at: deletedAt }); });
     if (appState && known[STATE_ID] !== stamp(appState.updatedAt)) rows.push({ user_id: sessionUser.id, id: STATE_ID, payload: appState, updated_at: stamp(appState.updatedAt) });
     if (rows.length) {
-      await request(`/data/${tableName(table)}`, { method: 'POST', body: JSON.stringify(rows) });
-      rows.forEach(row => { known[row.id] = row.updated_at; });
+      // Частями: тысячи карточек CRM или задач за раз не упираются в предел размера запроса.
+      let part = []; let size = 0;
+      const send = async () => { if (!part.length) return; await request(tablePath(table), { method: 'POST', body: JSON.stringify(part) }); part.forEach(row => { known[row.id] = row.updated_at; }); part = []; size = 0; };
+      for (const row of rows) {
+        const bytes = JSON.stringify(row).length;
+        if (part.length && (part.length >= 1000 || size + bytes > 8e6)) await send();
+        part.push(row); size += bytes;
+      }
+      await send();
     }
     if (expired.length) { await pruneRemoteTombstones(table, expired); expired.forEach(id => { delete known[id]; }); }
     saveSyncMeta(table, sessionUser.id, { known });
@@ -234,6 +241,25 @@
   async function answerSharedInvite(id, accepted) {
     return post(`/shared/${encodeURIComponent(id)}/answer`, { accept: !!accepted });
   }
+  // CRM. Роль: manager — синхронизирует как свои данные (sync), worker — только зеркалит то, что ему видно.
+  async function crmRole() {
+    if (!user()) return '';
+    try { return (await request('/crm/me', { method: 'GET' }))?.role || ''; } catch (error) { if (error.status === 404) return ''; throw error; }
+  }
+  async function mirrorCrm(kind, cached = []) {
+    if (!user()) return [];
+    const base = tablePath(`crm:${kind}`); const byId = new Map(cached.map(item => [item.id, item]));
+    const heads = await request(`${base}/heads`, { method: 'GET' }) || [];
+    const ids = heads.filter(head => byId.get(head.id)?.updatedAt !== (head.pu || head.updated_at)).map(head => head.id);
+    for (let i = 0; i < ids.length; i += 200) {
+      (await request(`${base}?ids=${idsQuery(ids.slice(i, i + 200))}`, { method: 'GET' }) || []).forEach(row => byId.set(row.id, { ...row.payload, id: row.id, updatedAt: row.payload?.updatedAt || row.updated_at }));
+    }
+    const visible = new Set(heads.map(head => head.id));
+    return [...byId.values()].filter(item => visible.has(item.id) && !isTombstone(item)); // снятое с монтажника пропадает с устройства
+  }
+  async function uploadCrmPhoto(objectId, blob) {
+    return (await request(`/files/crm/${encodeURIComponent(objectId)}?ext=jpg`, { method: 'POST', headers: { 'Content-Type': 'image/jpeg' }, body: blob })).path;
+  }
   async function requestLeaveShared(id) {
     return post(`/shared/${encodeURIComponent(id)}/leave`, {});
   }
@@ -269,5 +295,5 @@
     try { await post('/feedback', message, !!getSession()); }
     catch (error) { if (!error.sessionExpired) throw error; await post('/feedback', message, false); } // вход истёк — сообщение всё равно уходит
   }
-  window.DaySync = { uploadSharedMedia, loadSharedMedia, getSession, user, signUp, signIn, signOut, updatePassword, sync, syncExpenses, loadSharedTasks, loadSharedTask, saveSharedTask, deleteSharedTask, answerSharedInvite, requestLeaveShared, touchPresence, loadSharedPresence, savePushSubscription, deletePushSubscription, sendFeedback };
+  window.DaySync = { uploadSharedMedia, loadSharedMedia, getSession, user, signUp, signIn, signOut, updatePassword, sync, syncExpenses, loadSharedTasks, loadSharedTask, saveSharedTask, deleteSharedTask, answerSharedInvite, requestLeaveShared, crmRole, mirrorCrm, uploadCrmPhoto, touchPresence, loadSharedPresence, savePushSubscription, deletePushSubscription, sendFeedback };
 })();
