@@ -52,6 +52,9 @@
     if (!response.ok) {
       if (useAuth && response.status === 401 && session?.access_token) {
         if (!retried && session.refresh_token) {
+          // Пока шёл этот запрос, другой уже обновил вход — просто повторяем с новым, старый токен не предъявляем.
+          const current = getSession();
+          if (current?.access_token && current.access_token !== session.access_token) return request(path, options, useAuth, true);
           try { await refreshOnce(session.refresh_token); } catch (error) { if (error.status === 400 || error.status === 401) expireSession(); throw sessionExpiredError(error); }
           return request(path, options, useAuth, true);
         }
@@ -259,6 +262,9 @@
     return blob;
   }
   // Обратная связь уходит на свой сервер (раньше — на сторонний formsubmit.co).
-  async function sendFeedback(message) { await post('/feedback', message, !!getSession()); }
+  async function sendFeedback(message) {
+    try { await post('/feedback', message, !!getSession()); }
+    catch (error) { if (!error.sessionExpired) throw error; await post('/feedback', message, false); } // вход истёк — сообщение всё равно уходит
+  }
   window.DaySync = { uploadSharedMedia, loadSharedMedia, getSession, user, signUp, signIn, signOut, updatePassword, sync, syncExpenses, loadSharedTasks, loadSharedTask, saveSharedTask, deleteSharedTask, answerSharedInvite, touchPresence, loadSharedPresence, savePushSubscription, deletePushSubscription, sendFeedback };
 })();

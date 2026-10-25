@@ -11,7 +11,7 @@ const NOTIFICATION_KEY = 'day-planner-notifications-v1';
 const EXPENSES_KEY = 'day-planner-expenses-v1';
 const FINANCE_LIMITS_KEY = 'day-planner-finance-limits-v1';
 const DELETED_EXPENSES_KEY = 'day-planner-deleted-expenses-v1';
-const APP_VERSION = '97';
+const APP_VERSION = '98';
 const UPDATE_SEEN_KEY = 'day-planner-update-seen-v1';
 const UPDATE_APPLIED_KEY = 'day-planner-update-applied-v1';
 const LANG_KEY = 'day-planner-lang-v1';
@@ -51,7 +51,7 @@ const TRANSLATIONS = { ru: {
   'reminder.label': 'Напоминание', 'reminder.later': 'Позже', 'reminder.openTask': 'Открыть задачу',
   'common.close': 'Закрыть', 'common.delete': 'Удалить', 'common.cancel': 'Отмена', 'common.save': 'Сохранить',
   'backup.export': 'Сохранить копию данных', 'backup.exportSub': 'Файл с задачами, планами и финансами', 'backup.import': 'Восстановить из копии', 'backup.importSub': 'Добавит недостающие записи из файла',
-  'cloud.quota': 'Облако недоступно: закончился бесплатный лимит. Телефон и компьютер сейчас не синхронизируются, задачи хранятся на этом устройстве.', 'cloud.movedTitle': 'Облако обновлено', 'cloud.movedText': 'Войдите ещё раз тем же email и паролем — ваши задачи на этом устройстве сохранены и снова начнут синхронизироваться.', 'cloud.failed': 'Не удалось синхронизировать с облаком. Задачи сохраняются на этом устройстве.', 'task.planLabel': 'План', 'task.personal': 'Личная', 'task.shared': 'Совместная', 'task.youOrganize': 'вы организатор', 'task.organizer': 'организатор',
+  'cloud.quota': 'Облако недоступно: закончился бесплатный лимит. Телефон и компьютер сейчас не синхронизируются, задачи хранятся на этом устройстве.', 'cloud.movedTitle': 'Новый сервер', 'cloud.movedText': 'Приложение перешло на свой сервер. Войдите email и паролем, которые выдал администратор (или зарегистрируйтесь по его коду приглашения). Задачи на этом устройстве сохранены и сами загрузятся на сервер.', 'cloud.failed': 'Не удалось синхронизировать с облаком. Задачи сохраняются на этом устройстве.', 'task.planLabel': 'План', 'task.personal': 'Личная', 'task.shared': 'Совместная', 'task.youOrganize': 'вы организатор', 'task.organizer': 'организатор',
   'task.inviteMembers': 'Пригласить участников', 'task.emailsPlaceholder': 'email@example.com — каждый адрес с новой строки', 'task.inviteHint': 'После входа с указанной почтой участник увидит приглашение по центру экрана и в разделе «Совместные».',
   'task.status': 'Статус выполнения', 'task.statusNew': 'Новая — ещё не начата', 'task.statusAccepted': 'Принял', 'task.statusOpen': 'В работе', 'task.statusQuestion': 'Есть вопрос', 'task.statusReview': 'Готово, на проверке', 'task.statusCompleted': 'Принято и завершено', 'shared.later': 'Позже', 'task.reports': 'Отчёты по задаче', 'task.reportPlaceholder': 'Что сделано, вопрос организатору…', 'task.reportPhoto': '📷 Фото', 'task.reportSend': 'Отправить отчёт',
   'task.title': 'Название', 'task.titlePlaceholder': 'Например, подготовить отчёт', 'task.voiceTitleAria': 'Продиктовать название',
@@ -74,7 +74,7 @@ const TRANSLATIONS = { ru: {
   'notif.remindersLabel': 'Напоминания', 'notif.exactTitle': 'По времени задачи', 'notif.exactText': 'В точное время, указанное в напоминании', 'notif.dailyTitle': 'Сводка на сегодня', 'notif.dailyText': 'Количество дел и ближайшие задачи', 'notif.dailyTime': 'Первое напоминание в', 'notif.repeat': 'Как часто напоминать', 'notif.repeatOnce': 'Один раз в день', 'notif.repeatTwice': 'Два раза в день', 'notif.repeatHourly2': 'Каждые 2 часа (до 21:00)', 'notif.repeatHourly': 'Каждый час (до 21:00)', 'notif.dailyTime2': 'Второе напоминание в', 'notif.overdueTitle': 'Просроченные дела', 'notif.overdueText': 'Один раз в день, если остались незавершённые задачи', 'notif.test': 'Проверить уведомление', 'notif.save': 'Сохранить настройки', 'notif.hint': 'На iPhone уведомления работают для ежедневника, добавленного на экран «Домой». После входа в аккаунт серверные push-уведомления приходят и при закрытом приложении.',
   'feedback.helpLabel': 'Помощь разработчику', 'feedback.describe': 'Опишите проблему или предложение', 'feedback.placeholder': 'Что произошло? Что вы нажимали? Что ожидали увидеть?', 'feedback.voiceAria': 'Надиктовать текст', 'feedback.replyEmail': 'Email отправителя', 'feedback.emailPlaceholder': 'Будет взят из аккаунта', 'feedback.attachPhoto': '▧ Прикрепить фото проблемы', 'feedback.removePhotoAria': 'Убрать фото', 'feedback.send': 'Отправить разработчику', 'feedback.hint': 'Сообщение уйдёт разработчику в фоне. Фото перед отправкой автоматически уменьшается. Ответ придёт на email аккаунта или на тот, что вы укажете.',
   'sync.cloudLabel': 'Облако', 'sync.title': 'Синхронизация', 'sync.email': 'Email', 'sync.password': 'Пароль', 'sync.passwordPlaceholder': 'Не менее 8 символов', 'sync.signUp': 'Регистрация', 'sync.signIn': 'Войти', 'sync.forgotPassword': 'Забыли пароль?', 'sync.invite': 'Код приглашения (только для регистрации)', 'sync.invitePlaceholder': 'Выдаёт администратор',
-  'sync.codeConfirmedNote': 'Код подтверждён. Придумайте новый пароль — старый пароль вводить не нужно.', 'sync.newPassword': 'Новый пароль', 'sync.repeatPassword': 'Повторите пароль', 'sync.saveNewPassword': 'Сохранить новый пароль',
+  'sync.changePassword': 'Сменить пароль', 'sync.oldPassword': 'Старый пароль', 'sync.newPasswordPlaceholder': 'Новый пароль, от 8 символов', 'sync.savePassword': 'Сохранить пароль',
   'sync.syncNow': 'Синхронизировать сейчас', 'sync.switchUser': 'Сменить пользователя', 'sync.pinLogin': 'Быстрый вход по PIN', 'sync.pinHint': 'Четыре цифры хранятся только на этом устройстве.', 'sync.pinDigits': '4 цифры', 'sync.pinNewAria': 'Новый PIN-код', 'sync.pinSet': 'Установить PIN', 'sync.pinRemove': 'Убрать PIN',
   'sync.note': 'У каждого email свой отдельный ежедневник. На общем устройстве нажмите «Сменить пользователя», прежде чем другой человек войдёт в свой аккаунт.',
   'pin.enter': 'Введите PIN', 'pin.hint': 'Четыре цифры для быстрого входа в ежедневник.', 'pin.codeAria': 'PIN-код', 'pin.open': 'Открыть ежедневник', 'pin.usePassword': 'Войти по почте и паролю',
@@ -116,7 +116,7 @@ const TRANSLATIONS = { ru: {
   'reminder.label': 'Reminder', 'reminder.later': 'Later', 'reminder.openTask': 'Open task',
   'common.close': 'Close', 'common.delete': 'Delete', 'common.cancel': 'Cancel', 'common.save': 'Save',
   'backup.export': 'Save a data backup', 'backup.exportSub': 'A file with tasks, plans and finance', 'backup.import': 'Restore from backup', 'backup.importSub': 'Adds missing items from the file',
-  'cloud.quota': 'Cloud unavailable: the free plan limit is used up. Your phone and computer are not syncing right now; tasks are kept on this device.', 'cloud.movedTitle': 'Cloud updated', 'cloud.movedText': 'Sign in again with the same email and password — your tasks on this device are kept and will sync again.', 'cloud.failed': 'Could not sync with the cloud. Tasks are saved on this device.', 'task.planLabel': 'Plan', 'task.personal': 'Personal', 'task.shared': 'Shared', 'task.youOrganize': 'you organize', 'task.organizer': 'organizer',
+  'cloud.quota': 'Cloud unavailable: the free plan limit is used up. Your phone and computer are not syncing right now; tasks are kept on this device.', 'cloud.movedTitle': 'New server', 'cloud.movedText': 'The app has moved to its own server. Sign in with the email and password given by the administrator (or sign up with their invitation code). Tasks on this device are kept and will upload by themselves.', 'cloud.failed': 'Could not sync with the cloud. Tasks are saved on this device.', 'task.planLabel': 'Plan', 'task.personal': 'Personal', 'task.shared': 'Shared', 'task.youOrganize': 'you organize', 'task.organizer': 'organizer',
   'task.inviteMembers': 'Invite members', 'task.emailsPlaceholder': 'email@example.com — one address per line', 'task.inviteHint': 'After signing in with that email, the person will see the invite centered on screen and in "Shared".',
   'task.status': 'Status', 'task.statusNew': 'New — not started', 'task.statusAccepted': 'Accepted', 'task.statusOpen': 'In progress', 'task.statusQuestion': 'Has a question', 'task.statusReview': 'Done, in review', 'task.statusCompleted': 'Accepted and done', 'shared.later': 'Later', 'task.reports': 'Task reports', 'task.reportPlaceholder': 'What was done, a question for the organizer…', 'task.reportPhoto': '📷 Photo', 'task.reportSend': 'Send report',
   'task.title': 'Title', 'task.titlePlaceholder': 'E.g. prepare the report', 'task.voiceTitleAria': 'Dictate title',
@@ -139,7 +139,7 @@ const TRANSLATIONS = { ru: {
   'notif.remindersLabel': 'Reminders', 'notif.exactTitle': 'At task time', 'notif.exactText': 'At the exact time set in the reminder', 'notif.dailyTitle': "Today's summary", 'notif.dailyText': 'Task count and upcoming tasks', 'notif.dailyTime': 'First reminder at', 'notif.repeat': 'How often to remind', 'notif.repeatOnce': 'Once a day', 'notif.repeatTwice': 'Twice a day', 'notif.repeatHourly2': 'Every 2 hours (until 9 pm)', 'notif.repeatHourly': 'Every hour (until 9 pm)', 'notif.dailyTime2': 'Second reminder at', 'notif.overdueTitle': 'Overdue tasks', 'notif.overdueText': 'Once a day, if unfinished tasks remain', 'notif.test': 'Test notification', 'notif.save': 'Save settings', 'notif.hint': 'On iPhone, notifications work for the planner added to the Home Screen. After signing in, server push notifications arrive even when the app is closed.',
   'feedback.helpLabel': 'Help the developer', 'feedback.describe': 'Describe the issue or suggestion', 'feedback.placeholder': 'What happened? What did you tap? What did you expect?', 'feedback.voiceAria': 'Dictate text', 'feedback.replyEmail': 'Reply email', 'feedback.emailPlaceholder': "Taken from your account", 'feedback.attachPhoto': '▧ Attach a photo of the issue', 'feedback.removePhotoAria': 'Remove photo', 'feedback.send': 'Send to developer', 'feedback.hint': 'The message is sent to the developer in the background. Photos are shrunk automatically before sending. The reply arrives at your account email or the one you enter.',
   'sync.cloudLabel': 'Cloud', 'sync.title': 'Sync', 'sync.email': 'Email', 'sync.password': 'Password', 'sync.passwordPlaceholder': 'At least 8 characters', 'sync.signUp': 'Sign up', 'sync.signIn': 'Sign in', 'sync.forgotPassword': 'Forgot your password?', 'sync.invite': 'Invitation code (sign-up only)', 'sync.invitePlaceholder': 'Given by the administrator',
-  'sync.codeConfirmedNote': 'Code confirmed. Choose a new password — you do not need the old one.', 'sync.newPassword': 'New password', 'sync.repeatPassword': 'Repeat password', 'sync.saveNewPassword': 'Save new password',
+  'sync.changePassword': 'Change password', 'sync.oldPassword': 'Current password', 'sync.newPasswordPlaceholder': 'New password, 8+ characters', 'sync.savePassword': 'Save password',
   'sync.syncNow': 'Sync now', 'sync.switchUser': 'Switch user', 'sync.pinLogin': 'Quick PIN sign-in', 'sync.pinHint': 'The four digits are stored only on this device.', 'sync.pinDigits': '4 digits', 'sync.pinNewAria': 'New PIN', 'sync.pinSet': 'Set PIN', 'sync.pinRemove': 'Remove PIN',
   'sync.note': 'Each email has its own separate planner. On a shared device, tap "Switch user" before someone else signs into their account.',
   'pin.enter': 'Enter PIN', 'pin.hint': 'Four digits for quick sign-in to the planner.', 'pin.codeAria': 'PIN', 'pin.open': 'Open planner', 'pin.usePassword': 'Sign in with email and password',
@@ -1312,6 +1312,7 @@ async function ensurePushSubscription(forceSave = false) {
   if (!window.DaySync?.user() || !window.DaySync?.savePushSubscription || !('serviceWorker' in navigator) || !('PushManager' in window) || Notification.permission !== 'granted') {
     pushSubscriptionActive = false; return false;
   }
+  if (!window.DAY_SERVER?.vapidPublicKey) { await detachPushSubscription(); return false; } // push отложен: старую подписку Supabase снимаем
   try {
     const registration = await navigator.serviceWorker.ready;
     let subscription = await registration.pushManager.getSubscription();
@@ -1468,10 +1469,10 @@ async function submitFeedback(event) {
   button.disabled = true; button.textContent = 'Отправляем…';
   try {
     const photo = feedbackPhoto ? await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(feedbackPhoto); }) : null;
-    await window.DaySync.sendFeedback({ text: `День, версия ${APP_VERSION}. Аккаунт: ${accountEmail || 'без входа'}\n\n${textValue}`, email: replyEmail, ...(photo ? { photo } : {}) });
+    await window.DaySync.sendFeedback({ text: `День, версия ${APP_VERSION}. Аккаунт: ${accountEmail || 'без входа'}. Устройство: ${navigator.userAgent}\n\n${textValue}`, email: replyEmail, ...(photo ? { photo } : {}) });
     $('#feedbackDialog').close(); resetFeedbackForm(); toast(`Сообщение отправлено. Ответ придёт на ${replyEmail}`);
-  } catch {
-    toast('Не удалось отправить. Проверьте интернет и попробуйте ещё раз.');
+  } catch (error) {
+    toast(error.status && error.status < 500 ? error.message : 'Не удалось отправить. Проверьте интернет и попробуйте ещё раз.');
   } finally {
     button.disabled = false; button.textContent = 'Отправить разработчику';
   }
@@ -1627,6 +1628,13 @@ async function handleSyncSignUp() {
     if (error.status === 409) setSyncStatus('', 'Email уже зарегистрирован', 'Нажмите «Войти».');
     else setSyncStatus('error', 'Не удалось зарегистрироваться', error.message);
   } finally { signUpBusy = false; button.disabled = false; }
+}
+async function handleChangePassword(event) {
+  event.preventDefault(); const oldPassword = $('#syncOldPassword').value; const password = $('#syncChangeNewPassword').value;
+  try {
+    await window.DaySync.updatePassword(password, oldPassword); $('#syncOldPassword').value = ''; $('#syncChangeNewPassword').value = '';
+    toast(L('Пароль изменён. На других устройствах войдите с новым паролем.', 'Password changed. Sign in with the new password on other devices.'));
+  } catch (error) { toast(error.status === 403 ? L('Старый пароль указан неверно', 'The current password is wrong') : error.message); }
 }
 // Писем восстановления больше нет: новый пароль задаёт администратор.
 function handleForgotPassword() {
@@ -2247,7 +2255,7 @@ $('#profileButton').addEventListener('click', openProfile); $('#closeProfile').a
 $('#chooseProfilePhoto').addEventListener('click', () => $('#profilePhotoInput').click()); $('#profileGalleryButton').addEventListener('click', () => $('#profilePhotoInput').click()); $('#profileCameraButton').addEventListener('click', () => $('#profileCameraInput').click());
 $('#profilePhotoInput').addEventListener('change', e => { prepareProfilePhoto(e.target.files[0]); e.target.value = ''; }); $('#profileCameraInput').addEventListener('change', e => { prepareProfilePhoto(e.target.files[0]); e.target.value = ''; });
 $('#removeProfilePhoto').addEventListener('click', () => { pendingProfilePhoto = ''; $('#profilePhotoInput').value = ''; $('#profileCameraInput').value = ''; renderProfile(); });
-$('#syncAuthForm').addEventListener('submit', handleSyncLogin); $('#syncSignUp').addEventListener('click', handleSyncSignUp); $('#syncForgotPassword').addEventListener('click', handleForgotPassword);
+$('#syncAuthForm').addEventListener('submit', handleSyncLogin); $('#syncSignUp').addEventListener('click', handleSyncSignUp); $('#syncForgotPassword').addEventListener('click', handleForgotPassword); $('#syncPasswordForm').addEventListener('submit', handleChangePassword);
 $('#syncNow').addEventListener('click', () => performSync()); $('#syncLogout').addEventListener('click', handleSyncLogout); $('#pinSaveButton').addEventListener('click', savePin); $('#pinRemoveButton').addEventListener('click', removePin);
 $('#pinUnlockForm').addEventListener('submit', unlockWithPin); $('#pinUsePassword').addEventListener('click', useAccountPassword);
 $('#pinSetupInput').addEventListener('input', event => preparePinField(event.target)); $('#pinUnlockInput').addEventListener('input', event => preparePinField(event.target));
@@ -2258,7 +2266,7 @@ window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); instal
 $('#installButton').addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('#installButton').hidden = true; });
 showUpdatedNoticeIfNeeded();
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=97'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
+  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=98'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
   navigator.serviceWorker.addEventListener('message', event => {
     if (event.data?.type !== 'DAY_PUSH') return;
     showReminderAlert(event.data.taskId || '', event.data.title || 'Новое уведомление', event.data.body || '');

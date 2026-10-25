@@ -43,10 +43,14 @@ jobs:
         run: |
           pip install -r server/requirements-test.txt
           python -m pytest server -q -p no:cacheprovider -m etap2   # этап 3 добавится сюда после его приёмки
-      - name: Автотест всех кнопок (Playwright)
+      - name: Установка браузера (Playwright)
         run: |
           npm i --no-save playwright
           npx playwright install --with-deps chromium
+      - name: Живая проверка — браузер + настоящий сервер
+        run: PYTHON=python node tools/test-live.js
+      - name: Автотест всех кнопок (Playwright)
+        run: |
           set +e
           node tools/test-buttons.js 2>&1 | tee /tmp/test-out.txt
           code=${PIPESTATUS[0]}

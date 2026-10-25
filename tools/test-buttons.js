@@ -137,6 +137,9 @@ function handleApi(req, res, p) {
     }
     if (shared && m === 'GET') { const row = sharedRow.find(r => r.id === decodeURIComponent(shared[1])); return row ? json(row) : json({ message: 'Не найдено' }, 404); }
     if (p === '/api/presence' && m === 'GET') return json([]);
+    // В обходе кнопок сервер обратной связи «недоступен» (как formsubmit.co без интернета в v97): окно остаётся открытым
+    // и проверяется кнопка «×». Успешная отправка проверяется отдельным сценарием «Обратная связь».
+    if (p === '/api/feedback') return json({ message: 'Сервер недоступен' }, 503);
     if (p.startsWith('/api/files/shared/') && m === 'POST') return json({ path: `shared/${p.split('/')[4]}/qa.${query.get('ext') || 'jpg'}` }, 201);
     if (p.startsWith('/api/files/') && m === 'GET') { res.writeHead(200, { 'Content-Type': 'image/png' }); return res.end(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64')); }
     if (m === 'GET') return json([]);
@@ -713,6 +716,46 @@ async function runSpecial(browser, base, mobile, shotsDir) {
     await page.fill('#feedbackReplyEmail', 'user@example.com'); await click('#feedbackSubmitButton'); await page.waitForTimeout(600);
     const body = hits[0] || '';
     ok((await page.locator('#feedbackDialog[open]').count()) === 0 && hits.length === 1 && body.includes('user@example.com') && body.includes('Без входа'), `запросов: ${hits.length}; email в запросе: ${body.includes('user@example.com')}`, 'Обратная связь без входа: с указанным email сообщение уходит');
+  });
+
+  // Вход в свой сервер: регистрация только по коду приглашения, «Забыли пароль?» — к администратору, старая сессия Supabase, смена пароля.
+  const asGuest = async page => { await page.evaluate(() => localStorage.removeItem('day-sync-session-v1')); await page.reload({ waitUntil: 'load' }); await page.waitForTimeout(900); };
+  const syncState = page => page.evaluate(() => ($('#syncStateTitle').textContent + ' | ' + $('#syncStateText').textContent).trim());
+  await scenario('Регистрация: без кода приглашения запрос не уходит, с кодом — аккаунт создан', null, async ({ page, ok, click }) => {
+    const hits = []; await page.route('**/api/auth/register', r => { hits.push(r.request().postDataJSON()); r.continue(); });
+    await asGuest(page); await page.evaluate(() => openSyncDialog()); await page.waitForTimeout(250);
+    await page.fill('#syncEmail', 'new@example.com'); await page.fill('#syncPassword', 'new-pass-123'); await page.fill('#syncInvite', '');
+    await click('#syncSignUp'); await page.waitForTimeout(300);
+    const msg = await syncState(page);
+    ok(hits.length === 0 && /приглашени/i.test(msg) && (await page.evaluate(() => document.activeElement?.id)) === 'syncInvite', `запросов: ${hits.length}; сообщение: «${msg}»`, 'Регистрация: без кода приглашения — подсказка, курсор в поле кода');
+    await page.fill('#syncInvite', 'KOD-123'); await click('#syncSignUp'); await page.waitForTimeout(900);
+    const signed = await page.evaluate(() => !!window.DaySync.user());
+    ok(hits.length === 1 && hits[0].invite === 'KOD-123' && hits[0].email === 'new@example.com' && signed && (await page.locator('#syncDialog[open]').count()) === 0, `запросов: ${hits.length}; код в запросе: ${hits[0]?.invite}; вошёл: ${signed}`, 'Регистрация: с кодом приглашения аккаунт создан и окно закрылось');
+  });
+  await scenario('Вход: «Забыли пароль?» отправляет к администратору (писем больше нет)', null, async ({ page, ok, click }) => {
+    const hits = []; await page.route('**/api/**', r => { hits.push(r.request().url()); r.continue(); });
+    await asGuest(page); hits.length = 0; await page.evaluate(() => openSyncDialog()); await page.waitForTimeout(250);
+    await click('#syncForgotPassword'); await page.waitForTimeout(300); const msg = await syncState(page);
+    ok(/администратор/i.test(msg) && !hits.some(u => /recover|reset/.test(u)), `сообщение: «${msg}»`);
+  });
+  await scenario('Переезд облака: старая сессия Supabase сбрасывается, просим войти тем же email', { init: `if (!sessionStorage.getItem('__qa_old')) { sessionStorage.setItem('__qa_old', '1'); localStorage.setItem('day-sync-session-v1', JSON.stringify({ access_token: 'eyJhbGciOi.old.supabase', refresh_token: 'old', expires_at: Math.floor(Date.now() / 1000) + 3600, user: { id: 'u-tester-0001', email: 'old@example.com' } })); }` }, async ({ page, ok }) => {
+    await page.waitForTimeout(400);
+    const st = await page.evaluate(() => ({ user: !!window.DaySync.user(), open: !!$('#syncDialog').open, email: $('#syncEmail').value, kept: localStorage.getItem('day-sync-session-v1') }));
+    const msg = await syncState(page);
+    ok(!st.user && !st.kept && st.open && st.email === 'old@example.com' && /Новый сервер|New server/.test(msg) && /администратор|administrator/.test(msg), `вошёл: ${st.user}; старая сессия удалена: ${!st.kept}; окно входа: ${st.open}; email подставлен: «${st.email}»; текст: «${msg}»`);
+  });
+  await scenario('Смена пароля: верный старый пароль — готово, неверный — понятное сообщение', null, async ({ page, ok, click }) => {
+    let answer = 200; const hits = [];
+    await page.route('**/api/auth/user', r => { if (r.request().method() !== 'PUT') return r.continue(); hits.push(r.request().postDataJSON()); return answer === 200 ? r.continue() : r.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ message: 'Неверный пароль', code: 'wrong_password' }) }); });
+    await page.evaluate(() => openSyncDialog()); await page.waitForTimeout(250);
+    const visible = await page.locator('#syncPasswordForm').isVisible();
+    if (!visible) { ok(false, 'форма смены пароля не видна вошедшему'); return; }
+    const toastText = () => page.evaluate(() => (document.querySelector('#toast')?.textContent || '').trim());
+    await page.fill('#syncOldPassword', 'old-pass-1'); await page.fill('#syncChangeNewPassword', 'new-pass-123'); await click('#syncPasswordForm button[type="submit"]'); await page.waitForTimeout(500);
+    const t1 = await toastText(); const cleared = (await page.inputValue('#syncOldPassword')) === '';
+    ok(hits.length === 1 && hits[0].old_password === 'old-pass-1' && hits[0].password === 'new-pass-123' && /изменён/i.test(t1) && cleared, `запросов: ${hits.length}; сообщение: «${t1}»; поля очищены: ${cleared}`, 'Смена пароля: со старым паролем пароль меняется');
+    answer = 403; await page.fill('#syncOldPassword', 'wrong-1'); await page.fill('#syncChangeNewPassword', 'new-pass-456'); await click('#syncPasswordForm button[type="submit"]'); await page.waitForTimeout(500);
+    const t2 = await toastText(); ok(hits.length === 2 && /неверно/i.test(t2) && (await page.evaluate(() => !!window.DaySync.user())), `сообщение: «${t2}»; вход сохранён`, 'Смена пароля: неверный старый пароль — сообщение, вход не теряется');
   });
 
   await scenario('Автообновление: найдена новая версия → приложение само переходит на неё', { fakeVersion: 1 }, async ({ page, ok, errors }) => {

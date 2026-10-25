@@ -141,3 +141,69 @@ def test_serves_only_app_files_when_static_dir_set(fresh_server):
         assert api.get(path)[0] == 404, path
     status, body, headers = api.get('/api/nope')
     assert status == 404 and 'application/json' in headers.get('Content-Type', '')
+
+
+def test_chunked_body_over_limit_rejected(server):
+    """Предел размера нельзя обойти, не указав длину тела (Transfer-Encoding: chunked)."""
+    import http.client
+    from urllib.parse import urlparse
+    u = urlparse(server.base)
+    conn = http.client.HTTPConnection(u.hostname, u.port, timeout=30)
+    def body():
+        chunk = b'A' * (1024 * 1024)
+        yield b'{"text":"'
+        for _ in range(40):
+            yield chunk
+        yield b'"}'
+    try:
+        conn.request('POST', '/api/feedback', body=body(), headers={'Content-Type': 'application/json'}, encode_chunked=True)
+        status = conn.getresponse().status
+    except (ConnectionError, http.client.HTTPException):
+        status = 0
+    finally:
+        conn.close()
+    assert status in (413, 0)
+
+
+def test_feedback_daily_cap(fresh_server):
+    api = fresh_server(DEN_FEEDBACK_DAILY=3, DEN_FEEDBACK_LIMIT=100)
+    codes = [api.post('/api/feedback', {'text': f'сообщение {i}'})[0] for i in range(4)]
+    assert codes == [204, 204, 204, 429]
+
+
+def test_den_env_with_bom_from_notepad(tmp_path, fresh_server):
+    env = tmp_path / 'den.env'
+    env.write_bytes('﻿DEN_SECRET=bom-secret-'.encode('utf-8') + b'z' * 40 + b'\n')
+    api = fresh_server(DEN_SECRET='', DEN_ENV_FILE=str(env))
+    assert api.get('/api/health')[0] == 200
+
+
+def test_backup_made_at_start_when_none_yet(fresh_server):
+    api = fresh_server(DEN_BACKUP_EVERY=3600)
+    time.sleep(2.5)
+    assert list((api.data_dir / 'backups').glob('den-*.db'))
+
+
+def test_head_request_for_screens(fresh_server):
+    api = fresh_server(DEN_STATIC_DIR=str(ROOT))
+    assert api.call('HEAD', '/index.html')[0] == 200
+
+
+def admin_cli(data_dir, *args):
+    env = {**os.environ, 'DEN_DATA_DIR': str(data_dir), 'DEN_SECRET': 'cli-secret-' + 'q' * 40}
+    return subprocess.run([sys.executable, '-m', 'server.admin', *args], cwd=ROOT, env=env, capture_output=True, text=True, timeout=60)
+
+
+def test_admin_command_line(tmp_path, fresh_server):
+    data = tmp_path / 'cli'
+    assert admin_cli(data, 'add', 'boss@den.test', 'boss-pass-123', 'admin').returncode == 0
+    inv = admin_cli(data, 'invite', 'mont@den.test')
+    code = inv.stdout.split(': ')[1].split()[0]
+    assert admin_cli(data, 'password', 'boss@den.test', 'new-boss-456').returncode == 0
+    assert 'boss@den.test' in admin_cli(data, 'users').stdout
+    assert admin_cli(data, 'backup').returncode == 0
+    assert admin_cli(data, 'password', 'nobody@den.test', 'x-pass-12345').returncode != 0
+    api = fresh_server(data_dir=data, DEN_SECRET='cli-secret-' + 'q' * 40)
+    assert api.post('/api/auth/login', {'email': 'boss@den.test', 'password': 'new-boss-456'})[0] == 200
+    assert api.post('/api/auth/register', {'email': 'mont@den.test', 'password': 'mont-pass-1', 'invite': code})[0] == 200
+    assert 'mont@den.test' in admin_cli(data, 'users').stdout

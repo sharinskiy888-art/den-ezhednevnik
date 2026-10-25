@@ -288,3 +288,39 @@ def test_rate_limit_lifts_after_window(fresh_server):
     assert api.post('/api/auth/login', {'email': ADMIN_EMAIL, 'password': ADMIN_PASSWORD})[0] == 429
     time.sleep(3.5)
     assert api.post('/api/auth/login', {'email': ADMIN_EMAIL, 'password': ADMIN_PASSWORD})[0] == 200
+
+
+def test_password_min_8_like_login_form(server, admin):
+    assert server.post('/api/admin/users', {'email': 'seven@den.test', 'password': '1234567'}, admin.token)[0] == 400
+
+
+def test_session_extends_while_used(fresh_server):
+    """Пока человек пользуется приложением, вход продлевается (раньше в Supabase так же)."""
+    api = fresh_server(DEN_REFRESH_TTL=4, DEN_ACCESS_TTL=60)
+    s = api.login(ADMIN_EMAIL, ADMIN_PASSWORD)
+    time.sleep(2.5)
+    status, s2, _ = api.post('/api/auth/refresh', {'refresh_token': s['refresh_token']})
+    assert status == 200
+    time.sleep(2.5)  # с начала прошло 5 с > 4 с, но с последнего обновления — 2,5 с
+    assert api.get('/api/auth/user', s2['access_token'])[0] == 200
+
+
+def test_parallel_wrong_logins_do_not_slip_past_limit(fresh_server):
+    import threading
+    api = fresh_server()
+    codes = []
+    def attempt():
+        codes.append(api.post('/api/auth/login', {'email': ADMIN_EMAIL, 'password': 'wrong'})[0])
+    threads = [threading.Thread(target=attempt) for _ in range(20)]
+    [t.start() for t in threads]
+    [t.join() for t in threads]
+    assert codes.count(401) <= 5 and codes.count(429) >= 15
+
+
+def test_trusted_proxy_forwarded_address(fresh_server):
+    """За nginx лимит считается по настоящему адресу устройства, а не по адресу прокси."""
+    api = fresh_server(DEN_TRUSTED_PROXY='127.0.0.1')
+    for _ in range(5):
+        api.post('/api/auth/login', {'email': f'x{_}@den.test', 'password': 'wrong'}, headers={'X-Forwarded-For': '10.0.0.1'})
+    assert api.post('/api/auth/login', {'email': 'y@den.test', 'password': 'wrong'}, headers={'X-Forwarded-For': '10.0.0.1'})[0] == 429
+    assert api.post('/api/auth/login', {'email': ADMIN_EMAIL, 'password': ADMIN_PASSWORD}, headers={'X-Forwarded-For': '10.0.0.2'})[0] == 200

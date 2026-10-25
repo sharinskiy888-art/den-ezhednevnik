@@ -10,15 +10,20 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 def _load_env_file():
-    """den.env: строки ИМЯ=значение. Переменные окружения важнее файла."""
-    path = Path(os.environ.get('DEN_ENV_FILE') or Path.cwd() / 'den.env')
-    if not path.is_file():
+    """den.env: строки ИМЯ=значение. Переменные окружения важнее файла.
+
+    Ищется: DEN_ENV_FILE, текущая папка, папка программы (у службы Windows текущая папка — System32), корень проекта.
+    """
+    places = [os.environ.get('DEN_ENV_FILE'), Path.cwd() / 'den.env', Path(sys.argv[0]).resolve().parent / 'den.env', ROOT / 'den.env']
+    path = next((Path(p) for p in places if p and Path(p).is_file()), None)
+    if not path:
         return
-    for line in path.read_text(encoding='utf-8').splitlines():
+    for line in path.read_text(encoding='utf-8-sig').splitlines():  # utf-8-sig: Блокнот пишет невидимую метку в начало
         line = line.strip()
         if line and not line.startswith('#') and '=' in line:
             key, value = line.split('=', 1)
-            os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+            if not os.environ.get(key.strip()):
+                os.environ[key.strip()] = value.strip().strip('"').strip("'")
 
 
 _load_env_file()
@@ -47,6 +52,8 @@ REFRESH_GRACE = _int('DEN_REFRESH_GRACE', 10)
 LOGIN_LIMIT = _int('DEN_LOGIN_LIMIT', 5)
 LOGIN_WINDOW = _int('DEN_LOGIN_WINDOW', 60)
 FEEDBACK_LIMIT = _int('DEN_FEEDBACK_LIMIT', 5)
+FEEDBACK_DAILY = _int('DEN_FEEDBACK_DAILY', 100)
+TRUSTED_PROXY = (os.environ.get('DEN_TRUSTED_PROXY') or '').strip()
 BACKUP_KEEP = _int('DEN_BACKUP_KEEP', 14)
 BACKUP_EVERY = _int('DEN_BACKUP_EVERY', 24 * 3600)
 STATIC_DIR = Path(os.environ['DEN_STATIC_DIR']).resolve() if os.environ.get('DEN_STATIC_DIR') else None
@@ -87,7 +94,7 @@ def connect(path=DB_PATH):
     con.execute('pragma journal_mode=wal')
     con.execute('pragma busy_timeout=5000')
     con.execute('pragma foreign_keys=on')
-    con.execute('pragma synchronous=normal')
+    con.execute('pragma synchronous=full')  # домашний ПК могут выключить из розетки — правка не должна пропасть
     return con
 
 
@@ -117,7 +124,15 @@ class tx:
         return self.con
 
     def __exit__(self, exc_type, *_):
-        self.con.execute('rollback' if exc_type else 'commit')
+        if exc_type:
+            self.con.execute('rollback')
+            return
+        try:
+            self.con.execute('commit')
+        except Exception:  # например, кончился диск: не оставляем открытую транзакцию на общем подключении
+            if self.con.in_transaction:
+                self.con.execute('rollback')
+            raise
 
 
 _lock_file = None

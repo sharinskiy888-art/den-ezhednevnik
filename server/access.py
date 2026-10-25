@@ -25,8 +25,22 @@ def bad(message, code='bad_request'):
     return ApiError(400, message, code)
 
 
+MAX_BODY = 32 * 1024 * 1024
+
+
+async def read_body(request: Request, limit=MAX_BODY):
+    """Тело запроса с пределом: считаем байты по мере чтения, а не верим заголовку Content-Length."""
+    chunks, size = [], 0
+    async for chunk in request.stream():
+        size += len(chunk)
+        if size > limit:
+            raise ApiError(413, f'Слишком большой запрос (больше {limit // (1024 * 1024)} МБ)', 'too_large')
+        chunks.append(chunk)
+    return b''.join(chunks)
+
+
 async def read_json(request: Request):
-    raw = await request.body()
+    raw = await read_body(request)
     if not raw:
         return None
     try:
@@ -156,10 +170,23 @@ class RateLimiter:
         now = time.time()
         for key in keys:
             self.events.setdefault(key, []).append(now)
+        return now
+
+    def undo(self, stamp, *keys):
+        """Попытка оказалась удачной — не засчитываем её."""
+        for key in keys:
+            items = self.events.get(key, [])
+            if stamp in items:
+                items.remove(stamp)
         if len(self.events) > 10000:  # защита памяти от перебора тысяч адресов
             for key in list(self.events):
                 self._recent(key, now)
 
 
 def client_ip(request: Request):
-    return request.client.host if request.client else '?'
+    """Адрес устройства. За nginx (VPS) все приходят с адреса прокси — тогда берём X-Forwarded-For, но только от него."""
+    host = request.client.host if request.client else '?'
+    if db.TRUSTED_PROXY and host == db.TRUSTED_PROXY:
+        forwarded = request.headers.get('x-forwarded-for', '').split(',')[-1].strip()
+        return forwarded or host
+    return host

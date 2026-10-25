@@ -1,0 +1,88 @@
+/*
+ * Живая проверка: настоящий sync.js + настоящий сервер «День» (server/) в браузере, три «устройства».
+ * Запуск: node tools/test-live.js   (нужны Python с server/requirements.txt и Playwright; PYTHON= — свой python)
+ * Проверяет то, что заглушка в test-buttons.js проверить не может: что приложение и сервер понимают друг друга.
+ */
+const { spawn, execFileSync } = require('child_process');
+const fs = require('fs'); const os = require('os'); const path = require('path'); const net = require('net');
+const { chromium } = require('playwright');
+const ROOT = path.resolve(__dirname, '..');
+const PY = process.env.PYTHON || (process.platform === 'win32' ? 'python' : 'python3');
+const results = [];
+const ok = (cond, name, info = '') => { results.push(!!cond); console.log(`${cond ? '✔' : '✗'} ${name}${info ? ' — ' + info : ''}`); };
+const freePort = () => new Promise(r => { const s = net.createServer(); s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => r(p)); }); });
+
+(async () => {
+  const port = await freePort(); const base = `http://127.0.0.1:${port}`;
+  const data = fs.mkdtempSync(path.join(os.tmpdir(), 'den-live-'));
+  const env = { ...process.env, DEN_SECRET: 'live-test-secret-' + 'x'.repeat(40), DEN_DATA_DIR: data, DEN_STATIC_DIR: ROOT,
+    DEN_ADMIN_EMAIL: 'admin@den.test', DEN_ADMIN_PASSWORD: 'admin-pass-1', DEN_PUBLIC_URL: base };
+  const server = spawn(PY, ['-m', 'uvicorn', 'server.main:app', '--port', String(port)], { cwd: ROOT, env, stdio: ['ignore', 'pipe', 'pipe'] });
+  let log = ''; server.stdout.on('data', d => log += d); server.stderr.on('data', d => log += d);
+  const api = async (method, p, body, token) => { const r = await fetch(base + p, { method, headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: body ? JSON.stringify(body) : undefined }); const t = await r.text(); return { status: r.status, body: t ? JSON.parse(t) : null }; };
+  let browser;
+  try {
+    for (let i = 0; i < 100; i++) { try { if ((await fetch(base + '/api/health')).ok) break; } catch {} await new Promise(r => setTimeout(r, 150)); }
+    const admin = (await api('POST', '/api/auth/login', { email: 'admin@den.test', password: 'admin-pass-1' })).body.access_token;
+    const OLD_ID = '11111111-1111-4111-8111-111111111111';
+    ok((await api('POST', '/api/admin/users', { email: 'shamil@den.test', password: 'pass-shamil-1', id: OLD_ID }, admin)).status === 201, 'Админ переносит пользователя с прежним id');
+    const invite = (await api('POST', '/api/admin/invites', { email: 'montazhnik@den.test' }, admin)).body.invite;
+
+    browser = await chromium.launch(); const errors = [];
+    const device = async (name, init) => {
+      const page = await (await browser.newContext()).newPage();
+      page.on('pageerror', e => errors.push(`${name}: ${e.message}`));
+      page.on('response', r => { const u = new URL(r.url()); if (r.status() >= 400 && !/^\/api\/(shared|presence)/.test(u.pathname) && !(r.status() === 401 && u.pathname === '/api/auth/login')) errors.push(`${name}: ${r.status()} ${u.pathname}`); });
+      if (init) await page.addInitScript(init);
+      await page.goto(base + '/'); await page.waitForTimeout(1200); return page;
+    };
+    const signIn = async (page, email, password) => {
+      await page.evaluate(() => document.querySelector('#syncDialog').open || document.querySelector('#syncDialog').showModal());
+      await page.fill('#syncEmail', email); await page.fill('#syncPassword', password);
+      await page.click('#syncAuthForm button[type=submit]'); await page.waitForTimeout(2500);
+    };
+    // 1. Телефон с данными времён Supabase
+    const d1 = await device('телефон', `localStorage.setItem('day-sync-session-v1', JSON.stringify({ access_token: 'eyJhbGciOi.old.sig', refresh_token: 'x', expires_at: 9999999999, user: { id: '${OLD_ID}', email: 'shamil@den.test' } }));
+      localStorage.setItem('day-planner-tasks-v2:${OLD_ID}', JSON.stringify([{ id: 'old-task-1', title: 'Задача с телефона до переезда', date: '2026-10-25', updatedAt: '2026-10-20T10:00:00.000Z' }]));`);
+    const moved = await d1.evaluate(() => [localStorage.getItem('day-sync-session-v1'), document.querySelector('#syncDialog').open, document.querySelector('#syncEmail').value]);
+    ok(moved[0] === null && moved[1] && moved[2] === 'shamil@den.test', 'Старый вход Supabase сброшен: окно входа открыто, email подставлен');
+    await signIn(d1, 'shamil@den.test', 'pass-shamil-1');
+    ok(/Синхронизировано/.test(await d1.locator('#syncStateTitle').innerText()), 'Вход на свой сервер и синхронизация');
+    const token = await d1.evaluate(() => JSON.parse(localStorage.getItem('day-sync-session-v1')).access_token);
+    ok((await api('GET', '/api/data/tasks/heads', null, token)).body.some(h => h.id === 'old-task-1'), 'Задача, созданная до переезда, сама загрузилась на сервер');
+    await d1.evaluate(async () => { tasks.push(normalizeTask({ id: 'live-new-1', title: 'Новая задача', date: toKey(new Date()), updatedAt: new Date().toISOString() })); profile = { ...profile, name: 'Шамиль' }; touchAppState(); save(); await performSync(false); });
+    // 2. Компьютер: чистый браузер
+    const d2 = await device('компьютер'); await signIn(d2, 'shamil@den.test', 'pass-shamil-1');
+    const ids2 = await d2.evaluate(() => tasks.map(t => t.id));
+    ok(ids2.includes('old-task-1') && ids2.includes('live-new-1'), 'Второе устройство получило задачи первого', ids2.join(','));
+    ok(await d2.evaluate(() => profile.name) === 'Шамиль', 'Профиль (состояние приложения) дошёл до второго устройства');
+    await d2.evaluate(async () => { markDeleted(deletedIds, deletedStorageKey(), 'live-new-1'); tasks = tasks.filter(t => t.id !== 'live-new-1'); save(); await performSync(false); });
+    await d1.evaluate(async () => { await performSync(false); });
+    const ids1 = await d1.evaluate(() => tasks.map(t => t.id));
+    ok(!ids1.includes('live-new-1') && ids1.includes('old-task-1'), 'Удаление дошло до первого устройства (надгробие), задача не воскресла');
+    await d1.evaluate(async () => { expenses.push(normalizeExpense({ id: 'exp-live-1', kind: 'expense', title: 'Кабель', amount: 1234.56, category: 'other', occurredAt: new Date().toISOString(), updatedAt: new Date().toISOString() })); saveExpenses(); await performSync(false); });
+    await d2.evaluate(async () => { await performSync(false); });
+    ok(await d2.evaluate(() => expenses.find(e => e.id === 'exp-live-1')?.amount) === 1234.56, 'Расход дошёл до второго устройства с той же суммой');
+    // Пустой ответ сервера не стирает данные устройства
+    await api('DELETE', '/api/data/tasks/old-task-1', null, token);
+    await d1.evaluate(async () => { localStorage.removeItem(`day-sync-meta-v1:planner_tasks:${window.DaySync.user().id}`); await performSync(false); });
+    ok((await d1.evaluate(() => tasks.map(t => t.id))).includes('old-task-1'), 'Пустой ответ сервера не стёр задачу на устройстве — она загрузилась снова');
+    await d1.evaluate(async () => { await window.DaySync.sendFeedback({ text: 'Живая проверка', email: 'shamil@den.test' }); });
+    ok((await api('GET', '/api/admin/feedback', null, admin)).body.some(f => f.text === 'Живая проверка'), 'Обратная связь дошла до сервера');
+    // 3. Новый монтажник: неверный пароль, регистрация по приглашению, смена пароля
+    const d3 = await device('монтажник'); await signIn(d3, 'shamil@den.test', 'wrong-pass-1');
+    ok(/Неверный email или пароль/.test(await d3.locator('#syncStateText').innerText()), 'Неверный пароль — понятное сообщение');
+    await d3.fill('#syncEmail', 'montazhnik@den.test'); await d3.fill('#syncPassword', 'pass-mont-123'); await d3.fill('#syncInvite', invite);
+    await d3.click('#syncSignUp'); await d3.waitForTimeout(2500);
+    ok(await d3.evaluate(() => window.DaySync.user()?.email) === 'montazhnik@den.test', 'Регистрация по коду приглашения из окна входа');
+    await d3.evaluate(() => document.querySelector('#syncDialog').open || document.querySelector('#syncDialog').showModal());
+    await d3.fill('#syncOldPassword', 'pass-mont-123'); await d3.fill('#syncChangeNewPassword', 'pass-mont-456'); await d3.click('#syncPasswordForm button[type=submit]'); await d3.waitForTimeout(1500);
+    ok((await api('POST', '/api/auth/login', { email: 'montazhnik@den.test', password: 'pass-mont-456' })).status === 200, 'Смена пароля в окне «Аккаунт» работает');
+    ok(errors.length === 0, 'Нет ошибок JavaScript и неожиданных ошибок сервера', errors.slice(0, 5).join(' | '));
+    ok(!/Traceback/.test(log), 'В журнале сервера нет сбоев');
+  } catch (error) { ok(false, 'Проверка оборвалась', error.message); }
+  finally { if (browser) await browser.close(); server.kill(); }
+  const passed = results.filter(Boolean).length;
+  console.log(`\nИТОГ: ${passed}/${results.length}${passed === results.length ? ' ✔' : ''}`);
+  process.exit(passed === results.length ? 0 : 1);
+})();

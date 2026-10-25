@@ -1,4 +1,5 @@
 """Вход, обновление входа, выход, смена пароля, приглашения и управление пользователями админом."""
+import asyncio
 import base64
 import hashlib
 import hmac
@@ -16,6 +17,12 @@ from .access import ApiError, RateLimiter, bad, client_ip, current_user, field, 
 router = APIRouter(prefix='/api')
 login_limiter = RateLimiter(db.LOGIN_LIMIT, db.LOGIN_WINDOW)
 SCRYPT = {'n': 2 ** 14, 'r': 8, 'p': 1}
+SCRYPT_SLOTS = asyncio.Semaphore(4)  # каждая проверка пароля берёт 16 МБ памяти: не больше 4 одновременно
+
+
+async def scrypt_call(func, *args):
+    async with SCRYPT_SLOTS:
+        return await run_in_threadpool(func, *args)
 WRONG_LOGIN = 'Неверный email или пароль'
 
 
@@ -47,8 +54,8 @@ def norm_email(value):
 
 
 def check_new_password(password):
-    if len(password) < 6:
-        raise bad('Пароль должен быть не короче 6 символов', 'weak_password')
+    if len(password) < 8:
+        raise bad('Пароль должен быть не короче 8 символов', 'weak_password')
     if len(password) > 200:
         raise bad('Слишком длинный пароль', 'bad_field')
     return password
@@ -104,12 +111,13 @@ async def login(request: Request):
     password = field(body, 'password', max_len=200)
     keys = ('ip:' + client_ip(request), 'email:' + email)
     login_limiter.check(*keys)
+    stamp = login_limiter.hit(*keys)  # засчитываем до проверки: параллельные попытки не проскочат лимит
     con = request.app.state.con
     user = con.execute('select * from users where email=?', (email,)).fetchone()
-    ok = await run_in_threadpool(check_password, password, user['password_hash'] if user else DUMMY_HASH)
+    ok = await scrypt_call(check_password, password, user['password_hash'] if user else DUMMY_HASH)
     if not (user and ok):
-        login_limiter.hit(*keys)
         raise ApiError(401, WRONG_LOGIN, 'invalid_credentials')
+    login_limiter.undo(stamp, *keys)
     with db.tx(con):
         return new_session(con, user)
 
@@ -132,7 +140,8 @@ async def refresh(request: Request):
             raise expired
         user = {'id': s['user_id'], 'email': s['email'], 'role': s['role']}
         if counter == s['counter']:
-            con.execute('update sessions set counter=counter+1, rotated_at=? where id=?', (time.time(), sid))
+            # Пока человек пользуется приложением, вход продлевается (как было в Supabase).
+            con.execute('update sessions set counter=counter+1, rotated_at=?, expires_at=? where id=?', (time.time(), time.time() + db.REFRESH_TTL, sid))
             return session_response(user, sid, counter + 1)
         if counter == s['counter'] - 1 and time.time() - s['rotated_at'] <= db.REFRESH_GRACE:
             return session_response(user, sid, s['counter'])  # параллельное обновление: тот же текущий токен
@@ -164,9 +173,9 @@ async def change_password(request: Request):
     old = field(body, 'old_password', max_len=200)
     con = request.app.state.con
     stored = con.execute('select password_hash from users where id=?', (user.id,)).fetchone()[0]
-    if not await run_in_threadpool(check_password, old, stored):
+    if not await scrypt_call(check_password, old, stored):
         raise ApiError(403, 'Старый пароль указан неверно', 'wrong_password')
-    new_hash = await run_in_threadpool(hash_password, password)
+    new_hash = await scrypt_call(hash_password, password)
     with db.tx(con):
         con.execute('update users set password_hash=? where id=?', (new_hash, user.id))
         revoke_user_sessions(con, user.id, keep_sid=user.sid)
@@ -187,7 +196,7 @@ async def register(request: Request):
     if not invite or invite['email'] != email:
         login_limiter.hit(*keys)
         raise ApiError(403, 'Приглашение неверное, уже использовано или выдано на другой email', 'bad_invite')
-    password_hash = await run_in_threadpool(hash_password, password)
+    password_hash = await scrypt_call(hash_password, password)
     with db.tx(con):
         con.execute('update invites set used_at=? where code_hash=?', (time.time(), code_hash))
         user = create_user(con, email, password_hash, invite['role'])
@@ -213,7 +222,7 @@ async def add_user(request: Request):
     user_id = field(body, 'id', required=False, max_len=100)
     if user_id is not None and not user_id.strip():
         raise bad('Пустой id', 'bad_field')
-    password_hash = await run_in_threadpool(hash_password, password)
+    password_hash = await scrypt_call(hash_password, password)
     with db.tx(request.app.state.con) as con:
         return JSONResponse(create_user(con, email, password_hash, role, user_id), status_code=201)
 
@@ -222,7 +231,7 @@ async def add_user(request: Request):
 async def reset_password(user_id: str, request: Request):
     require_admin(request)
     password = check_new_password(field(await read_json(request), 'password'))
-    password_hash = await run_in_threadpool(hash_password, password)
+    password_hash = await scrypt_call(hash_password, password)
     with db.tx(request.app.state.con) as con:
         if not con.execute('update users set password_hash=? where id=?', (password_hash, user_id)).rowcount:
             raise ApiError(404, 'Нет такого пользователя', 'not_found')

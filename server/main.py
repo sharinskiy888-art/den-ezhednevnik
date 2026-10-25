@@ -16,9 +16,8 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import auth, backup, db, sync
-from .access import ApiError, RateLimiter, bad, client_ip, field, read_json, require_admin, user_from_token
+from .access import MAX_BODY, ApiError, RateLimiter, bad, client_ip, field, read_json, require_admin, user_from_token
 
-MAX_BODY = 32 * 1024 * 1024
 STATIC_FILES = {'index.html', 'app.js', 'sync.js', 'sync-config.js', 'i18n-en.js', 'styles.css', 'sw.js', 'version.js',
                 'version.json', 'manifest.webmanifest', 'install.html', 'qr-iphone.svg'}
 PHOTO_RE = re.compile(r'^data:image/(jpeg|png|webp|gif);base64,([A-Za-z0-9+/=]+)$')
@@ -99,6 +98,9 @@ async def feedback(request: Request):
     """Обратная связь из приложения (раньше уходила на сторонний formsubmit.co)."""
     ip = 'ip:' + client_ip(request)
     feedback_limiter.check(ip)
+    today = con.execute("select count(*) from feedback where created_at >= ?", (db.now_iso()[:10],)).fetchone()[0]
+    if today >= db.FEEDBACK_DAILY:
+        raise ApiError(429, 'Сегодня уже слишком много сообщений. Попробуйте завтра.', 'too_many', {'Retry-After': '3600'})
     body = await read_json(request)
     text = (field(body, 'text', max_len=5000) or '').strip()
     if not text:
@@ -132,7 +134,7 @@ async def api_not_found(rest: str):
     raise ApiError(404, 'Нет такого адреса API', 'not_found')
 
 
-@app.get('/{path:path}')
+@app.api_route('/{path:path}', methods=['GET', 'HEAD'])
 async def screens(path: str):
     """Экраны приложения — только из списка, чтобы наружу не ушли код сервера, база или .git."""
     if db.STATIC_DIR is None:
