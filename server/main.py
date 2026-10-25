@@ -16,7 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from . import auth, backup, crm, db, files, shared, sync
+from . import auth, backup, crm, db, files, migration, shared, sync
 from .access import MAX_BODY, ApiError, RateLimiter, bad, client_ip, field, read_json, require_admin, user_from_token
 
 STATIC_FILES = {'index.html', 'app.js', 'crm.js', 'sync.js', 'sync-config.js', 'i18n-en.js', 'styles.css', 'sw.js', 'version.js',
@@ -101,6 +101,7 @@ app.include_router(sync.router)
 app.include_router(shared.router)
 app.include_router(files.router)
 app.include_router(crm.router)
+app.include_router(migration.router)
 app.include_router(backup.router)
 
 

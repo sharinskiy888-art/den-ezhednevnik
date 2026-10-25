@@ -4,6 +4,7 @@
   const API = `${String(config.url || '').replace(/\/+$/, '')}/api`;
   const SESSION_KEY = 'day-sync-session-v1';
   const STATE_ID = '00000000-0000-4000-8000-000000000001';
+  const OLD_KEY = 'day-cloud-old-v1';
   // Прежние названия таблиц Supabase остаются в app.js; на сервере они короче. CRM: «crm:clients» → /crm/clients.
   const TABLES = { planner_tasks: '/data/tasks', planner_expenses: '/data/expenses' };
   const tablePath = table => TABLES[table] || (String(table).startsWith('crm:') ? `/crm/${table.slice(4)}` : `/data/${table}`);
@@ -17,6 +18,11 @@
       localStorage.removeItem(SESSION_KEY);
       Object.keys(localStorage).filter(key => key.startsWith('day-sync-meta-v1:')).forEach(key => localStorage.removeItem(key));
       localStorage.setItem('day-cloud-moved', session?.user?.email || '1');
+      // Вход Supabase не выбрасываем: им при первом входе на новый сервер забираются поручения и записи из прежнего облака.
+      if (session?.user?.id && session.refresh_token && !localStorage.getItem(OLD_KEY)) {
+        localStorage.setItem(OLD_KEY, JSON.stringify({ id: session.user.id, email: String(session.user.email || '').toLocaleLowerCase(),
+          access_token: session.access_token, refresh_token: session.refresh_token, expires_at: session.expires_at || 0 }));
+      }
       return null;
     }
     return session;
@@ -61,9 +67,10 @@
         expireSession(); throw sessionExpiredError();
       }
       let message = `Ошибка сервера: ${response.status}`;
-      try { const body = await response.json(); message = body.message || message; } catch {}
+      let code = '';
+      try { const body = await response.json(); message = body.message || message; code = body.code || ''; } catch {}
       const error = new Error(message);
-      error.status = response.status;
+      error.status = response.status; error.code = code;
       error.retryAfter = Number(response.headers.get('retry-after') || 0);
       throw error;
     }
@@ -123,7 +130,8 @@
     for (let i = 0; i < ids.length; i += 50) rows.push(...(await request(`${base}?ids=${idsQuery(ids.slice(i, i + 50))}`, { method: 'GET' }) || []));
     return { rows, serverIds: new Set(heads.map(row => row.id)) };
   }
-  async function sync(table, localItems, localTombstones = {}, localState = null) {
+  // oldRows — строки из прежнего облака (Supabase): сливаются по тем же правилам «новее побеждает», но серверу ещё не известны.
+  async function sync(table, localItems, localTombstones = {}, localState = null, oldRows = []) {
     const sessionUser = user(); if (!sessionUser) throw new Error('Сначала войдите в облако');
     const meta = loadSyncMeta(table, sessionUser.id);
     const known = { ...meta.known };
@@ -135,15 +143,17 @@
     const newer = (a, b) => new Date(a || 0) > new Date(b || 0);
     localItems.forEach(item => merged.set(item.id, item));
     let remoteState = null;
-    remoteRows.forEach(row => {
+    const absorb = (row, fromServer) => {
       const updatedAt = row.payload?.updatedAt || row.updated_at;
-      known[row.id] = updatedAt;
-      if (row.id === STATE_ID || row.payload?.__type === 'app_state') { remoteState = row.payload; return; }
+      if (fromServer) known[row.id] = updatedAt;
+      if (row.id === STATE_ID || row.payload?.__type === 'app_state') { if (!remoteState || newer(row.payload?.updatedAt, remoteState.updatedAt)) remoteState = row.payload; return; }
       if (isTombstone(row.payload)) { if (!tombstones.has(row.id) || newer(updatedAt, tombstones.get(row.id))) tombstones.set(row.id, updatedAt); return; }
       const remoteItem = { ...row.payload, id: row.id, updatedAt };
       const localItem = merged.get(row.id);
       if (!localItem || newer(remoteItem.updatedAt, localItem.updatedAt)) merged.set(row.id, remoteItem);
-    });
+    };
+    remoteRows.forEach(row => absorb(row, true));
+    (oldRows || []).forEach(row => { if (row?.id && row.payload && typeof row.payload === 'object') absorb(row, false); });
     // Надгробие побеждает, если оно не старше самой записи; если запись правили уже после удаления — она остаётся.
     tombstones.forEach((deletedAt, id) => {
       const item = merged.get(id);
@@ -176,8 +186,8 @@
     saveSyncMeta(table, sessionUser.id, { known });
     return { tasks: result, tombstones: Object.fromEntries(tombstones), appState };
   }
-  async function syncExpenses(localExpenses, localTombstones = {}) {
-    const { tasks, tombstones } = await sync('planner_expenses', localExpenses, localTombstones, null);
+  async function syncExpenses(localExpenses, localTombstones = {}, oldRows = []) {
+    const { tasks, tombstones } = await sync('planner_expenses', localExpenses, localTombstones, null, oldRows);
     return { expenses: tasks, tombstones };
   }
   function sharedTaskFromRow(row) {
@@ -295,5 +305,111 @@
     try { await post('/feedback', message, !!getSession()); }
     catch (error) { if (!error.sessionExpired) throw error; await post('/feedback', message, false); } // вход истёк — сообщение всё равно уходит
   }
-  window.DaySync = { uploadSharedMedia, loadSharedMedia, getSession, user, signUp, signIn, signOut, updatePassword, sync, syncExpenses, loadSharedTasks, loadSharedTask, saveSharedTask, deleteSharedTask, answerSharedInvite, requestLeaveShared, crmRole, mirrorCrm, uploadCrmPhoto, touchPresence, loadSharedPresence, savePushSubscription, deletePushSubscription, sendFeedback };
+  // --- Переезд из Supabase (этап 5): один раз, на устройстве, тем же входом, что был в прежнем приложении ---
+  const OLD_CLOUD = config.oldSupabase || {};
+  function oldCloud() {
+    try { const old = JSON.parse(localStorage.getItem(OLD_KEY) || 'null'); return old?.id && OLD_CLOUD.url ? old : null; } catch { return null; }
+  }
+  function markOldCloud(patch) {
+    const old = oldCloud(); if (!old) return null;
+    const next = patch === null ? null : { ...old, ...patch };
+    if (next) localStorage.setItem(OLD_KEY, JSON.stringify(next)); else localStorage.removeItem(OLD_KEY);
+    return next;
+  }
+  // Перенос только в тот же аккаунт: если на телефоне вошёл другой человек, чужие данные ему не достаются.
+  const oldCloudMine = () => { const old = oldCloud(); const me = user(); return old && me && old.email && old.email === String(me.email || '').toLocaleLowerCase() ? old : null; };
+  // Каждый запрос к прежнему облаку — не дольше 20 с: зависшее облако не должно держать синхронизацию.
+  const oldFetch = (url, options) => fetch(url, { ...options, cache: 'no-store', signal: AbortSignal.timeout ? AbortSignal.timeout(20000) : undefined });
+  async function oldRequest(path, options = {}, retried = false) {
+    let old = oldCloud(); if (!old) throw Object.assign(new Error('Нет входа прежнего облака'), { fatal: true });
+    if (!old.expires_at || old.expires_at * 1000 < Date.now() + 60000 || retried) old = await oldRefreshOnce(old);
+    const response = await oldFetch(`${OLD_CLOUD.url}${path}`, { ...options, headers: { apikey: OLD_CLOUD.anonKey, Authorization: `Bearer ${old.access_token}`, ...(options.headers || {}) } });
+    if (response.status === 401 && !retried) return oldRequest(path, options, true);
+    if (!response.ok) throw Object.assign(new Error(`Прежнее облако: ${response.status}`), { status: response.status });
+    return response;
+  }
+  // Токен Supabase одноразовый: два обновления сразу отозвали бы вход, поэтому обновление одно на всех.
+  let oldRefreshing = null;
+  function oldRefreshOnce(old) {
+    if (!oldRefreshing) oldRefreshing = oldRefresh(old).finally(() => { oldRefreshing = null; });
+    return oldRefreshing;
+  }
+  async function oldRefresh(old) {
+    const response = await oldFetch(`${OLD_CLOUD.url}/auth/v1/token?grant_type=refresh_token`, { method: 'POST',
+      headers: { apikey: OLD_CLOUD.anonKey, 'Content-Type': 'application/json' }, body: JSON.stringify({ refresh_token: old.refresh_token }) });
+    // 400/401 — вход прежнего облака истёк навсегда: повторять бессмысленно.
+    if (!response.ok) throw Object.assign(new Error(`Вход прежнего облака не обновился: ${response.status}`), { status: response.status, fatal: response.status === 400 || response.status === 401 });
+    const result = await response.json();
+    return markOldCloud({ access_token: result.access_token, refresh_token: result.refresh_token, expires_at: result.expires_at || Math.floor(Date.now() / 1000) + (result.expires_in || 3600) });
+  }
+  async function oldList(query) {
+    const out = [];
+    for (let offset = 0; ; offset += 1000) {
+      const page = await (await oldRequest(`/rest/v1/${query}&order=id.asc&limit=1000&offset=${offset}`)).json();
+      out.push(...page); if (page.length < 1000) return out;
+    }
+  }
+  // Личные задачи, планы и финансы из прежнего облака (на случай, если на этом телефоне чего-то не было).
+  async function loadOldPersonal() {
+    const old = oldCloudMine(); if (!old) return null;
+    const own = `user_id=eq.${encodeURIComponent(old.id)}`;
+    return { tasks: await oldList(`planner_tasks?select=id,payload,updated_at&${own}`), expenses: await oldList(`planner_expenses?select=id,payload,updated_at&${own}`) };
+  }
+  const MEDIA_RE = /^shared\/([A-Za-z0-9_-]{1,100})\/([A-Za-z0-9-]{1,100}\.[a-z0-9]{2,5})$/;
+  // Сбой, после которого продолжать нет смысла (вход, сеть, лимит облака): попытка целиком повторится позже.
+  const stopsImport = error => error.fatal || error.sessionExpired || !error.status || error.status === 401 || error.status === 402 || error.status === 429 || error.status >= 500;
+  // Поручения, где этот человек организатор, и файлы их отчётов (имена прежние). Готовые задачи и файлы запоминаются,
+  // чтобы повторная попытка не скачивала их из Supabase снова; задача с постоянной ошибкой пропускается, а не повторяется.
+  async function importOldShared() {
+    const old = oldCloudMine(); if (!old) return null;
+    const rows = await oldList(`shared_tasks?select=id,invited_emails,accepted_emails,payload,updated_at&owner_id=eq.${encodeURIComponent(old.id)}`);
+    const progress = { tasks: {}, files: {}, ...(old.sharedProgress || {}) };
+    const save = () => markOldCloud({ sharedProgress: progress });
+    for (const row of rows) {
+      if (progress.tasks[row.id]) continue;
+      const { id: _id, ownerId, ownerEmail, invitedEmails, acceptedEmails, leaveRequests, __remote, ...payload } = row.payload || {};
+      try {
+        const result = await post('/migration/shared', { id: row.id, invited_emails: row.invited_emails || [], accepted_emails: row.accepted_emails || [], payload, updated_at: row.updated_at || payload.updatedAt || new Date().toISOString() });
+        progress.tasks[row.id] = result?.imported ? 'imported' : 'skipped';
+      } catch (error) {
+        if (stopsImport(error)) { save(); throw error; }
+        progress.tasks[row.id] = 'failed'; save(); continue;
+      }
+      const paths = (Array.isArray(payload.reports) ? payload.reports : []).flatMap(report => [report?.photo, report?.voice]).filter(path => typeof path === 'string');
+      for (const path of new Set(paths)) {
+        if (progress.files[path]) continue;
+        const match = MEDIA_RE.exec(path);
+        if (!match || match[1] !== row.id) { progress.files[path] = 'failed'; continue; }
+        try {
+          const blob = await (await oldRequest(`/storage/v1/object/authenticated/attachments/${path}`)).blob();
+          await request(`/files/shared/${encodeURIComponent(match[1])}/${encodeURIComponent(match[2])}`, { method: 'PUT', headers: { 'Content-Type': blob.type || 'application/octet-stream' }, body: blob });
+          progress.files[path] = 'ok';
+        } catch (error) {
+          if (error.status === 409) progress.files[path] = 'ok'; // уже лежит на сервере
+          else if (stopsImport(error)) { save(); throw error; }
+          else progress.files[path] = 'failed';
+        }
+        save();
+      }
+      save();
+    }
+    const count = (list, value) => Object.values(list).filter(v => v === value).length;
+    return { found: rows.length, imported: count(progress.tasks, 'imported'), skipped: count(progress.tasks, 'skipped'), failed: count(progress.tasks, 'failed'),
+      files: count(progress.files, 'ok'), filesFailed: count(progress.files, 'failed') };
+  }
+  // Копейки — по десятичной записи числа, а не умножением (19.995 * 100 в JS даёт 1999.4999…). Так же считает сервер.
+  function toKop(value) {
+    const n = Number(value); if (!Number.isFinite(n)) return 0n;
+    if (Math.abs(n) >= 1e21) return BigInt(n) * 100n;
+    const text = String(Math.abs(n));
+    if (/e/i.test(text)) return 0n; // меньше 0,000001 ₽
+    const [whole, frac = ''] = text.split('.');
+    let kop = BigInt(whole) * 100n + BigInt((frac + '00').slice(0, 2));
+    if ((frac[2] || '0') >= '5') kop += 1n;
+    return n < 0 ? -kop : kop;
+  }
+  async function reportCounts(counts, supabase, device, label) {
+    return post('/migration/report', { device, label, counts, ...(supabase ? { supabase } : {}) });
+  }
+  window.DaySync = { oldCloud, oldCloudMine, markOldCloud, loadOldPersonal, importOldShared, toKop, reportCounts, uploadSharedMedia, loadSharedMedia, getSession, user, signUp, signIn, signOut, updatePassword, sync, syncExpenses, loadSharedTasks, loadSharedTask, saveSharedTask, deleteSharedTask, answerSharedInvite, requestLeaveShared, crmRole, mirrorCrm, uploadCrmPhoto, touchPresence, loadSharedPresence, savePushSubscription, deletePushSubscription, sendFeedback };
 })();

@@ -419,3 +419,27 @@ def crm_visible(user: User, kind):
         return (f"c.kind=? and c.id in (select ref from crm where kind='objects' and id in "
                 f"(select ref from crm where kind='orders' and id in ({mine})))"), (kind, email)
     return '0', ()  # договоры и деньги монтажнику не показываются
+
+
+# --- Перенос из Supabase (этап 5) ---
+
+IMPORT_DROP = {'id', 'ownerId', 'ownerEmail', 'invitedEmails', 'acceptedEmails', 'leaveRequests', '__remote'}
+
+
+def require_migration_open():
+    if not db.MIGRATION:
+        raise ApiError(403, 'Перенос из прежнего облака закрыт администратором', 'migration_closed')
+
+
+def check_import(body):
+    """Перенос поручения: организатор — тот, кто вошёл. Принятие сервер проверить не может, поэтому все исполнители
+    переносятся приглашёнными и принимают задачу заново (никого нельзя «записать» в задачу без его согласия)."""
+    if not isinstance(body, dict) or set(body) - {'id', 'invited_emails', 'accepted_emails', 'payload', 'updated_at'}:
+        raise bad('Неверная строка поручения', 'bad_row')
+    check_new_shared_id(field(body, 'id', max_len=100))
+    invited = email_list(body.get('invited_emails') or [], 'invited_emails')
+    accepted = email_list(body.get('accepted_emails') or [], 'accepted_emails')
+    payload = body.get('payload')
+    if not isinstance(payload, dict):
+        raise bad('payload должен быть объектом', 'bad_field')
+    return list(dict.fromkeys(invited + accepted)), {k: v for k, v in payload.items() if k not in IMPORT_DROP}

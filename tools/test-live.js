@@ -16,7 +16,7 @@ const freePort = () => new Promise(r => { const s = net.createServer(); s.listen
   const port = await freePort(); const base = `http://127.0.0.1:${port}`;
   const data = fs.mkdtempSync(path.join(os.tmpdir(), 'den-live-'));
   const env = { ...process.env, DEN_SECRET: 'live-test-secret-' + 'x'.repeat(40), DEN_DATA_DIR: data, DEN_STATIC_DIR: ROOT,
-    DEN_ADMIN_EMAIL: 'admin@den.test', DEN_ADMIN_PASSWORD: 'admin-pass-1', DEN_PUBLIC_URL: base };
+    DEN_ADMIN_EMAIL: 'admin@den.test', DEN_ADMIN_PASSWORD: 'admin-pass-1', DEN_PUBLIC_URL: base, DEN_MIGRATION: '1' };
   const server = spawn(PY, ['-m', 'uvicorn', 'server.main:app', '--port', String(port)], { cwd: ROOT, env, stdio: ['ignore', 'pipe', 'pipe'] });
   let log = ''; server.stdout.on('data', d => log += d); server.stderr.on('data', d => log += d);
   const api = async (method, p, body, token) => { const r = await fetch(base + p, { method, headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: body ? JSON.stringify(body) : undefined }); const t = await r.text(); return { status: r.status, body: t ? JSON.parse(t) : null }; };
@@ -29,10 +29,36 @@ const freePort = () => new Promise(r => { const s = net.createServer(); s.listen
     const invite = (await api('POST', '/api/admin/invites', { email: 'montazhnik@den.test' }, admin)).body.invite;
 
     browser = await chromium.launch(); const errors = [];
+    // Прежнее облако Supabase — заглушка по настоящему адресу из sync-config.js: поручение с фото, задачи и операции только «в облаке».
+    const sb = { calls: [], tid: '33333333-3333-4333-8333-333333333333', file: '44444444-4444-4444-8444-444444444444.jpg' };
+    const OLD_STAMP = '2026-10-18T10:00:00.000Z';
+    const supabaseMock = async route => {
+      const req = route.request(); const u = new URL(req.url()); const auth = req.headers().authorization || '';
+      sb.calls.push(`${req.method()} ${u.pathname}${u.search} ${auth}`);
+      const headers = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET,POST,OPTIONS' };
+      if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
+      const json = (body, status = 200) => route.fulfill({ status, contentType: 'application/json', headers, body: JSON.stringify(body) });
+      if (u.pathname === '/auth/v1/token') return String(JSON.parse(req.postData() || '{}').refresh_token).startsWith('sb-refresh-') ? json({ access_token: 'sb-access-2', refresh_token: 'sb-refresh-2', expires_in: 3600 }) : json({ msg: 'bad' }, 400);
+      if (auth !== 'Bearer sb-access-2') return json({ message: 'JWT expired' }, 401); // старый токен истёк — приложение должно обновить вход
+      const mine = (u.searchParams.get('user_id') || u.searchParams.get('owner_id')) === `eq.${OLD_ID}`;
+      if (u.pathname === '/rest/v1/planner_tasks') return json(!mine ? [] : [
+        { id: 'cloud-only-1', payload: { id: 'cloud-only-1', title: 'Только в прежнем облаке', date: '2026-10-24', updatedAt: OLD_STAMP }, updated_at: OLD_STAMP },
+        { id: 'old-task-1', payload: { id: 'old-task-1', title: 'Старая версия из облака', date: '2026-10-25', updatedAt: '2026-10-01T10:00:00.000Z' }, updated_at: '2026-10-01T10:00:00.000Z' }]);
+      if (u.pathname === '/rest/v1/planner_expenses') return json(!mine ? [] : [
+        { id: 'cloud-exp-1', payload: { id: 'cloud-exp-1', kind: 'income', title: 'Аванс', amount: 19.995, category: 'other', occurredAt: OLD_STAMP, updatedAt: OLD_STAMP }, updated_at: OLD_STAMP }]);
+      if (u.pathname === '/rest/v1/shared_tasks') return json(!mine ? [] : [{ id: sb.tid, invited_emails: ['montazhnik@den.test'], accepted_emails: ['montazhnik@den.test'], updated_at: OLD_STAMP,
+        payload: { title: 'Поручение из Supabase', date: '2026-10-24', status: 'work', completed: false, subtasks: [{ title: 'Щит', done: true, doneBy: 'montazhnik@den.test' }],
+          reports: [{ id: 'r1', email: 'montazhnik@den.test', text: 'Фото щита', photo: `shared/${sb.tid}/${sb.file}`, at: OLD_STAMP }], activity: [],
+          ownerId: OLD_ID, ownerEmail: 'shamil@den.test', invitedEmails: ['montazhnik@den.test'], acceptedEmails: ['montazhnik@den.test'], updatedAt: OLD_STAMP } }]);
+      if (u.pathname === `/storage/v1/object/authenticated/attachments/shared/${sb.tid}/${sb.file}`) return route.fulfill({ status: 200, contentType: 'image/jpeg', headers, body: Buffer.from([0xff, 0xd8, 0xff, 1, 2, 3]) });
+      return json({ message: 'not found' }, 404);
+    };
     const device = async (name, init) => {
-      const page = await (await browser.newContext()).newPage();
+      const context = await browser.newContext();
+      await context.route('https://axpglqvvevwttpnmuvam.supabase.co/**', supabaseMock);
+      const page = await context.newPage();
       page.on('pageerror', e => errors.push(`${name}: ${e.message}`));
-      page.on('response', r => { const u = new URL(r.url()); if (r.status() >= 400 && !(r.status() === 401 && u.pathname === '/api/auth/login') && !(r.status() === 403 && expect403)) errors.push(`${name}: ${r.status()} ${u.pathname}`); });
+      page.on('response', r => { const u = new URL(r.url()); if (r.status() >= 400 && !(r.status() === 401 && u.pathname === '/api/auth/login') && !(r.status() === 403 && expect403) && !(r.status() === 401 && u.hostname.endsWith('supabase.co'))) errors.push(`${name}: ${r.status()} ${u.pathname}`); });
       if (init) await page.addInitScript(init);
       await page.goto(base + '/'); await page.waitForTimeout(1200); return page;
     };
@@ -42,7 +68,7 @@ const freePort = () => new Promise(r => { const s = net.createServer(); s.listen
       await page.click('#syncAuthForm button[type=submit]'); await page.waitForTimeout(2500);
     };
     // 1. Телефон с данными времён Supabase
-    const d1 = await device('телефон', `localStorage.setItem('day-sync-session-v1', JSON.stringify({ access_token: 'eyJhbGciOi.old.sig', refresh_token: 'x', expires_at: 9999999999, user: { id: '${OLD_ID}', email: 'shamil@den.test' } }));
+    const d1 = await device('телефон', `localStorage.setItem('day-sync-session-v1', JSON.stringify({ access_token: 'eyJhbGciOi.old.sig', refresh_token: 'sb-refresh-1', expires_at: 9999999999, user: { id: '${OLD_ID}', email: 'shamil@den.test' } }));
       localStorage.setItem('day-planner-tasks-v2:${OLD_ID}', JSON.stringify([{ id: 'old-task-1', title: 'Задача с телефона до переезда', date: '2026-10-25', updatedAt: '2026-10-20T10:00:00.000Z' }]));`);
     const moved = await d1.evaluate(() => [localStorage.getItem('day-sync-session-v1'), document.querySelector('#syncDialog').open, document.querySelector('#syncEmail').value]);
     ok(moved[0] === null && moved[1] && moved[2] === 'shamil@den.test', 'Старый вход Supabase сброшен: окно входа открыто, email подставлен');
@@ -50,6 +76,22 @@ const freePort = () => new Promise(r => { const s = net.createServer(); s.listen
     ok(/Синхронизировано/.test(await d1.locator('#syncStateTitle').innerText()), 'Вход на свой сервер и синхронизация');
     const token = await d1.evaluate(() => JSON.parse(localStorage.getItem('day-sync-session-v1')).access_token);
     ok((await api('GET', '/api/data/tasks/heads', null, token)).body.some(h => h.id === 'old-task-1'), 'Задача, созданная до переезда, сама загрузилась на сервер');
+    // Этап 5: перенос из прежнего облака и сверка
+    for (let i = 0; i < 40 && await d1.evaluate(() => localStorage.getItem('day-cloud-old-v1')); i++) await d1.waitForTimeout(250);
+    const heads1 = (await api('GET', '/api/data/tasks?ids=cloud-only-1,old-task-1', null, token)).body;
+    ok(heads1.length === 2 && heads1.find(r => r.id === 'old-task-1').payload.title === 'Задача с телефона до переезда', 'Запись, которая была только в прежнем облаке, перенесена; более новая версия с телефона не затёрта старой из облака');
+    ok((await api('GET', '/api/data/expenses?ids=cloud-exp-1', null, token)).body[0]?.payload.amount === 19.995, 'Операция из прежнего облака перенесена');
+    const imported = (await api('GET', `/api/shared/${sb.tid}`, null, token)).body;
+    ok(imported.owner_id === OLD_ID && imported.invited_emails.includes('montazhnik@den.test') && !imported.accepted_emails.length && !('ownerId' in imported.payload) && !('invitedEmails' in imported.payload),
+      'Поручение организатора перенесено, исполнитель приглашён заново (принять за него сервер не может), служебные поля убраны', JSON.stringify(imported).slice(0, 160));
+    const file = await fetch(`${base}/api/files/shared/${sb.tid}/${sb.file}`, { headers: { Authorization: `Bearer ${token}` } });
+    ok(file.status === 200 && (await file.arrayBuffer()).byteLength === 6, 'Фото отчёта перенесено с прежним именем (ссылка в отчёте работает)');
+    ok(sb.calls.some(c => c.includes('/auth/v1/token')) && sb.calls.some(c => c.includes(`owner_id=eq.${OLD_ID}`) && c.endsWith('sb-access-2')), 'Истёкший вход прежнего облака обновлён; запрошены только свои поручения');
+    const rec = (await api('GET', '/api/admin/reconcile', null, admin)).body.find(r => r.email === 'shamil@den.test');
+    const sbNote = rec?.devices[0]?.report.supabase || {};
+    ok(rec?.status === 'совпадает' && rec.server.incomeKop === '2000' && sbNote.sharedImported === 1 && sbNote.files === 1 && sbNote.oldTasks === 2 && sbNote.oldExpenses === 1,
+      'Сверка: числа устройства и сервера совпали (19,995 ₽ = 2000 коп.), итог переноса виден администратору', JSON.stringify(rec).slice(0, 220));
+    ok(await d1.evaluate(() => localStorage.getItem('day-cloud-old-v1')) === null, 'После переноса прежний вход Supabase стёрт с телефона');
     await d1.evaluate(async () => { tasks.push(normalizeTask({ id: 'live-new-1', title: 'Новая задача', date: toKey(new Date()), updatedAt: new Date().toISOString() })); profile = { ...profile, name: 'Шамиль' }; touchAppState(); save(); await performSync(false); });
     // 2. Компьютер: чистый браузер
     const d2 = await device('компьютер'); await signIn(d2, 'shamil@den.test', 'pass-shamil-1');
@@ -69,12 +111,25 @@ const freePort = () => new Promise(r => { const s = net.createServer(); s.listen
     ok((await d1.evaluate(() => tasks.map(t => t.id))).includes('old-task-1'), 'Пустой ответ сервера не стёр задачу на устройстве — она загрузилась снова');
     await d1.evaluate(async () => { await window.DaySync.sendFeedback({ text: 'Живая проверка', email: 'shamil@den.test' }); });
     ok((await api('GET', '/api/admin/feedback', null, admin)).body.some(f => f.text === 'Живая проверка'), 'Обратная связь дошла до сервера');
+    // Человек заведён на новом сервере с новым id: данные телефона под прежним id подхватываются, PIN — нет (его задают заново)
+    const VERA_OLD = '55555555-5555-4555-8555-555555555555';
+    await api('POST', '/api/admin/users', { email: 'vera@den.test', password: 'pass-vera-123' }, admin);
+    const d4 = await device('телефон Веры', `localStorage.setItem('day-sync-session-v1', JSON.stringify({ access_token: 'eyJhbGciOi.vera.sig', refresh_token: 'sb-refresh-vera', expires_at: 9999999999, user: { id: '${VERA_OLD}', email: 'vera@den.test' } }));
+      if (!localStorage.getItem('day-planner-tasks-v2:${VERA_OLD}')) { localStorage.setItem('day-planner-tasks-v2:${VERA_OLD}', JSON.stringify([{ id: 'vera-task-1', title: 'Задача Веры', date: '2026-10-25', updatedAt: '2026-10-20T10:00:00.000Z' }]));
+      localStorage.setItem('day-planner-pin-v1:${VERA_OLD}', 'old-hash'); }`);
+    await signIn(d4, 'vera@den.test', 'pass-vera-123');
+    const vera = await d4.evaluate(() => ({ id: window.DaySync.user()?.id, tasks: tasks.map(t => t.id), pin: localStorage.getItem(`day-planner-pin-v1:${window.DaySync.user()?.id}`) }));
+    const veraToken = await d4.evaluate(() => JSON.parse(localStorage.getItem('day-sync-session-v1')).access_token);
+    ok(vera.id !== VERA_OLD && vera.tasks.includes('vera-task-1') && vera.pin === null && (await api('GET', '/api/data/tasks/heads', null, veraToken)).body.some(h => h.id === 'vera-task-1'),
+      'Новый id на сервере: задачи телефона подхвачены и загружены, старый PIN не перенесён', JSON.stringify(vera));
     // 3. Новый монтажник: неверный пароль, регистрация по приглашению, смена пароля
     const d3 = await device('монтажник'); await signIn(d3, 'shamil@den.test', 'wrong-pass-1');
     ok(/Неверный email или пароль/.test(await d3.locator('#syncStateText').innerText()), 'Неверный пароль — понятное сообщение');
     await d3.fill('#syncEmail', 'montazhnik@den.test'); await d3.fill('#syncPassword', 'pass-mont-123'); await d3.fill('#syncInvite', invite);
     await d3.click('#syncSignUp'); await d3.waitForTimeout(2500);
     ok(await d3.evaluate(() => window.DaySync.user()?.email) === 'montazhnik@den.test', 'Регистрация по коду приглашения из окна входа');
+    await d3.evaluate(async () => { await loadSharedTasks(false); });
+    ok(await d3.evaluate(id => sharedInvites().some(t => t.id === id && t.status === 'work' && t.reports?.[0]?.text === 'Фото щита'), sb.tid), 'Монтажник после регистрации видит перенесённое поручение с прежним отчётом — приглашением «Принять»');
     await d3.evaluate(() => document.querySelector('#syncDialog').open || document.querySelector('#syncDialog').showModal());
     await d3.fill('#syncOldPassword', 'pass-mont-123'); await d3.fill('#syncChangeNewPassword', 'pass-mont-456'); await d3.click('#syncPasswordForm button[type=submit]'); await d3.waitForTimeout(1500);
     ok((await api('POST', '/api/auth/login', { email: 'montazhnik@den.test', password: 'pass-mont-456' })).status === 200, 'Смена пароля в окне «Аккаунт» работает');

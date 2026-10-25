@@ -59,6 +59,8 @@ BACKUP_EVERY = _int('DEN_BACKUP_EVERY', 24 * 3600)
 STATIC_DIR = Path(os.environ['DEN_STATIC_DIR']).resolve() if os.environ.get('DEN_STATIC_DIR') else None
 ADMIN_EMAIL = (os.environ.get('DEN_ADMIN_EMAIL') or '').strip().lower()
 ADMIN_PASSWORD = os.environ.get('DEN_ADMIN_PASSWORD') or ''
+# Окно переноса из Supabase (этап 5): DEN_MIGRATION=1 — организатор может перенести свои поручения (исполнители — приглашёнными).
+MIGRATION = os.environ.get('DEN_MIGRATION') == '1'
 
 
 def _version():
@@ -104,6 +106,12 @@ MIGRATIONS = [
     create index crm_ref on crm(kind, ref);
     create table crm_assignees (order_id text not null, email text not null, primary key (order_id, email));
     create index crm_assignees_email on crm_assignees(email);
+    """,
+    """
+    create table reconcile (user_id text not null references users(id) on delete cascade, device text not null,
+                            label text not null, report text not null, server text not null, ok integer not null,
+                            created_at text not null, primary key (user_id, device));
+    create table imported_shared (id text primary key, owner_id text not null);
     """,
 ]
 

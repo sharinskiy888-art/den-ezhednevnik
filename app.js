@@ -11,7 +11,7 @@ const NOTIFICATION_KEY = 'day-planner-notifications-v1';
 const EXPENSES_KEY = 'day-planner-expenses-v1';
 const FINANCE_LIMITS_KEY = 'day-planner-finance-limits-v1';
 const DELETED_EXPENSES_KEY = 'day-planner-deleted-expenses-v1';
-const APP_VERSION = '100';
+const APP_VERSION = '101';
 const UPDATE_SEEN_KEY = 'day-planner-update-seen-v1';
 const UPDATE_APPLIED_KEY = 'day-planner-update-applied-v1';
 const LANG_KEY = 'day-planner-lang-v1';
@@ -345,6 +345,7 @@ function taskWord(count) {
 }
 
 function switchAccountData() {
+  adoptOldDeviceData();
   tasks = loadTasks(); deletedIds = loadDeletedIds(); profile = loadProfile(); pendingProfilePhoto = profile.photo || ''; periodPlans = loadPeriodPlans(); appStateUpdatedAt = localStorage.getItem(stateUpdatedStorageKey()) || new Date(0).toISOString(); sharedTasks = []; expenses = loadExpenses(); financeLimits = loadFinanceLimits(); deletedExpenseIds = loadDeletedExpenseIds(); runAutoCarry(); render(); renderFinance(); refreshSyncUi(); renderProfile(); loadSharedTasks(false);
 }
 
@@ -1571,7 +1572,8 @@ async function performSync(showMessage = true) {
   setSyncStatus('syncing', 'Синхронизация…', 'Обмениваемся изменениями с облаком');
   try {
     const sentTombstones = { ...deletedIds };
-    const result = await window.DaySync.sync('planner_tasks', tasks, sentTombstones, { profile, periodPlans, financeLimits, updatedAt: appStateUpdatedAt });
+    const oldRows = await loadOldCloudRows();
+    const result = await window.DaySync.sync('planner_tasks', tasks, sentTombstones, { profile, periodPlans, financeLimits, updatedAt: appStateUpdatedAt }, oldRows?.tasks || []);
     showCloudBanner(null);
     // Задачи, удалённые пока шёл обмен с облаком, не должны вернуться из ответа сервера.
     const deletedDuringSync = Object.keys(deletedIds).filter(id => !(id in sentTombstones));
@@ -1589,10 +1591,11 @@ async function performSync(showMessage = true) {
       if (remoteState.financeLimits && typeof remoteState.financeLimits === 'object') { financeLimits = remoteState.financeLimits; localStorage.setItem(financeLimitsStorageKey(), JSON.stringify(financeLimits)); }
       localStorage.setItem(stateUpdatedStorageKey(), appStateUpdatedAt);
     }
-    const expenseResult = await window.DaySync.syncExpenses(expenses, deletedExpenseIds);
+    const expenseResult = await window.DaySync.syncExpenses(expenses, deletedExpenseIds, oldRows?.expenses || []);
     expenses = (expenseResult.expenses || []).map(normalizeExpense).filter(Boolean); deletedExpenseIds = expenseResult.tombstones || {}; localStorage.setItem(deletedExpensesStorageKey(), JSON.stringify(deletedExpenseIds));
     suppressSync = true; save(); saveExpenses(); suppressSync = false; render(); renderFinance(); renderProfile(); await loadSharedTasks(false); await refreshSharedPresence(); await ensurePushSubscription(false);
     await window.DayCrm?.sync();
+    if (!await finishCloudMove(oldRows)) await sendReconcile();
     if ($('#sharedDialog')?.open) renderSharedDialog(); else refreshSharedView();
     setSyncStatus('connected', 'Синхронизировано', `Задач в облаке: ${tasks.length}`);
     if (showMessage) toast('Данные синхронизированы');
@@ -1603,6 +1606,77 @@ async function performSync(showMessage = true) {
     showCloudBanner(error);
   } finally { syncInFlight = false; }
 }
+// --- Переезд из Supabase (этап 5) ---
+// Данные телефона лежат под прежним id пользователя. Если администратор завёл человека с другим id, ключи копируются
+// под новый (PIN — нет: он зашифрован прежним id, его задают заново). Только для того же email.
+function adoptOldDeviceData() {
+  const old = window.DaySync?.oldCloudMine?.(); const me = window.DaySync?.user();
+  if (!old || !me || old.adopted) return;
+  if (old.id !== me.id) {
+    const skip = [PIN_KEY, PIN_UNLOCKED_AT_KEY, 'day-sync-meta-v1', 'day-reconcile-sent-v1'];
+    if (localStorage.getItem(`${PIN_KEY}:${old.id}`)) setTimeout(() => toast(L('После переезда задайте PIN заново в окне «Аккаунт»', 'After the move, set your PIN again in “Account”')), 1500);
+    Object.keys(localStorage).forEach(key => {
+      if (!key.endsWith(`:${old.id}`) || skip.some(prefix => key.startsWith(prefix))) return;
+      const target = `${key.slice(0, -old.id.length)}${me.id}`;
+      if (localStorage.getItem(target) === null) localStorage.setItem(target, localStorage.getItem(key));
+    });
+  }
+  window.DaySync.markOldCloud({ adopted: true });
+}
+// Прежнее облако недоступно — повтор не каждые 2 минуты, а через 2, 4, 8… минут; после 6 неудач (или если вход
+// Supabase истёк навсегда) шаг считается сделанным с ошибкой, и она видна администратору в сверке.
+const oldCloudDue = old => !old.nextTry || Date.now() >= old.nextTry;
+function oldCloudFailed(error, step) {
+  const old = window.DaySync.oldCloudMine(); if (!old) return;
+  const attempts = (old.attempts || 0) + 1;
+  if (error.fatal || error.code === 'migration_closed' || attempts >= 6) window.DaySync.markOldCloud({ [`${step}Done`]: true, [`${step}Error`]: String(error.message).slice(0, 200), attempts: 0, nextTry: 0 });
+  else window.DaySync.markOldCloud({ attempts, nextTry: Date.now() + 2 ** attempts * 60000 });
+}
+// Записи из прежнего облака — один раз.
+async function loadOldCloudRows() {
+  const old = window.DaySync?.oldCloudMine?.();
+  if (!old || old.personalDone || !oldCloudDue(old)) return null;
+  try { return await window.DaySync.loadOldPersonal(); } catch (error) { oldCloudFailed(error, 'personal'); return null; }
+}
+async function finishCloudMove(oldRows) {
+  let old = window.DaySync?.oldCloudMine?.();
+  if (!old) return false;
+  if (oldRows) old = window.DaySync.markOldCloud({ personalDone: true, personal: { tasks: oldRows.tasks.length, expenses: oldRows.expenses.length }, attempts: 0, nextTry: 0 });
+  if (!old.personalDone) return false;
+  if (!old.sharedDone) {
+    if (!oldCloudDue(old)) return false;
+    try {
+      const shared = await window.DaySync.importOldShared();
+      old = window.DaySync.markOldCloud({ sharedDone: true, shared, sharedProgress: undefined });
+      if (shared?.imported) { await loadSharedTasks(false); toast(L(`Из прежнего облака перенесено поручений: ${shared.imported}. Исполнители примут их заново.`, `Shared tasks moved from the old cloud: ${shared.imported}. Assignees will accept them again.`)); }
+    } catch (error) { oldCloudFailed(error, 'shared'); old = window.DaySync.oldCloudMine(); if (!old?.sharedDone) return false; }
+  }
+  const summary = { oldTasks: old.personal?.tasks, oldExpenses: old.personal?.expenses, sharedFound: old.shared?.found, sharedImported: old.shared?.imported,
+    sharedSkipped: old.shared?.skipped, sharedFailed: old.shared?.failed, files: old.shared?.files, filesFailed: old.shared?.filesFailed, error: old.personalError || old.sharedError };
+  Object.keys(summary).forEach(key => { if (summary[key] === undefined || summary[key] === '' || summary[key] === 0 && key.endsWith('Failed')) delete summary[key]; });
+  if (await sendReconcile(summary) !== null) window.DaySync.markOldCloud(null); // итог переноса дошёл до сервера — прежний вход больше не нужен
+  return true;
+}
+// Сверка: устройство сообщает серверу, сколько у него задач, планов, операций и сумм в копейках; сервер сравнивает со своими.
+const DEVICE_KEY = 'day-device-id-v1';
+function deviceId() { let id = localStorage.getItem(DEVICE_KEY); if (!id) { id = crypto.randomUUID(); localStorage.setItem(DEVICE_KEY, id); } return id; }
+function deviceLabel() { const ua = navigator.userAgent; return /iPhone|iPad/.test(ua) ? 'iPhone/iPad' : /Android/.test(ua) ? 'Android' : /Windows/.test(ua) ? 'Windows' : /Mac/.test(ua) ? 'Mac' : 'Другое'; }
+function reconcileCounts() {
+  let income = 0n; let spent = 0n;
+  expenses.forEach(e => { const kop = window.DaySync.toKop(e.amount); if (e.kind === 'income') income += kop; else spent += kop; });
+  return { tasks: tasks.length, plans: periodPlans.filter(p => p && typeof p === 'object' && !Array.isArray(p)).length, expenses: expenses.length, incomeKop: String(income), expenseKop: String(spent) };
+}
+async function sendReconcile(supabase = null) {
+  if (!window.DaySync?.reportCounts) return null;
+  const counts = reconcileCounts(); const key = `day-reconcile-sent-v1:${accountSuffix()}`; const stamp = JSON.stringify(counts);
+  let last = null; try { last = JSON.parse(localStorage.getItem(key) || 'null'); } catch {}
+  if (!supabase && last?.counts === stamp && last.ok) return true; // ничего не изменилось и в прошлый раз совпало
+  try {
+    const result = await window.DaySync.reportCounts(counts, supabase, deviceId(), deviceLabel());
+    localStorage.setItem(key, JSON.stringify({ counts: stamp, ok: !!result?.ok })); return !!result?.ok;
+  } catch { return null; } // сверка не мешает работе: старый сервер без неё отвечает 404
+}
+
 async function handleSyncLogin(event) {
   event.preventDefault(); const email = $('#syncEmail').value.trim(); const password = $('#syncPassword').value;
   setSyncStatus('syncing', 'Выполняется вход…', email);
@@ -2300,7 +2374,7 @@ window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); instal
 $('#installButton').addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('#installButton').hidden = true; });
 showUpdatedNoticeIfNeeded();
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=100'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
+  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=101'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
   navigator.serviceWorker.addEventListener('message', event => {
     if (event.data?.type !== 'DAY_PUSH') return;
     showReminderAlert(event.data.taskId || '', event.data.title || 'Новое уведомление', event.data.body || '');
