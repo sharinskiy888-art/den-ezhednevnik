@@ -39,6 +39,12 @@ for i in $(seq 1 40); do
   sleep 0.5
 done
 echo "Новая версия не отвечает — возвращаю прежнюю"
-if [ -n "$PREV" ]; then ln -sfn "$PREV" /opt/den/current.new && mv -Tf /opt/den/current.new /opt/den/current; systemctl restart den.service; fi
 journalctl -u den -n 30 --no-pager || true
+if [ -n "$PREV" ]; then
+  ln -sfn "$PREV" /opt/den/current.new && mv -Tf /opt/den/current.new /opt/den/current
+  systemctl restart den.service
+  rm -rf "$REL"  # неработающая версия не должна стать целью отката
+  for i in $(seq 1 40); do curl -fs "http://127.0.0.1:$PORT/api/health" >/dev/null && { echo "Прежняя версия работает"; exit 1; }; sleep 0.5; done
+  echo "Прежняя версия тоже не отвечает: journalctl -u den -n 50"
+fi
 exit 1

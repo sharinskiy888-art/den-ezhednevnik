@@ -2,7 +2,8 @@
 #   powershell -ExecutionPolicy Bypass -File deploy\windows\build.ps1
 # Нужны: Python 3.12+, Inno Setup 6 (ISCC.exe), компилятор C (Visual Studio Build Tools; Nuitka предложит скачать сам).
 # Nuitka нужна только для сборки и в программу не входит.
-$ErrorActionPreference = 'Stop'
+# Ошибки внешних программ (pip, Nuitka, ISCC) проверяются по коду выхода: их сообщения в stderr — не сбой.
+$ErrorActionPreference = 'Continue'
 $root = (Resolve-Path "$PSScriptRoot\..\..").Path
 Set-Location $root
 $ver = (Get-Content version.json -Raw -Encoding UTF8 | ConvertFrom-Json).version

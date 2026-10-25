@@ -48,6 +48,10 @@ Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Fil
 var
   AdminPage: TInputQueryWizardPage;
 
+// Пароль передаётся программе через переменную окружения, а не в командной строке (её видно в списке процессов).
+function SetEnvironmentVariable(lpName, lpValue: String): BOOL;
+  external 'SetEnvironmentVariableW@kernel32.dll stdcall';
+
 function DataDir: String;
 begin
   Result := ExpandConstant('{commonappdata}\Den\data');
@@ -124,10 +128,18 @@ begin
     Run('icacls.exe', '"' + ExpandConstant('{commonappdata}\Den') + '" /inheritance:r /grant:r *S-1-5-18:(OI)(CI)F *S-1-5-32-544:(OI)(CI)F');
     if AdminPage.Values[0] <> '' then
     begin
-      Code := Run(Exe, 'admin add "' + AdminPage.Values[0] + '" "' + AdminPage.Values[1] + '" admin');
+      SetEnvironmentVariable('DEN_NEW_PASSWORD', AdminPage.Values[1]);
+      Code := Run(Exe, 'admin add "' + AdminPage.Values[0] + '" - admin');
+      SetEnvironmentVariable('DEN_NEW_PASSWORD', '');
       if (Code <> 0) and not WizardSilent then
         MsgBox('Администратора добавить не удалось (код ' + IntToStr(Code) + '). Добавьте позже: den-server.exe admin add <email> <пароль> admin', mbError, MB_OK);
     end;
   end;
-  PowerShell('-File "' + App + '\task.ps1" -Action install -Exe "' + Exe + '"');
+  Code := PowerShell('-File "' + App + '\task.ps1" -Action install -Exe "' + Exe + '"');
+  if Code <> 0 then
+  begin
+    Log('task.ps1 install: код ' + IntToStr(Code));
+    if not WizardSilent then
+      MsgBox('Не удалось настроить автозапуск или брандмауэр (код ' + IntToStr(Code) + '). Запустите установщик ещё раз от имени администратора.', mbError, MB_OK);
+  end;
 end;

@@ -1,4 +1,4 @@
-name: Install test
+﻿name: Install test
 
 # Этап 6: установка на «чистую машину» — Linux (как VPS) и Windows (установщик .exe): установка, вход, работа,
 # обновление, откат, перезапуск, удаление. Машины GitHub каждый раз новые, поэтому это и есть проверка «на чистом ПК».
@@ -20,7 +20,7 @@ jobs:
         run: sudo bash deploy/linux/install.sh --no-tls
       - name: Администратор, вход, данные через nginx
         run: |
-          sudo bash deploy/linux/admin.sh add admin@den.test pass-admin-1 admin
+          sudo DEN_NEW_PASSWORD=pass-admin-1 bash deploy/linux/admin.sh add admin@den.test - admin
           TOKEN=$(curl -fs http://127.0.0.1/api/auth/login -H 'Content-Type: application/json' -d '{"email":"admin@den.test","password":"pass-admin-1"}' | python3 -c 'import json,sys; print(json.load(sys.stdin)["access_token"])')
           echo "TOKEN=$TOKEN" >> "$GITHUB_ENV"
           curl -fs -X POST http://127.0.0.1/api/data/tasks -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
@@ -32,7 +32,8 @@ jobs:
         run: |
           [ "$(stat -c '%a %U:%G' /etc/den/den.env)" = "640 root:den" ]
           [ "$(stat -c '%a %U' /var/lib/den)" = "700 den" ]
-          ! ss -ltn | grep -q '0.0.0.0:8787'   # сервер слушает только 127.0.0.1, наружу — через nginx
+          ss -ltnH | awk '{print $4}' | grep ':8787$'
+          ! ss -ltnH | awk '{print $4}' | grep ':8787$' | grep -v '^127\.0\.0\.1:'   # только 127.0.0.1, наружу — через nginx
       - name: Обновление (версия +1), данные на месте
         run: |
           OLD=$(python3 -c 'import json; print(json.load(open("version.json"))["version"])')
@@ -52,7 +53,7 @@ jobs:
           curl -fs http://127.0.0.1/api/data/tasks/heads -H "Authorization: Bearer $TOKEN" | grep -q '"t1"'
       - name: Сбой процесса — служба поднимается сама
         run: |
-          sudo pkill -9 -f 'server.run' ; sleep 6
+          sudo systemctl kill -s KILL den.service; sleep 6
           curl -fs http://127.0.0.1/api/health
       - name: Возврат данных из копии
         run: |
@@ -91,8 +92,11 @@ jobs:
           if (-not (Get-ScheduledTask -TaskName 'Den Server')) { throw 'нет автозапуска' }
           $rule = Get-NetFirewallRule -DisplayName 'Den Server' | Get-NetFirewallAddressFilter
           if ($rule.RemoteAddress -ne 'LocalSubnet') { throw "брандмауэр: $($rule.RemoteAddress)" }
-          $acl = (Get-Acl 'C:\Program Files\Den\den.env').Access | Where-Object { $_.IdentityReference -match 'Users|Пользователи' }
-          if ($acl) { throw 'den.env читают обычные пользователи' }
+          foreach ($path in 'C:\Program Files\Den\den.env', 'C:\ProgramData\Den') {
+            $other = (Get-Acl $path).Access | Where-Object { $_.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value -notin 'S-1-5-18', 'S-1-5-32-544' }
+            if ($other) { throw "$path доступен не только системе и администраторам: $($other.IdentityReference -join ', ')" }
+          }
+          try { Invoke-WebRequest http://localhost:8787/den.env -UseBasicParsing; throw 'den.env отдаётся' } catch { if ($_.Exception.Response.StatusCode.value__ -ne 404) { throw } }
       - name: Обновление (версия +1) и откат
         run: |
           $ver = (Get-Content version.json -Raw | ConvertFrom-Json).version
@@ -111,7 +115,7 @@ jobs:
       - name: Удаление — программа уходит, данные остаются
         run: |
           Start-Process 'C:\Program Files\Den\unins000.exe' -ArgumentList '/VERYSILENT /SUPPRESSMSGBOXES' -Wait
-          Start-Sleep 3
+          for ($i = 0; $i -lt 60 -and (Test-Path 'C:\Program Files\Den\den-server.exe'); $i++) { Start-Sleep 1 }   # удаление идёт копией из TEMP
           if (Get-ScheduledTask -TaskName 'Den Server' -ErrorAction SilentlyContinue) { throw 'автозапуск остался' }
           if (Get-NetFirewallRule -DisplayName 'Den Server' -ErrorAction SilentlyContinue) { throw 'правило брандмауэра осталось' }
           if (-not (Test-Path 'C:\ProgramData\Den\data\den.db')) { throw 'данные удалились' }

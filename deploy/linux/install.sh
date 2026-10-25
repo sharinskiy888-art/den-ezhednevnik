@@ -21,7 +21,7 @@ SRC="$(cd "$(dirname "$0")/../.." && pwd)"
 echo "1/6 Пакеты"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
-apt-get install -y -qq python3 python3-venv nginx >/dev/null
+apt-get install -y -qq python3 python3-venv nginx curl >/dev/null
 [ $TLS = 0 ] || apt-get install -y -qq certbot python3-certbot-nginx >/dev/null
 
 echo "2/6 Пользователь и папки"
@@ -45,6 +45,10 @@ DEN_ALLOWED_ORIGINS=$ORIGINS
 DEN_PUBLIC_URL=${DOMAIN:+https://$DOMAIN}
 CONF
   chown root:den /etc/den/den.env; chmod 640 /etc/den/den.env
+elif [ -n "$DOMAIN" ]; then
+  # Повторный запуск с доменом (например, после проверки с --no-tls): дописываем адрес, секрет не трогаем.
+  sed -i "s|^DEN_PUBLIC_URL=.*|DEN_PUBLIC_URL=https://$DOMAIN|" /etc/den/den.env
+  grep -q "https://$DOMAIN" <(sed -n 's/^DEN_ALLOWED_ORIGINS=//p' /etc/den/den.env) || sed -i "s|^DEN_ALLOWED_ORIGINS=.*|&,https://$DOMAIN|" /etc/den/den.env
 fi
 
 echo "4/6 Программа и служба"
@@ -83,7 +87,10 @@ cat > /etc/nginx/sites-available/den <<NGINX
 server {
     listen 80;
     server_name $SERVER_NAME;
+    server_tokens off;
     client_max_body_size 40m;
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    add_header X-Content-Type-Options nosniff always;
     location / {
         proxy_pass http://127.0.0.1:$PORT;
         proxy_set_header Host \$host;
@@ -95,7 +102,8 @@ server {
 NGINX
 ln -sf /etc/nginx/sites-available/den /etc/nginx/sites-enabled/den
 rm -f /etc/nginx/sites-enabled/default
-nginx -t -q && systemctl reload nginx
+nginx -t -q
+systemctl reload nginx
 if [ $TLS = 1 ]; then
   certbot --nginx -d "$DOMAIN" -m "$EMAIL" --agree-tos --non-interactive --redirect
   systemctl enable --now certbot.timer >/dev/null 2>&1 || true  # сертификат продлевается сам
@@ -105,5 +113,5 @@ echo "6/6 Проверка"
 for i in $(seq 1 40); do curl -fs "http://127.0.0.1:$PORT/api/health" >/dev/null && break; sleep 0.5; done
 curl -fs "http://127.0.0.1:$PORT/api/health" || { echo "Сервер не отвечает: journalctl -u den -n 50"; exit 1; }
 echo
-echo "Готово. Первый администратор:  sudo bash deploy/linux/admin.sh add <email> <пароль> admin"
-[ $TLS = 1 ] && echo "Адрес: https://$DOMAIN"
+echo "Готово. Первый администратор:  sudo bash deploy/linux/admin.sh add <email> - admin   (пароль спросит, не показывая)"
+if [ "$TLS" = 1 ]; then echo "Адрес: https://$DOMAIN"; fi

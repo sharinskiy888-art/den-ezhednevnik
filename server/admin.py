@@ -3,22 +3,26 @@
 Работают с базой напрямую (сервер при этом может быть запущен). Ответы — простым текстом по-русски.
 """
 import hashlib
+import os
 import re
 import secrets
 import shutil
 import sqlite3
 import sys
+import tempfile
 import time
 import zipfile
+from pathlib import Path
 
 from . import auth, backup, db, migration
 
 HELP = """Команды:
   users                         список пользователей
-  add <email> <пароль> [admin] [--id <id>]  добавить пользователя (--id — прежний id из Supabase,
+  add <email> <пароль|-> [admin] [--id <id>]  добавить пользователя («-» — пароль спросит, не показывая,
+                                или возьмёт из DEN_NEW_PASSWORD: так он не попадает в журналы и историю команд) (--id — прежний id из Supabase,
                                 тогда данные на его телефоне подхватятся без переноса ключей)
   invite <email>                код приглашения (действует 7 дней)
-  password <email> <пароль>     задать новый пароль (все входы этого человека закроются)
+  password <email> <пароль|->   задать новый пароль (все входы этого человека закроются)
   delete <email>                удалить пользователя и его личные данные
   feedback                      сообщения обратной связи
   backup                        сделать копию базы сейчас
@@ -34,6 +38,18 @@ def find(con, email):
     if not row:
         sys.exit(f'Нет пользователя {email}')
     return row
+
+
+def secret_arg(value):
+    if value != '-':
+        return value
+    if os.environ.get('DEN_NEW_PASSWORD'):
+        return os.environ['DEN_NEW_PASSWORD']
+    import getpass
+    first = getpass.getpass('Пароль: ')
+    if getpass.getpass('Ещё раз: ') != first:
+        sys.exit('Пароли не совпали')
+    return first
 
 
 def restore(args):
@@ -54,6 +70,12 @@ def restore(args):
             sys.exit('Копия повреждена — выберите другую')
     finally:
         check.close()
+    # Копию-источник — во временную папку: сохранение текущего состояния может удалить самую старую копию (хранится 14).
+    temp = Path(tempfile.mkdtemp(dir=db.DATA_DIR))
+    shutil.copyfile(source, temp / 'den.db')
+    if files.is_file():
+        shutil.copyfile(files, temp / 'files.zip')
+    source, files = temp / 'den.db', temp / 'files.zip'
     if db.DB_PATH.exists():
         name, _ = backup.make_backup()
         print(f'Текущее состояние сохранено: {name}')
@@ -68,7 +90,8 @@ def restore(args):
                 if db.FILES_DIR.resolve() not in target.parents:
                     sys.exit(f'Странный путь в архиве: {item}')
             z.extractall(db.FILES_DIR)
-    print(f'База и файлы возвращены к копии {source.name}. Запустите сервер.')
+    shutil.rmtree(temp, ignore_errors=True)
+    print(f'База и файлы возвращены к копии {args[0]}. Запустите сервер.')
 
 
 def main(argv):
@@ -100,7 +123,7 @@ def main(argv):
                 print(HELP)
                 sys.exit(2)
             with db.tx(con):
-                u = auth.create_user(con, auth.norm_email(args[0]), auth.hash_password(auth.check_new_password(args[1])),
+                u = auth.create_user(con, auth.norm_email(args[0]), auth.hash_password(auth.check_new_password(secret_arg(args[1]))),
                                      'admin' if args[2:] == ['admin'] else 'user', user_id)
             print(f"Добавлен {u['email']} ({u['role']})")
         elif cmd == 'invite' and len(args) == 1:
@@ -112,7 +135,7 @@ def main(argv):
         elif cmd == 'password' and len(args) == 2:
             u = find(con, args[0])
             with db.tx(con):
-                con.execute('update users set password_hash=? where id=?', (auth.hash_password(auth.check_new_password(args[1])), u['id']))
+                con.execute('update users set password_hash=? where id=?', (auth.hash_password(auth.check_new_password(secret_arg(args[1]))), u['id']))
                 auth.revoke_user_sessions(con, u['id'])
             print(f"Новый пароль для {u['email']} задан. Передайте его человеку лично.")
         elif cmd == 'delete' and len(args) == 1:

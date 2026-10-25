@@ -28,8 +28,9 @@ def test_version_and_admin_passthrough(tmp_path):
 
 
 def test_no_secret_no_start(tmp_path):
-    out = run('version', env={'DEN_DATA_DIR': str(tmp_path), 'DEN_ENV_FILE': str(tmp_path / 'нет.env')})
+    out = run('admin', 'users', env={'DEN_DATA_DIR': str(tmp_path), 'DEN_ENV_FILE': str(tmp_path / 'нет.env')})
     assert out.returncode != 0 and 'DEN_SECRET' in out.stderr
+    assert run('version', env={'DEN_DATA_DIR': str(tmp_path)}).returncode == 0  # номер версии — и без секрета (проверка сборки)
 
 
 def test_serves_on_port_and_lock(tmp_path):
@@ -92,3 +93,33 @@ def test_init_env_for_installer(tmp_path):
     assert len(secret) >= 48 and f'DEN_DATA_DIR={tmp_path / "data"}' in text
     assert go('init-env', str(tmp_path / 'other')).returncode == 0 and (app / 'den.env').read_text(encoding='utf-8') == text  # не перезаписан
     assert go('version').returncode == 0  # сервер находит den.env рядом с программой
+
+
+def test_password_not_on_command_line(tmp_path):
+    env = {'DEN_SECRET': SECRET, 'DEN_DATA_DIR': str(tmp_path), 'DEN_NEW_PASSWORD': 'secret-pass-1'}
+    assert run('admin', 'add', 'p@den.test', '-', 'admin', env=env).returncode == 0
+    con = sqlite3.connect(tmp_path / 'den.db')
+    assert con.execute("select role from users where email='p@den.test'").fetchone()[0] == 'admin'
+    con.close()
+    from conftest import start_server
+    proc, api = start_server(tmp_path, data_dir=tmp_path)
+    try:
+        assert api.post('/api/auth/login', {'email': 'p@den.test', 'password': 'secret-pass-1'})[0] == 200
+    finally:
+        proc.terminate()
+        proc.wait(10)
+
+
+def test_restore_oldest_copy_when_limit_reached(tmp_path):
+    env = {'DEN_SECRET': SECRET, 'DEN_DATA_DIR': str(tmp_path), 'DEN_BACKUP_KEEP': '2'}
+    run('admin', 'add', 'a@den.test', 'pass-12345', env=env)
+    run('admin', 'backup', env=env)
+    time.sleep(0.05)
+    run('admin', 'add', 'b@den.test', 'pass-12345', env=env)
+    run('admin', 'backup', env=env)
+    oldest = sorted((tmp_path / 'backups').glob('den-*.db'), key=lambda p: p.stat().st_mtime)[0].name
+    out = run('admin', 'restore', oldest, env=env)
+    assert out.returncode == 0, out.stderr
+    con = sqlite3.connect(tmp_path / 'den.db')
+    assert [r[0] for r in con.execute('select email from users')] == ['a@den.test']
+    con.close()

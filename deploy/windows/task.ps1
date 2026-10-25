@@ -2,6 +2,7 @@
 # порт открыт только для своей локальной сети (частная/доменная), из интернета — закрыт.
 param([Parameter(Mandatory)][ValidateSet('install', 'stop', 'remove')][string]$Action, [string]$Exe = '', [int]$Port = 8787)
 $ErrorActionPreference = 'Stop'
+trap { [Console]::Error.WriteLine($_); exit 1 }
 $name = 'Den Server'
 if ($Action -in 'stop', 'remove') {
   Stop-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue

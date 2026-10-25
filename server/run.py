@@ -33,13 +33,15 @@ def main(argv=None):
     if argv[:1] == ['init-env']:
         init_env(argv[1:])
         return
+    if argv[:1] in (['version'], ['--version']):  # без den.env: им проверяют только что собранную программу
+        import json
+        from pathlib import Path
+        print(json.loads((Path(__file__).resolve().parent.parent / 'version.json').read_text(encoding='utf-8'))['version'])
+        return
     from . import db  # читает den.env и проверяет секрет: без него сервер не стартует
     if argv[:1] == ['admin']:
         from . import admin
         admin.main(argv[1:])
-        return
-    if argv[:1] in (['version'], ['--version']):
-        print(db.VERSION)
         return
     if argv:
         sys.exit(__doc__)
