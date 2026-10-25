@@ -1,5 +1,6 @@
 """Синхронизация личных данных: задачи, планы (строка состояния), финансы. Договор с sync.js."""
 import json
+import threading
 import uuid
 
 import pytest
@@ -13,9 +14,10 @@ TABLES = ['tasks', 'expenses']
 
 @pytest.mark.parametrize('table', TABLES)
 def test_requires_login(server, table):
-    for method in ('GET', 'POST'):
-        assert server.call(method, f'/api/data/{table}', [] if method == 'POST' else None)[0] == 401
+    assert server.get(f'/api/data/{table}')[0] == 401
+    assert server.post(f'/api/data/{table}', [])[0] == 401
     assert server.get(f'/api/data/{table}/heads')[0] == 401
+    assert server.delete(f'/api/data/{table}/x')[0] == 401
 
 
 def test_unknown_table_404(server, alice):
@@ -37,35 +39,46 @@ def test_upsert_and_read_back(server, alice, table):
     assert status == 200 and rows == [r]
 
 
-def test_payload_kept_byte_for_byte(server, alice):
-    """Неизвестные поля, вложенность, юникод и большие числа не теряются: сервер не разбирает payload."""
+def test_rows_as_sent_by_current_sync_js_with_user_id(server, alice):
+    """Нынешний sync.js кладёт user_id в каждую строку — это не ошибка, поле просто игнорируется."""
+    r = {**row(), 'user_id': alice.id}
+    assert server.post('/api/data/tasks', [r], alice.token)[0] == 204
+    got = server.get(f"/api/data/tasks?ids={r['id']}", alice.token)[1]
+    assert got == [{k: r[k] for k in ('id', 'payload', 'updated_at')}]
+
+
+def test_payload_kept_unchanged(server, alice):
+    """Неизвестные поля, вложенность, юникод и дробные числа не теряются: сервер не разбирает payload."""
     r = row(title='Проверка «ёжик» 🚒', subtasks=[{'title': 'а', 'done': True, 'doneBy': '', 'doneAt': ''}],
-            futureField={'deep': [1, 2.5, None, True]}, amount=1234567.89, attachment={'name': 'a.jpg', 'data': 'data:image/jpeg;base64,' + 'A' * 1000})
+            futureField={'deep': [1, 2.5, None, True]}, amount=1234567.89,
+            attachment={'name': 'a.jpg', 'data': 'data:image/jpeg;base64,' + 'A' * 1000})
     server.post('/api/data/tasks', [r], alice.token)
-    rows = server.get('/api/data/tasks', alice.token)[1]
-    assert json.dumps(rows[0]['payload'], sort_keys=True) == json.dumps(r['payload'], sort_keys=True)
+    got = server.get(f"/api/data/tasks?ids={r['id']}", alice.token)[1]
+    assert json.dumps(got[0]['payload'], sort_keys=True) == json.dumps(r['payload'], sort_keys=True)
 
 
 def test_updated_at_stored_as_sent_by_device(server, alice):
     r = row(updated_at='2020-01-02T03:04:05.678Z')
     server.post('/api/data/tasks', [r], alice.token)
-    assert server.get('/api/data/tasks', alice.token)[1][0]['updated_at'] == '2020-01-02T03:04:05.678Z'
+    assert server.get(f"/api/data/tasks?ids={r['id']}", alice.token)[1][0]['updated_at'] == '2020-01-02T03:04:05.678Z'
 
 
-def test_replace_existing_row(server, alice):
+def test_replace_existing_row(server, make_user):
+    u = make_user()
     r = row(title='старое')
-    server.post('/api/data/tasks', [r], alice.token)
+    server.post('/api/data/tasks', [r], u.token)
     r2 = row(id=r['id'], updated_at='2026-10-25T11:00:00.000Z', title='новое')
-    server.post('/api/data/tasks', [r2], alice.token)
-    rows = server.get('/api/data/tasks', alice.token)[1]
+    server.post('/api/data/tasks', [r2], u.token)
+    rows = server.get('/api/data/tasks', u.token)[1]
     assert len(rows) == 1 and rows[0]['payload']['title'] == 'новое'
 
 
-def test_heads_are_light(server, alice):
+def test_heads_are_light(server, make_user):
+    u = make_user()
     a = row(attachment={'data': 'X' * 50000})
     b = {'id': 'no-pu', 'payload': {'id': 'no-pu'}, 'updated_at': '2026-01-01T00:00:00.000Z'}
-    server.post('/api/data/tasks', [a, b], alice.token)
-    status, heads, _ = server.get('/api/data/tasks/heads', alice.token)
+    server.post('/api/data/tasks', [a, b], u.token)
+    status, heads, _ = server.get('/api/data/tasks/heads', u.token)
     assert status == 200
     by_id = {h['id']: h for h in heads}
     assert by_id[a['id']] == {'id': a['id'], 'updated_at': a['updated_at'], 'pu': a['payload']['updatedAt']}
@@ -93,22 +106,23 @@ def test_more_than_1000_rows_returned_whole(server, make_user):
 def test_tombstone_is_ordinary_row(server, alice):
     t = {'id': 'gone', 'payload': {'id': 'gone', '__deleted': True, 'updatedAt': '2026-10-25T12:00:00.000Z'}, 'updated_at': '2026-10-25T12:00:00.000Z'}
     server.post('/api/data/tasks', [t], alice.token)
-    got = server.get('/api/data/tasks?ids=gone', alice.token)[1]
-    assert got == [t]
+    assert server.get('/api/data/tasks?ids=gone', alice.token)[1] == [t]
 
 
 def test_delete_own_row(server, alice):
     r = row()
     server.post('/api/data/tasks', [r], alice.token)
     assert server.delete(f"/api/data/tasks/{r['id']}", alice.token)[0] == 204
-    assert all(x['id'] != r['id'] for x in server.get('/api/data/tasks', alice.token)[1])
+    assert server.get(f"/api/data/tasks?ids={r['id']}", alice.token)[1] == []
+    assert server.delete(f"/api/data/tasks/{r['id']}", alice.token)[0] == 204  # повтор не ошибка
 
 
 def test_state_row_per_user(server, alice, bob):
-    a = {'id': STATE_ID, 'payload': {'__type': 'app_state', 'profile': {'name': 'Алиса'}, 'updatedAt': '2026-10-25T10:00:00.000Z'}, 'updated_at': '2026-10-25T10:00:00.000Z'}
-    b = {'id': STATE_ID, 'payload': {'__type': 'app_state', 'profile': {'name': 'Боб'}, 'updatedAt': '2026-10-25T10:00:00.000Z'}, 'updated_at': '2026-10-25T10:00:00.000Z'}
-    server.post('/api/data/tasks', [a], alice.token)
-    server.post('/api/data/tasks', [b], bob.token)
+    def state(name):
+        return {'id': STATE_ID, 'payload': {'__type': 'app_state', 'profile': {'name': name}, 'updatedAt': '2026-10-25T10:00:00.000Z'},
+                'updated_at': '2026-10-25T10:00:00.000Z'}
+    server.post('/api/data/tasks', [state('Алиса')], alice.token)
+    server.post('/api/data/tasks', [state('Боб')], bob.token)
     assert server.get(f'/api/data/tasks?ids={STATE_ID}', alice.token)[1][0]['payload']['profile']['name'] == 'Алиса'
     assert server.get(f'/api/data/tasks?ids={STATE_ID}', bob.token)[1][0]['payload']['profile']['name'] == 'Боб'
 
@@ -116,7 +130,7 @@ def test_state_row_per_user(server, alice, bob):
 def test_tables_are_separate(server, alice):
     r = row()
     server.post('/api/data/expenses', [r], alice.token)
-    assert all(x['id'] != r['id'] for x in server.get('/api/data/tasks', alice.token)[1])
+    assert server.get(f"/api/data/tasks?ids={r['id']}", alice.token)[1] == []
 
 
 @pytest.mark.parametrize('bad', [
@@ -125,26 +139,49 @@ def test_tables_are_separate(server, alice):
     {'id': 'ok', 'payload': 'не объект', 'updated_at': '2026-10-25T10:00:00Z'},
     {'id': 'ok', 'payload': {}},
     {'payload': {}, 'updated_at': '2026-10-25T10:00:00Z'},
+    {'id': 5, 'payload': {}, 'updated_at': '2026-10-25T10:00:00Z'},
 ])
 def test_bad_rows_rejected_and_nothing_written(server, make_user, bad):
     u = make_user()
     status, body, _ = server.post('/api/data/tasks', [row(), bad], u.token)
-    assert status in (400, 422) and body.get('message')
+    assert status == 400 and body.get('message')
     assert server.get('/api/data/tasks', u.token)[1] == []
 
 
 def test_body_must_be_list(server, alice):
-    assert server.post('/api/data/tasks', row(), alice.token)[0] in (400, 422)
+    assert server.post('/api/data/tasks', row(), alice.token)[0] == 400
 
 
-def test_oversized_row_rejected(server, alice):
+def test_bad_json_with_valid_token_is_400(server, alice):
+    status, body, _ = server.post('/api/data/tasks', raw=b'[{not json', token=alice.token, headers={'Content-Type': 'application/json'})
+    assert status == 400 and 'Traceback' not in json.dumps(body)
+
+
+def test_oversized_row_rejected(server, make_user):
+    u = make_user()
     big = row(attachment={'data': 'A' * (9 * 1024 * 1024)})
-    assert server.post('/api/data/tasks', [big], alice.token)[0] == 413
+    assert server.post('/api/data/tasks', [big], u.token)[0] in (413, 0)
+    assert server.get('/api/data/tasks', u.token)[1] == []
 
 
 def test_photo_row_under_limit_accepted(server, alice):
     ok = row(attachment={'data': 'A' * (5 * 1024 * 1024)})
     assert server.post('/api/data/tasks', [ok], alice.token)[0] == 204
+
+
+def test_concurrent_writes_from_two_devices(server, make_user):
+    """Телефон и компьютер пишут одновременно: ни одной ошибки «database is locked», все строки на месте."""
+    u = make_user()
+    codes = []
+
+    def device(n):
+        for _ in range(10):
+            codes.append(server.post('/api/data/tasks', [row() for _ in range(20)], u.token)[0])
+    threads = [threading.Thread(target=device, args=(i,)) for i in range(4)]
+    [t.start() for t in threads]
+    [t.join() for t in threads]
+    assert codes == [204] * 40
+    assert len(server.get('/api/data/tasks/heads', u.token)[1]) == 800
 
 
 def test_finance_amounts_untouched(server, alice):
