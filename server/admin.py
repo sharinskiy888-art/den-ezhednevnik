@@ -5,8 +5,11 @@
 import hashlib
 import re
 import secrets
+import shutil
+import sqlite3
 import sys
 import time
+import zipfile
 
 from . import auth, backup, db, migration
 
@@ -19,6 +22,9 @@ HELP = """Команды:
   delete <email>                удалить пользователя и его личные данные
   feedback                      сообщения обратной связи
   backup                        сделать копию базы сейчас
+  backups                       список копий
+  restore <den-….db>            вернуть базу и файлы из копии (сервер должен быть остановлен;
+                                текущее состояние сначала само сохраняется копией)
   crm <email> manager|worker|none   доступ к разделу «Клиенты»: руководитель, монтажник или нет
   reconcile                     сверка переноса: записи на устройствах и на сервере по каждому человеку"""
 
@@ -30,12 +36,50 @@ def find(con, email):
     return row
 
 
+def restore(args):
+    """Откат базы и файлов к копии. Только при остановленном сервере: замок папки данных это проверяет."""
+    if len(args) != 1 or not re.fullmatch(r'den-[\w-]+\.db', args[0]):
+        sys.exit('Укажите имя копии, например: restore den-20261025-120000-000.db (список — команда backups)')
+    source = db.BACKUP_DIR / args[0]
+    files = db.BACKUP_DIR / ('files-' + args[0][4:-3] + '.zip')
+    if not source.is_file():
+        sys.exit(f'Нет копии {source}')
+    try:
+        db.lock_data_dir()
+    except RuntimeError as error:
+        sys.exit(f'{error}. Сначала остановите сервер.')
+    check = sqlite3.connect(source)
+    try:
+        if check.execute('pragma integrity_check').fetchone()[0] != 'ok':
+            sys.exit('Копия повреждена — выберите другую')
+    finally:
+        check.close()
+    if db.DB_PATH.exists():
+        name, _ = backup.make_backup()
+        print(f'Текущее состояние сохранено: {name}')
+    for suffix in ('-wal', '-shm'):
+        db.DB_PATH.with_name(db.DB_PATH.name + suffix).unlink(missing_ok=True)
+    shutil.copyfile(source, db.DB_PATH)
+    if files.is_file():
+        shutil.rmtree(db.FILES_DIR, ignore_errors=True)
+        with zipfile.ZipFile(files) as z:
+            for item in z.namelist():  # без выхода за папку files/
+                target = (db.FILES_DIR / item).resolve()
+                if db.FILES_DIR.resolve() not in target.parents:
+                    sys.exit(f'Странный путь в архиве: {item}')
+            z.extractall(db.FILES_DIR)
+    print(f'База и файлы возвращены к копии {source.name}. Запустите сервер.')
+
+
 def main(argv):
     if not argv or argv[0] in ('-h', '--help', 'help'):
         print(HELP)
         return
     cmd, args = argv[0], argv[1:]
     db.DATA_DIR.mkdir(parents=True, exist_ok=True)
+    if cmd == 'restore':
+        restore(args)
+        return
     con = db.connect()
     db.migrate(con)
     try:
@@ -93,6 +137,9 @@ def main(argv):
                     sb = rep.get('supabase')
                     if sb:
                         print('    из Supabase: ' + ', '.join(f'{k} {v}' for k, v in sb.items()))
+        elif cmd == 'backups':
+            for path in sorted(db.BACKUP_DIR.glob('den-*.db'), key=lambda p: p.stat().st_mtime) if db.BACKUP_DIR.is_dir() else []:
+                print(f'{path.name}  {path.stat().st_size // 1024} КБ')
         elif cmd == 'feedback':
             for r in con.execute('select text, email, photo is not null as has_photo, created_at from feedback order by id desc limit 50'):
                 print(f"— {r['created_at']} от {r['email'] or 'без email'}{' (с фото)' if r['has_photo'] else ''}\n{r['text']}\n")

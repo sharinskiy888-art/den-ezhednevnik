@@ -1,0 +1,123 @@
+name: Install test
+
+# Этап 6: установка на «чистую машину» — Linux (как VPS) и Windows (установщик .exe): установка, вход, работа,
+# обновление, откат, перезапуск, удаление. Машины GitHub каждый раз новые, поэтому это и есть проверка «на чистом ПК».
+on:
+  push:
+    branches: [python-server]
+    paths: ['deploy/**', 'server/**', 'version.json', '.github/workflows/install-test.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Установка (без домена)
+        run: sudo bash deploy/linux/install.sh --no-tls
+      - name: Администратор, вход, данные через nginx
+        run: |
+          sudo bash deploy/linux/admin.sh add admin@den.test pass-admin-1 admin
+          TOKEN=$(curl -fs http://127.0.0.1/api/auth/login -H 'Content-Type: application/json' -d '{"email":"admin@den.test","password":"pass-admin-1"}' | python3 -c 'import json,sys; print(json.load(sys.stdin)["access_token"])')
+          echo "TOKEN=$TOKEN" >> "$GITHUB_ENV"
+          curl -fs -X POST http://127.0.0.1/api/data/tasks -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+            -d '[{"id":"t1","payload":{"id":"t1","title":"Проверка установки","updatedAt":"2026-10-25T10:00:00Z"},"updated_at":"2026-10-25T10:00:00Z"}]'
+          curl -fs http://127.0.0.1/api/data/tasks/heads -H "Authorization: Bearer $TOKEN" | grep -q '"t1"'
+          curl -fs http://127.0.0.1/ | grep -q '<title>'
+          curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1/den.env | grep -q 404 || { echo "den.env отдаётся наружу!"; exit 1; }
+      - name: Права на секрет и данные
+        run: |
+          [ "$(stat -c '%a %U:%G' /etc/den/den.env)" = "640 root:den" ]
+          [ "$(stat -c '%a %U' /var/lib/den)" = "700 den" ]
+          ! ss -ltn | grep -q '0.0.0.0:8787'   # сервер слушает только 127.0.0.1, наружу — через nginx
+      - name: Обновление (версия +1), данные на месте
+        run: |
+          OLD=$(python3 -c 'import json; print(json.load(open("version.json"))["version"])')
+          python3 - <<'PY'
+          import json; d = json.load(open('version.json')); d['version'] += '.1'; json.dump(d, open('version.json', 'w'))
+          PY
+          sudo bash deploy/linux/update.sh
+          curl -fs http://127.0.0.1/api/health | grep -q "\"$OLD.1\""
+          curl -fs http://127.0.0.1/api/data/tasks/heads -H "Authorization: Bearer $TOKEN" | grep -q '"t1"'
+          ls /var/lib/den/backups/ | grep -q '^den-'
+          git checkout version.json
+      - name: Откат на прежнюю версию
+        run: |
+          OLD=$(python3 -c 'import json; print(json.load(open("version.json"))["version"])')
+          sudo bash deploy/linux/rollback.sh
+          curl -fs http://127.0.0.1/api/health | grep -q "\"$OLD\""
+          curl -fs http://127.0.0.1/api/data/tasks/heads -H "Authorization: Bearer $TOKEN" | grep -q '"t1"'
+      - name: Сбой процесса — служба поднимается сама
+        run: |
+          sudo pkill -9 -f 'server.run' ; sleep 6
+          curl -fs http://127.0.0.1/api/health
+      - name: Возврат данных из копии
+        run: |
+          COPY=$(sudo ls -t /var/lib/den/backups | grep '^den-.*\.db$' | head -1)
+          curl -fs -X POST http://127.0.0.1/api/data/tasks -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+            -d '[{"id":"t2","payload":{"id":"t2","title":"после копии","updatedAt":"2026-10-25T11:00:00Z"},"updated_at":"2026-10-25T11:00:00Z"}]'
+          sudo bash deploy/linux/admin.sh restore "$COPY"
+          for i in $(seq 1 30); do curl -fs http://127.0.0.1/api/health >/dev/null && break; sleep 0.5; done
+          H=$(curl -fs http://127.0.0.1/api/data/tasks/heads -H "Authorization: Bearer $TOKEN")
+          echo "$H" | grep -q '"t1"' && ! echo "$H" | grep -q '"t2"'
+      - name: Журнал при сбое
+        if: failure()
+        run: sudo journalctl -u den -n 80 --no-pager
+
+  windows:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Inno Setup
+        run: if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
+      - name: Сборка (Nuitka + установщик)
+        run: powershell -ExecutionPolicy Bypass -File deploy\windows\build.ps1
+      - name: Тихая установка, вход, данные
+        run: |
+          $ver = (Get-Content version.json -Raw | ConvertFrom-Json).version
+          Start-Process "build\den-setup-$ver.exe" -ArgumentList '/VERYSILENT /SUPPRESSMSGBOXES /ADMINEMAIL=admin@den.test /ADMINPASSWORD=pass-admin-1' -Wait
+          function Wait-Health { for ($i = 0; $i -lt 60; $i++) { try { return Invoke-RestMethod http://localhost:8787/api/health } catch { Start-Sleep 1 } }; throw 'сервер не отвечает' }
+          $h = Wait-Health; if ($h.version -ne $ver) { throw "версия $($h.version)" }
+          $login = Invoke-RestMethod http://localhost:8787/api/auth/login -Method Post -ContentType 'application/json' -Body '{"email":"admin@den.test","password":"pass-admin-1"}'
+          "TOKEN=$($login.access_token)" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          $rows = '[{"id":"t1","payload":{"id":"t1","title":"Проверка","updatedAt":"2026-10-25T10:00:00Z"},"updated_at":"2026-10-25T10:00:00Z"}]'
+          Invoke-RestMethod http://localhost:8787/api/data/tasks -Method Post -ContentType 'application/json; charset=utf-8' -Headers @{ Authorization = "Bearer $($login.access_token)" } -Body ([Text.Encoding]::UTF8.GetBytes($rows))
+          if (-not (Get-ScheduledTask -TaskName 'Den Server')) { throw 'нет автозапуска' }
+          $rule = Get-NetFirewallRule -DisplayName 'Den Server' | Get-NetFirewallAddressFilter
+          if ($rule.RemoteAddress -ne 'LocalSubnet') { throw "брандмауэр: $($rule.RemoteAddress)" }
+          $acl = (Get-Acl 'C:\Program Files\Den\den.env').Access | Where-Object { $_.IdentityReference -match 'Users|Пользователи' }
+          if ($acl) { throw 'den.env читают обычные пользователи' }
+      - name: Обновление (версия +1) и откат
+        run: |
+          $ver = (Get-Content version.json -Raw | ConvertFrom-Json).version
+          $dist = 'build\den_server.dist'
+          $j = Get-Content "$dist\version.json" -Raw | ConvertFrom-Json; $j.version = "$ver.1"; $j | ConvertTo-Json -Depth 5 | Set-Content "$dist\version.json" -Encoding utf8
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /Qp "/DAppVersion=$ver.1" "/DSourceDir=$((Resolve-Path $dist).Path)" "/O$((Resolve-Path build).Path)" deploy\windows\den.iss
+          function Wait-Version($v) { for ($i = 0; $i -lt 60; $i++) { try { if ((Invoke-RestMethod http://localhost:8787/api/health).version -eq $v) { return } } catch {}; Start-Sleep 1 }; throw "нет версии $v" }
+          function Has-Task { $heads = Invoke-RestMethod http://localhost:8787/api/data/tasks/heads -Headers @{ Authorization = "Bearer $env:TOKEN" }; if (-not ($heads | Where-Object id -eq 't1')) { throw 'данные пропали' } }
+          Start-Process "build\den-setup-$ver.1.exe" -ArgumentList '/VERYSILENT /SUPPRESSMSGBOXES' -Wait
+          Wait-Version "$ver.1"; Has-Task
+          if (-not (Get-ChildItem 'C:\ProgramData\Den\data\backups' -Filter 'den-*.db')) { throw 'нет копии перед обновлением' }
+          Start-Process "build\den-setup-$ver.exe" -ArgumentList '/VERYSILENT /SUPPRESSMSGBOXES' -Wait
+          Wait-Version $ver; Has-Task
+          Stop-ScheduledTask -TaskName 'Den Server'; Start-Sleep 2; Start-ScheduledTask -TaskName 'Den Server'
+          Wait-Version $ver; Has-Task
+      - name: Удаление — программа уходит, данные остаются
+        run: |
+          Start-Process 'C:\Program Files\Den\unins000.exe' -ArgumentList '/VERYSILENT /SUPPRESSMSGBOXES' -Wait
+          Start-Sleep 3
+          if (Get-ScheduledTask -TaskName 'Den Server' -ErrorAction SilentlyContinue) { throw 'автозапуск остался' }
+          if (Get-NetFirewallRule -DisplayName 'Den Server' -ErrorAction SilentlyContinue) { throw 'правило брандмауэра осталось' }
+          if (-not (Test-Path 'C:\ProgramData\Den\data\den.db')) { throw 'данные удалились' }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: den-setup
+          path: build/den-setup-*.exe
+          if-no-files-found: ignore

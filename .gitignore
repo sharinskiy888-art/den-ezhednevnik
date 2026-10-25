@@ -1,4 +1,6 @@
-den.env
-data/
-__pycache__/
+.build-venv/
 .pytest_cache/
+__pycache__/
+build/
+data/
+den.env
