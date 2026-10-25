@@ -30,8 +30,9 @@ jobs:
           curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1/den.env | grep -q 404 || { echo "den.env отдаётся наружу!"; exit 1; }
       - name: Права на секрет и данные
         run: |
-          [ "$(stat -c '%a %U:%G' /etc/den/den.env)" = "640 root:den" ]
-          [ "$(stat -c '%a %U' /var/lib/den)" = "700 den" ]
+          [ "$(sudo stat -c '%a %U:%G' /etc/den/den.env)" = "640 root:den" ]
+          ! cat /etc/den/den.env 2>/dev/null   # обычный пользователь секрет не читает
+          [ "$(sudo stat -c '%a %U' /var/lib/den)" = "700 den" ]
           ss -ltnH | awk '{print $4}' | grep ':8787$'
           ! ss -ltnH | awk '{print $4}' | grep ':8787$' | grep -v '^127\.0\.0\.1:'   # только 127.0.0.1, наружу — через nginx
       - name: Обновление (версия +1), данные на месте
