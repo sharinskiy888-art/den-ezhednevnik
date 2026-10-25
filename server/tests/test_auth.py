@@ -1,0 +1,222 @@
+"""Вход, токены, приглашения, сброс пароля админом, лимит попыток (раздел 3 ТЗ)."""
+import base64
+import json
+import sqlite3
+import time
+
+import pytest
+
+from conftest import ADMIN_EMAIL, ADMIN_PASSWORD, User
+
+pytestmark = pytest.mark.etap2
+
+
+def token_data(token):
+    part = token.split('.')[1]
+    return json.loads(base64.urlsafe_b64decode(part + '=' * (-len(part) % 4)))
+
+
+def test_health_without_login(server):
+    status, body, _ = server.get('/api/health')
+    assert status == 200 and body['ok'] is True and body['version']
+
+
+def test_first_admin_created_from_env(admin):
+    assert admin.email == ADMIN_EMAIL and admin.session['user']['role'] == 'admin'
+
+
+def test_session_shape_matches_sync_js(admin):
+    s = admin.session
+    for key in ('access_token', 'refresh_token', 'token_type', 'expires_in', 'expires_at', 'user'):
+        assert key in s, key
+    assert s['token_type'] == 'bearer'
+    assert abs(s['expires_at'] - (time.time() + s['expires_in'])) < 30
+    assert set(s['user']) >= {'id', 'email', 'role'}
+
+
+def test_token_has_issuer_readable_like_supabase(server, admin):
+    data = token_data(admin.token)
+    assert data['iss'].startswith(server.base) and data['sub'] == admin.id and data['exp'] > time.time()
+
+
+def test_login_email_is_case_insensitive(server, make_user):
+    u = make_user(email='Case@Den.Test')
+    assert u.email == 'case@den.test'
+    assert server.post('/api/auth/login', {'email': '  CASE@den.test ', 'password': u.password})[0] == 200
+
+
+def test_wrong_password_rejected(server, alice):
+    status, body, _ = server.post('/api/auth/login', {'email': alice.email, 'password': 'wrong-pass'})
+    assert status in (400, 401) and body['message']
+
+
+def test_unknown_email_same_answer_as_wrong_password(server, alice):
+    a = server.post('/api/auth/login', {'email': alice.email, 'password': 'wrong-pass'})
+    b = server.post('/api/auth/login', {'email': 'nobody@den.test', 'password': 'wrong-pass'})
+    assert a[0] == b[0] and a[1]['message'] == b[1]['message']
+
+
+def test_get_user_requires_token(server, alice):
+    assert server.get('/api/auth/user')[0] == 401
+    status, body, _ = server.get('/api/auth/user', alice.token)
+    assert status == 200 and body['id'] == alice.id and body['email'] == alice.email
+
+
+@pytest.mark.parametrize('header', ['Bearer ', 'Bearer abc', 'Bearer den1.e30.AAAA', 'Basic YTpi'])
+def test_garbage_token_rejected(server, header):
+    assert server.get('/api/auth/user', headers={'Authorization': header})[0] == 401
+
+
+def test_tampered_token_rejected(server, alice):
+    head, data, sig = alice.token.split('.')
+    payload = token_data(alice.token)
+    payload['role'] = 'admin'
+    forged = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode().rstrip('=')
+    assert server.get('/api/auth/user', f'{head}.{forged}.{sig}')[0] == 401
+    assert server.get('/api/admin/users', f'{head}.{forged}.{sig}')[0] == 401
+
+
+def test_token_signed_with_other_secret_rejected(fresh_server, alice):
+    other = fresh_server(DEN_SECRET='another-secret-' + 'y' * 40)
+    assert other.get('/api/auth/user', alice.token)[0] == 401
+
+
+def test_expired_access_token_gives_401_and_refresh_works(fresh_server):
+    api = fresh_server(DEN_ACCESS_TTL=1)
+    s = api.login(ADMIN_EMAIL, ADMIN_PASSWORD)
+    time.sleep(2.2)
+    assert api.get('/api/auth/user', s['access_token'])[0] == 401
+    status, new, _ = api.post('/api/auth/refresh', {'refresh_token': s['refresh_token']})
+    assert status == 200 and new['access_token'] != s['access_token']
+    assert api.get('/api/auth/user', new['access_token'])[0] == 200
+
+
+def test_refresh_token_is_single_use(server, alice):
+    status, new, _ = server.post('/api/auth/refresh', {'refresh_token': alice.session['refresh_token']})
+    assert status == 200
+    assert server.post('/api/auth/refresh', {'refresh_token': alice.session['refresh_token']})[0] in (400, 401)
+    assert server.post('/api/auth/refresh', {'refresh_token': new['refresh_token']})[0] == 200
+
+
+def test_bad_refresh_token(server):
+    assert server.post('/api/auth/refresh', {'refresh_token': 'nope'})[0] in (400, 401)
+
+
+def test_logout_revokes_refresh(server, make_user):
+    u = make_user()
+    assert server.post('/api/auth/logout', token=u.token)[0] == 204
+    assert server.post('/api/auth/refresh', {'refresh_token': u.session['refresh_token']})[0] in (400, 401)
+
+
+def test_change_password_needs_old_one(server, make_user):
+    u = make_user()
+    assert server.put('/api/auth/user', {'password': 'new-pass-456', 'old_password': 'wrong'}, u.token)[0] in (400, 403)
+    assert server.put('/api/auth/user', {'password': 'new-pass-456', 'old_password': u.password}, u.token)[0] == 200
+    assert server.post('/api/auth/login', {'email': u.email, 'password': u.password})[0] in (400, 401)
+    assert server.post('/api/auth/login', {'email': u.email, 'password': 'new-pass-456'})[0] == 200
+
+
+def test_short_password_rejected(server, admin):
+    assert server.post('/api/admin/users', {'email': 'short@den.test', 'password': '123'}, admin.token)[0] == 400
+
+
+def test_passwords_stored_as_scrypt_not_plain(server, make_user):
+    u = make_user(password='very-unique-pass-777')
+    raw = (server.data_dir / 'den.db').read_bytes()
+    wal = server.data_dir / 'den.db-wal'
+    raw += wal.read_bytes() if wal.exists() else b''
+    assert b'very-unique-pass-777' not in raw
+    db = sqlite3.connect(server.data_dir / 'den.db')
+    tables = {r[0] for r in db.execute("select name from sqlite_master where type='table'")}
+    assert 'users' in tables
+    cols = [r[1] for r in db.execute('pragma table_info(users)')]
+    hash_col = next(c for c in cols if 'hash' in c)
+    value = db.execute(f'select {hash_col} from users where email=?', (u.email,)).fetchone()[0]
+    assert str(value).startswith('scrypt')
+    db.close()
+
+
+def test_sqlite_uses_wal(server, admin):
+    db = sqlite3.connect(server.data_dir / 'den.db')
+    assert db.execute('pragma journal_mode').fetchone()[0].lower() == 'wal'
+    db.close()
+
+
+# --- Админ ---
+
+def test_admin_endpoints_forbidden_for_user(server, alice):
+    for method, path in [('GET', '/api/admin/users'), ('POST', '/api/admin/users'), ('POST', '/api/admin/invites'),
+                         ('POST', '/api/admin/backup'), ('GET', '/api/admin/feedback'),
+                         ('PUT', f'/api/admin/users/{alice.id}/password'), ('DELETE', f'/api/admin/users/{alice.id}')]:
+        assert server.call(method, path, {'email': 'x@den.test', 'password': 'pass-123456'}, alice.token)[0] == 403, path
+
+
+def test_admin_list_users_has_no_hashes(server, admin, alice):
+    status, users, _ = server.get('/api/admin/users', admin.token)
+    assert status == 200 and any(u['id'] == alice.id for u in users)
+    assert all(not any('hash' in k or 'password' in k for k in u) for u in users)
+
+
+def test_admin_creates_user_with_given_id_for_migration(server, admin, make_user):
+    old_id = '6f1c2d3e-0000-4000-8000-00000000abcd'
+    u = make_user(id=old_id)
+    assert u.id == old_id
+
+
+def test_duplicate_email_or_id_conflict(server, admin, alice):
+    assert server.post('/api/admin/users', {'email': alice.email, 'password': 'pass-123456'}, admin.token)[0] == 409
+    assert server.post('/api/admin/users', {'email': 'other@den.test', 'password': 'pass-123456', 'id': alice.id}, admin.token)[0] == 409
+
+
+def test_admin_reset_password_revokes_sessions(server, admin, make_user):
+    u = make_user()
+    assert server.put(f'/api/admin/users/{u.id}/password', {'password': 'reset-pass-999'}, admin.token)[0] == 204
+    assert server.post('/api/auth/refresh', {'refresh_token': u.session['refresh_token']})[0] in (400, 401)
+    assert server.post('/api/auth/login', {'email': u.email, 'password': 'reset-pass-999'})[0] == 200
+
+
+def test_admin_delete_user(server, admin, make_user):
+    u = make_user()
+    assert server.delete(f'/api/admin/users/{u.id}', admin.token)[0] == 204
+    assert server.get('/api/auth/user', u.token)[0] == 401
+    assert server.post('/api/auth/login', {'email': u.email, 'password': u.password})[0] in (400, 401)
+
+
+# --- Приглашения ---
+
+def test_register_only_by_invite(server):
+    assert server.post('/api/auth/register', {'email': 'street@den.test', 'password': 'pass-123456', 'invite': 'nope'})[0] in (400, 403)
+    assert server.post('/api/auth/register', {'email': 'street@den.test', 'password': 'pass-123456'})[0] in (400, 403, 422)
+
+
+def test_invite_is_single_use_and_bound_to_email(server, admin):
+    status, inv, _ = server.post('/api/admin/invites', {'email': 'Mont@Den.Test'}, admin.token)
+    assert status in (200, 201) and inv['invite']
+    assert server.post('/api/auth/register', {'email': 'other@den.test', 'password': 'pass-123456', 'invite': inv['invite']})[0] in (400, 403)
+    status, s, _ = server.post('/api/auth/register', {'email': 'mont@den.test', 'password': 'pass-123456', 'invite': inv['invite']})
+    assert status == 200 and s['user']['email'] == 'mont@den.test' and s['user']['role'] == 'user'
+    assert server.post('/api/auth/register', {'email': 'mont@den.test', 'password': 'pass-123456', 'invite': inv['invite']})[0] in (400, 403, 409)
+
+
+# --- Лимит попыток: 5 в минуту на адрес и на email ---
+
+def test_login_rate_limit_per_email(fresh_server):
+    api = fresh_server()
+    for _ in range(5):
+        assert api.post('/api/auth/login', {'email': ADMIN_EMAIL, 'password': 'wrong'})[0] in (400, 401)
+    status, body, headers = api.post('/api/auth/login', {'email': ADMIN_EMAIL, 'password': ADMIN_PASSWORD})
+    assert status == 429 and int(headers.get('Retry-After', '0')) > 0 and body['message']
+
+
+def test_login_rate_limit_per_address(fresh_server):
+    api = fresh_server()
+    for i in range(5):
+        api.post('/api/auth/login', {'email': f'n{i}@den.test', 'password': 'wrong'})
+    assert api.post('/api/auth/login', {'email': 'n9@den.test', 'password': 'wrong'})[0] == 429
+
+
+def test_rate_limit_also_guards_register(fresh_server):
+    api = fresh_server()
+    for _ in range(5):
+        api.post('/api/auth/register', {'email': 'r@den.test', 'password': 'pass-123456', 'invite': 'bad'})
+    assert api.post('/api/auth/register', {'email': 'r@den.test', 'password': 'pass-123456', 'invite': 'bad'})[0] == 429
