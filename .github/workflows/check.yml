@@ -42,7 +42,7 @@ jobs:
       - name: Тесты сервера (pytest)
         run: |
           pip install -r server/requirements-test.txt
-          python -m pytest server -q -p no:cacheprovider -m etap2   # этап 3 добавится сюда после его приёмки
+          python -m pytest server -q -p no:cacheprovider
       - name: Установка браузера (Playwright)
         run: |
           npm i --no-save playwright

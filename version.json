@@ -1,7 +1,8 @@
 {
-  "version": "98",
+  "version": "99",
   "released": "2026-10-25",
   "notes": [
+    "Поручения на своём сервере (ветка проверки, ещё не на сайте): исполнитель меняет только статус, галочки подзадач и свои отчёты — текст, дату и участников меняет организатор, а сервер это проверяет. Галочка «готово» у исполнителя означает «Готово, на проверке», завершает задачу организатор. Новая кнопка «Попросить выйти из задачи»: организатор видит просьбу и нажимает «Отпустить». Фото и голосовые отчётов хранятся на своём сервере и видны только участникам задачи.",
     "Свой сервер вместо облака Supabase (ветка проверки, ещё не на сайте). Вход — по email и паролю от администратора или по коду приглашения; писем восстановления больше нет: «Забыли пароль?» подскажет обратиться к администратору. Пароль можно сменить в окне «Аккаунт». Обратная связь уходит на свой сервер. Поручения заработают на следующем этапе.",
     "Цвет оформления можно выбрать: в «Профиле» пять вариантов (синий, зелёный, бордовый, фиолетовый, графит), выбор запоминается на устройстве. В «Уведомлениях» появился выбор частоты напоминаний о делах: раз в день, два раза в день (с вашими временами), каждые 2 часа или каждый час до 21:00. Если приложение открыли поздно, приходит одно напоминание, а не пачка.",
     "Основной синий цвет стал темнее и насыщеннее во всех разделах. Совместные задачи больше не пропадают вместе со своим днём: пока задача не завершена, она остаётся в «Сегодня» с меткой «Просрочена». Защита от чужих данных: при выходе из аккаунта уведомления отключаются на этом устройстве (новый аккаунт на том же компьютере больше не получает напоминания старого), а старые «общие» данные не подхватываются новым аккаунтом.",
@@ -79,6 +80,7 @@
     "Добавлены общий прогресс, роли, статусы «В работе», «На проверке» и «Завершено»."
   ],
   "notesEn": [
+    "Shared tasks on the own server (test branch, not on the site yet): the assignee changes only the status, subtask ticks and their own reports — the text, date and members are changed by the organizer, and the server enforces it. An assignee's \"done\" tick means \"Done, in review\"; the organizer completes the task. New button \"Ask to leave the task\": the organizer sees the request and taps \"Let go\". Report photos and voice messages are stored on the own server and visible only to task members.",
     "Own server instead of the Supabase cloud (test branch, not on the site yet). Sign in with the email and password from the administrator or with an invitation code; there are no recovery emails any more — “Forgot your password?” tells you to ask the administrator. You can change your password in “Account”. Feedback goes to the own server. Shared tasks will work after the next stage.",
     "You can now choose the color theme: five options in “Profile” (blue, green, crimson, purple, graphite), remembered on the device. “Notifications” has a new reminder frequency: once a day, twice a day (your times), every 2 hours or every hour until 9 pm. If the app is opened late, you get one reminder instead of a burst.",
     "The main blue is now darker and richer everywhere. Shared tasks no longer disappear with their day: until completed they stay in “Today” marked “Overdue”. Protection from other accounts’ data: signing out now turns off notifications on this device (a new account on the same computer no longer receives the old account’s reminders), and old shared local data is no longer picked up by a new account.",

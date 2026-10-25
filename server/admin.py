@@ -57,10 +57,7 @@ def main(argv):
             print(f"Новый пароль для {u['email']} задан. Передайте его человеку лично.")
         elif cmd == 'delete' and len(args) == 1:
             u = find(con, args[0])
-            with db.tx(con):
-                con.execute('delete from rows where user_id=?', (u['id'],))
-                con.execute('delete from sessions where user_id=?', (u['id'],))
-                con.execute('delete from users where id=?', (u['id'],))
+            auth.delete_account(con, u['id'])
             print(f"Удалён {u['email']}")
         elif cmd == 'feedback':
             for r in con.execute('select text, email, photo is not null as has_photo, created_at from feedback order by id desc limit 50'):

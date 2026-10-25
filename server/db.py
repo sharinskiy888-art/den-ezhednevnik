@@ -85,6 +85,18 @@ MIGRATIONS = [
                        payload text not null, updated_at text not null, pu text, primary key (user_id, tbl, id));
     create table feedback (id integer primary key autoincrement, text text not null, email text, photo text, created_at text not null);
     """,
+    """
+    create table shared (id text primary key, owner_id text not null references users(id) on delete cascade,
+                         owner_email text not null, invited_emails text not null default '[]',
+                         accepted_emails text not null default '[]', leave_requests text not null default '[]',
+                         payload text not null, updated_at text not null, pu text);
+    create index shared_owner on shared(owner_id);
+    create table shared_members (task_id text not null references shared(id) on delete cascade, email text not null,
+                                 primary key (task_id, email));
+    create index shared_members_email on shared_members(email);
+    create table presence (user_id text primary key references users(id) on delete cascade, email text not null,
+                           locale text, last_seen text not null);
+    """,
 ]
 
 

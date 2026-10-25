@@ -11,7 +11,7 @@ const NOTIFICATION_KEY = 'day-planner-notifications-v1';
 const EXPENSES_KEY = 'day-planner-expenses-v1';
 const FINANCE_LIMITS_KEY = 'day-planner-finance-limits-v1';
 const DELETED_EXPENSES_KEY = 'day-planner-deleted-expenses-v1';
-const APP_VERSION = '98';
+const APP_VERSION = '99';
 const UPDATE_SEEN_KEY = 'day-planner-update-seen-v1';
 const UPDATE_APPLIED_KEY = 'day-planner-update-applied-v1';
 const LANG_KEY = 'day-planner-lang-v1';
@@ -1753,6 +1753,8 @@ function parseSharedEmails(value = '') {
 }
 function sharedErrorText(error) {
   const message = error?.message || '';
+  if (error?.status === 404) return L('Эта совместная задача удалена или вам закрыли к ней доступ', 'This shared task was deleted or you no longer have access');
+  if (error?.status === 403) return message || L('Нет доступа к этой совместной задаче', 'No access to this shared task');
   if (/shared_tasks|answer_shared_invite|404|schema cache/i.test(message)) return 'Раздел совместных задач ещё настраивается. Обновите приложение через минуту';
   if (/row-level|policy|403/i.test(message)) return 'Нет доступа к этой совместной задаче';
   return message || 'Не удалось синхронизировать совместные задачи';
@@ -1962,6 +1964,12 @@ function bindSharedContentActions(root = $('#sharedContent')) {
     try { await acceptSharedInvite(button.dataset.answerInvite); renderSharedDialog(); renderSharedInvitePrompt(); toast(L('Задача принята', 'Task accepted')); }
     catch (error) { button.disabled = false; toast(sharedErrorText(error)); }
   }));
+  $$('[data-leave-shared]').forEach(button => button.addEventListener('click', async () => {
+    button.disabled = true; try { await requestLeaveShared(button.dataset.leaveShared); } catch (error) { button.disabled = false; toast(sharedErrorText(error)); }
+  }));
+  $$('[data-release-shared]').forEach(button => button.addEventListener('click', async () => {
+    button.disabled = true; try { await releaseSharedMember(button.dataset.releaseShared, button.dataset.email); } catch (error) { button.disabled = false; toast(sharedErrorText(error)); }
+  }));
   $$('[data-nudge-shared]').forEach(button => button.addEventListener('click', async () => {
     button.disabled = true;
     try {
@@ -1994,8 +2002,29 @@ function renderSharedView(task) {
     <h4 class="sv-section">${owner ? L('Статус задачи', 'Task status') : L('Мой ответ', 'My reply')}</h4>
     <div class="sv-status">${sharedStatusLabel(task)}</div>
     ${sharedStatusButtons(task)}
-    ${canNudge ? `<button type="button" class="repeat-shared-invite" data-nudge-shared="${task.id}">🔔 ${L('Напомнить исполнителю', 'Remind assignee')}</button>` : ''}`;
+    ${canNudge ? `<button type="button" class="repeat-shared-invite" data-nudge-shared="${task.id}">🔔 ${L('Напомнить исполнителю', 'Remind assignee')}</button>` : ''}
+    ${sharedLeaveBlock(task, owner)}`;
   bindSharedContentActions(box);
+}
+// Выйти из поручения исполнитель может только с согласия организатора: он просит, организатор отпускает.
+function sharedLeaveBlock(task, owner) {
+  const me = currentAccountEmail(); const asks = task.leaveRequests || [];
+  if (owner) return asks.map(email => `<p class="sv-leave">${escapeHtml(email)} ${L('просит выйти из задачи', 'asks to leave the task')} <button type="button" class="secondary-button" data-release-shared="${task.id}" data-email="${escapeHtml(email)}">${L('Отпустить', 'Let go')}</button></p>`).join('');
+  if (!(task.acceptedEmails || []).includes(me)) return '';
+  return asks.includes(me) ? `<p class="sv-leave">${L('Вы попросили выйти из задачи — решение за организатором', 'You asked to leave — the organizer decides')}</p>`
+    : `<button type="button" class="repeat-shared-invite" data-leave-shared="${task.id}">${L('Попросить выйти из задачи', 'Ask to leave the task')}</button>`;
+}
+async function requestLeaveShared(taskId) {
+  await window.DaySync.requestLeaveShared(taskId); await loadSharedTasks(false); renderSharedDialog(); render();
+  toast(L('Просьба отправлена организатору', 'Request sent to the organizer'));
+}
+async function releaseSharedMember(taskId, email) {
+  const fresh = await freshSharedTask(taskId);
+  if (!fresh || !isSharedOwner(fresh)) throw new Error(L('Отпустить исполнителя может только организатор', 'Only the organizer can let an assignee go'));
+  fresh.acceptedEmails = (fresh.acceptedEmails || []).filter(item => item !== email); fresh.updatedAt = new Date().toISOString();
+  fresh.activity = [...(fresh.activity || []), { type: 'released', email: currentAccountEmail(), at: fresh.updatedAt }].slice(-30);
+  await window.DaySync.saveSharedTask(fresh); await loadSharedTasks(false); renderSharedDialog(); render();
+  toast(`${email} ${L('больше не участвует в задаче', 'is no longer in the task')}`);
 }
 function refreshSharedView() {
   const dialog = $('#taskDialog'); if (!dialog?.open || dialog.dataset.mode !== 'view') return;
@@ -2043,6 +2072,9 @@ async function toggleSharedSubtask(taskId, index) {
   renderSharedDialog(); render();
 }
 async function setSharedTaskCompleted(taskId, completed) {
+  // Завершает задачу организатор; галочка исполнителя означает «Готово, на проверке».
+  const known = sharedTasks.find(item => item.id === taskId);
+  if (known && !isSharedOwner(known)) return setSharedStatus(taskId, completed ? 'review' : 'open');
   try {
     const fresh = await freshSharedTask(taskId);
     if (!fresh) { toast('Эта совместная задача удалена или вам закрыли к ней доступ'); render(); return; }
@@ -2266,7 +2298,7 @@ window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); instal
 $('#installButton').addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('#installButton').hidden = true; });
 showUpdatedNoticeIfNeeded();
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=98'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
+  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=99'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
   navigator.serviceWorker.addEventListener('message', event => {
     if (event.data?.type !== 'DAY_PUSH') return;
     showReminderAlert(event.data.taskId || '', event.data.title || 'Новое уведомление', event.data.body || '');

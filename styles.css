@@ -308,3 +308,4 @@ dialog { border-radius:12px;box-shadow:0 20px 55px rgba(25,41,57,.22); }.close-b
 .theme-picker button { width:36px; height:36px; border-radius:50%; border:3px solid transparent; box-shadow:0 0 0 1px var(--line); padding:0; }
 .theme-picker button[aria-pressed="true"] { border-color:#fff; box-shadow:0 0 0 3px var(--violet); }
 .theme-picker [data-theme-choice="blue"] { background:#0e3764; } .theme-picker [data-theme-choice="green"] { background:#0f5a43; } .theme-picker [data-theme-choice="crimson"] { background:#8a1c2b; } .theme-picker [data-theme-choice="purple"] { background:#4b2a8c; } .theme-picker [data-theme-choice="graphite"] { background:#2a3140; }
+.sv-leave{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:10px 0 0;color:var(--muted);font-size:12px}

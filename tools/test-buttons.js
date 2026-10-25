@@ -82,7 +82,7 @@ function seedData(signedIn, opts = {}) {
   if (signedIn && opts.overdue) sharedRow.push(
     { id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', owner_id: 'u-other', owner_email: 'brother@example.com', invited_emails: [], accepted_emails: ['tester@example.com'], updated_at: new Date().toISOString(), payload: t('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', { title: 'Просроченная совместная', date: yesterday, status: 'open', activity: [] }) },
     { id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', owner_id: 'u-other', owner_email: 'brother@example.com', invited_emails: [], accepted_emails: ['tester@example.com'], updated_at: new Date().toISOString(), payload: t('cccccccc-cccc-4ccc-8ccc-cccccccccccc', { title: 'Завершённая вчерашняя', date: yesterday, status: 'completed', completed: true, activity: [] }) });
-  if (signedIn && opts.owned) sharedRow.splice(0, sharedRow.length, { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', owner_id: 'u-tester-0001', owner_email: 'tester@example.com', invited_emails: [], accepted_emails: ['brother@example.com'], updated_at: new Date().toISOString(), payload: t('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', { title: 'Моя совместная', status: 'open', subtasks: [{ title: 'Пункт А', done: false }], activity: [] }) });
+  if (signedIn && opts.owned) sharedRow.splice(0, sharedRow.length, { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', owner_id: 'u-tester-0001', owner_email: 'tester@example.com', invited_emails: [], accepted_emails: ['brother@example.com'], leave_requests: opts.leave ? ['brother@example.com'] : [], updated_at: new Date().toISOString(), payload: t('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', { title: 'Моя совместная', status: 'open', subtasks: [{ title: 'Пункт А', done: false }], activity: [] }) });
   return { tasks, sharedRow, today };
 }
 
@@ -127,12 +127,14 @@ function handleApi(req, res, p) {
     const shared = /^\/api\/shared\/([^/]+)(\/answer)?$/.exec(p);
     if (p === '/api/auth/user') return json(user);
     if (/^\/api\/auth\/(login|refresh|register)$/.test(p)) return json({ access_token: 'den1.qa.qa', refresh_token: 'qa.1.qa', token_type: 'bearer', expires_in: 7200, expires_at: Math.floor(Date.now() / 1000) + 7200, user });
-    if (p === '/api/shared/heads') return json(sharedRow.map(r => ({ id: r.id, updated_at: r.updated_at, pu: r.payload?.updatedAt || null, invited_emails: r.invited_emails, accepted_emails: r.accepted_emails })));
+    if (p === '/api/shared/heads') return json(sharedRow.map(r => ({ id: r.id, updated_at: r.updated_at, pu: r.payload?.updatedAt || null, invited_emails: r.invited_emails, accepted_emails: r.accepted_emails, leave_requests: r.leave_requests || [] })));
+    const leave = /^\/api\/shared\/([^/]+)\/leave$/.exec(p);
+    if (leave && m === 'POST') { counter.leaves = (counter.leaves || 0) + 1; sharedRow.forEach(r => { if (r.id === decodeURIComponent(leave[1])) r.leave_requests = [...new Set([...(r.leave_requests || []), 'tester@example.com'])]; }); res.writeHead(204); return res.end(); }
     if (p === '/api/shared' && m === 'GET') { const ids = (query.get('ids') || '').split(','); return json(sharedRow.filter(r => ids.includes(r.id))); }
     if (shared && shared[2] && m === 'POST') { const b = parsed(); counter.answers.push(!!b.accept); sharedRow.forEach(r => { r.invited_emails = []; if (b.accept) r.accepted_emails = ['tester@example.com']; }); res.writeHead(204); return res.end(); }
     if (shared && m === 'PATCH') {
       const row = sharedRow.find(r => r.id === decodeURIComponent(shared[1]));
-      if (row) { Object.assign(row, parsed()); counter.patches = (counter.patches || 0) + 1; }
+      if (row) { counter.lastPatch = parsed(); Object.assign(row, counter.lastPatch); counter.patches = (counter.patches || 0) + 1; }
       res.writeHead(204); return res.end();
     }
     if (shared && m === 'GET') { const row = sharedRow.find(r => r.id === decodeURIComponent(shared[1])); return row ? json(row) : json({ message: 'Не найдено' }, 404); }
@@ -596,6 +598,25 @@ async function runSpecial(browser, base, mobile, shotsDir) {
     await click('#svEdit'); await page.waitForTimeout(250);
     ok((await page.locator('#taskDialog[data-mode="edit"]').count()) === 1 && await page.locator('#taskTitle').isVisible() && await page.locator('#sharedEmails').isEnabled() && !(await page.locator('#sharedView').isVisible()), '', 'Организатор: «Редактировать» открывает полную форму');
     await page.keyboard.press('Escape'); await page.waitForTimeout(150);
+  });
+
+  await scenario('Совместная задача: исполнитель просит выйти, галочка «готово» → «на проверке»', null, async ({ page, ok, click, supa }) => {
+    const box = page.locator('#taskList .task', { hasText: 'Совместная от брата' }).locator('[data-shared-check]');
+    const before = supa.patches || 0; await box.check({ timeout: 3000 }); log.clicked++; log.clickedIds.push('data-shared-check');
+    for (let i = 0; i < 40 && (supa.patches || 0) === before; i++) await page.waitForTimeout(100);
+    const sent = supa.lastPatch?.payload || {};
+    ok(sent.status === 'review' && sent.completed === false, `отправлено: статус ${sent.status}, completed ${sent.completed}`, 'Исполнитель: галочка «готово» отправляет «Готово, на проверке», а не «Завершено»');
+    await page.locator('#taskList .task', { hasText: 'Совместная от брата' }).locator('[data-shared-edit]').click(); await page.waitForTimeout(300);
+    await click('#sharedView [data-leave-shared]'); for (let i = 0; i < 40 && !(supa.leaves > 0 && (await page.locator('#sharedView .sv-leave').count())); i++) await page.waitForTimeout(100);
+    ok(supa.leaves === 1 && (await page.locator('#sharedView .sv-leave').innerText()).includes('организатор'), `запросов: ${supa.leaves || 0}`, 'Исполнитель: «Попросить выйти из задачи» отправляет просьбу и показывает, что решение за организатором');
+  });
+  await scenario('Совместная задача: организатор видит просьбу выйти и нажимает «Отпустить»', { seed: { owned: true, leave: true } }, async ({ page, ok, click, supa }) => {
+    await page.locator('#taskList .task', { hasText: 'Моя совместная' }).locator('[data-shared-edit]').click(); await page.waitForTimeout(300);
+    const text = await page.locator('#sharedView .sv-leave').innerText().catch(() => '');
+    ok(/brother@example\.com.*просит выйти/.test(text), `текст: «${text}»`, 'Организатор: видна просьба исполнителя выйти из задачи');
+    const before = supa.patches || 0; await click('#sharedView [data-release-shared]');
+    for (let i = 0; i < 40 && (supa.patches || 0) === before; i++) await page.waitForTimeout(100);
+    ok(Array.isArray(supa.lastPatch?.accepted_emails) && !supa.lastPatch.accepted_emails.includes('brother@example.com'), 'участники в запросе: ' + JSON.stringify(supa.lastPatch?.accepted_emails), 'Организатор: «Отпустить» убирает исполнителя из участников');
   });
 
   /* Совместные задачи не теряются вместе со своим днём, пока не завершены */

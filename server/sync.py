@@ -36,7 +36,7 @@ def parse_rows(body):
             raise bad('У строки payload должен быть объектом', 'bad_row')
         if not isinstance(updated_at, str) or not 0 < len(updated_at) <= 40:
             raise bad('У строки нет времени правки', 'bad_row')
-        text = json.dumps(payload, ensure_ascii=False, separators=(',', ':'))
+        text = json.dumps(payload, ensure_ascii=False, separators=(',', ':'), allow_nan=False)
         if len(text.encode()) > MAX_ROW:
             raise ApiError(413, 'Запись слишком большая (больше 8 МБ). Уменьшите вложение.', 'too_large')
         pu = payload.get('updatedAt')

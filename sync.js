@@ -186,12 +186,12 @@
       __remote: true
     };
   }
-  // Пока на сервере нет раздела поручений (до этапа 3), он отвечает 404 — это «поручений нет», а не сбой.
+  // Старый сервер без раздела поручений отвечает 404 — это «поручений нет», а не сбой.
   const emptyIfMissing = error => { if (error.status === 404) return null; throw error; };
   // Совместные задачи тоже грузятся экономно: лёгкий список «id + время правки + участники», а задача целиком
   // (с фото) скачивается, только если она изменилась с прошлой загрузки.
   let sharedCache = { userId: '', rows: new Map() };
-  const sharedHeadKey = row => `${row.updated_at}|${row.pu || ''}|${(row.invited_emails || []).join(',')}|${(row.accepted_emails || []).join(',')}`;
+  const sharedHeadKey = row => `${row.updated_at}|${row.pu || ''}|${(row.invited_emails || []).join(',')}|${(row.accepted_emails || []).join(',')}|${(row.leave_requests || []).join(',')}`;
   async function loadSharedTasks() {
     const sessionUser = user(); if (!sessionUser) return [];
     if (sharedCache.userId !== sessionUser.id) sharedCache = { userId: sessionUser.id, rows: new Map() };
@@ -234,6 +234,9 @@
   async function answerSharedInvite(id, accepted) {
     return post(`/shared/${encodeURIComponent(id)}/answer`, { accept: !!accepted });
   }
+  async function requestLeaveShared(id) {
+    return post(`/shared/${encodeURIComponent(id)}/leave`, {});
+  }
   async function touchPresence(locale = 'ru') {
     if (!user()) return;
     await post('/presence', { locale: locale === 'en' ? 'en' : 'ru' }).catch(emptyIfMissing);
@@ -266,5 +269,5 @@
     try { await post('/feedback', message, !!getSession()); }
     catch (error) { if (!error.sessionExpired) throw error; await post('/feedback', message, false); } // вход истёк — сообщение всё равно уходит
   }
-  window.DaySync = { uploadSharedMedia, loadSharedMedia, getSession, user, signUp, signIn, signOut, updatePassword, sync, syncExpenses, loadSharedTasks, loadSharedTask, saveSharedTask, deleteSharedTask, answerSharedInvite, touchPresence, loadSharedPresence, savePushSubscription, deletePushSubscription, sendFeedback };
+  window.DaySync = { uploadSharedMedia, loadSharedMedia, getSession, user, signUp, signIn, signOut, updatePassword, sync, syncExpenses, loadSharedTasks, loadSharedTask, saveSharedTask, deleteSharedTask, answerSharedInvite, requestLeaveShared, touchPresence, loadSharedPresence, savePushSubscription, deletePushSubscription, sendFeedback };
 })();

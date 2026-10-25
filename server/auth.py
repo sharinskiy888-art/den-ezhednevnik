@@ -11,7 +11,7 @@ from fastapi import APIRouter, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse, Response
 
-from . import db
+from . import db, files, shared
 from .access import ApiError, RateLimiter, bad, client_ip, current_user, field, make_access_token, read_json, require_admin, sign
 
 router = APIRouter(prefix='/api')
@@ -244,12 +244,25 @@ async def delete_user(user_id: str, request: Request):
     admin = require_admin(request)
     if user_id == admin.id:
         raise bad('Нельзя удалить самого себя', 'self_delete')
-    with db.tx(request.app.state.con) as con:
+    if not delete_account(request.app.state.con, user_id):
+        raise ApiError(404, 'Нет такого пользователя', 'not_found')
+    return Response(status_code=204)
+
+
+def delete_account(con, user_id):
+    """Пользователь, его личные данные, сессии и поручения, где он организатор (вместе с их файлами)."""
+    with db.tx(con):
+        tasks = [r[0] for r in con.execute('select id from shared where owner_id=?', (user_id,))]
+        email = (con.execute('select email from users where id=?', (user_id,)).fetchone() or [''])[0]
+        if email:
+            shared.forget_email(con, email)  # иначе новый аккаунт на ту же почту получил бы доступ к чужим задачам
         con.execute('delete from rows where user_id=?', (user_id,))
         con.execute('delete from sessions where user_id=?', (user_id,))
-        if not con.execute('delete from users where id=?', (user_id,)).rowcount:
-            raise ApiError(404, 'Нет такого пользователя', 'not_found')
-    return Response(status_code=204)
+        con.execute('delete from shared where owner_id=?', (user_id,))
+        con.execute('delete from presence where user_id=?', (user_id,))
+        found = con.execute('delete from users where id=?', (user_id,)).rowcount
+    files.remove_task_files(tasks)
+    return found
 
 
 @router.post('/admin/invites', status_code=201)
