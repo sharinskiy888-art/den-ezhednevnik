@@ -10,14 +10,6 @@
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="styles.css?v=97">
   <title>День — ежедневник</title>
-  <script>
-    (() => {
-      const query = new URLSearchParams(location.search);
-      const hash = new URLSearchParams(location.hash.replace(/^#/, ''));
-      const isRecovery = query.get('recovery') === '1' || query.get('type') === 'recovery' || hash.get('type') === 'recovery';
-      if (isRecovery) location.replace(`reset.html${location.search}${location.hash}`);
-    })();
-  </script>
 </head>
 <body>
   <div class="app-shell">
@@ -553,21 +545,8 @@
           <button type="button" class="secondary-button" id="syncSignUp" data-i18n="sync.signUp">Регистрация</button>
           <button type="submit" class="primary-button" data-i18n="sync.signIn">Войти</button>
         </div>
-        <button type="button" class="forgot-password-button" id="syncForgotPassword" data-i18n="sync.forgotPassword">Забыли пароль? Получить новое письмо</button>
-      </form>
-      <form id="syncRecoveryCodeForm" hidden>
-        <p class="sync-reset-note" data-i18n="sync.recoveryNote">Откройте только самое новое письмо. Нажмите в нём «Reset password». Если письмо содержит цифровой код, его можно ввести ниже.</p>
-        <label><span data-i18n="sync.email">Email</span><input type="email" id="syncRecoveryEmail" autocomplete="email" required placeholder="name@example.com"></label>
-        <label><span data-i18n="sync.codeFromEmail">Код из письма</span><input type="text" id="syncRecoveryCode" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6,8}" maxlength="8" required placeholder="6–8 цифр" data-i18n-placeholder="sync.codePlaceholder"></label>
-        <button type="submit" class="primary-button" data-i18n="sync.checkCode">Проверить код</button>
-        <button type="button" class="secondary-button recovery-button" id="syncResendRecoveryCode" data-i18n="sync.resendCode">Отправить новый код</button>
-        <button type="button" class="forgot-password-button" id="syncBackToLogin" data-i18n="sync.backToLogin">Вернуться ко входу</button>
-      </form>
-      <form id="syncResetForm" hidden>
-        <p class="sync-reset-note" data-i18n="sync.codeConfirmedNote">Код подтверждён. Придумайте новый пароль — старый пароль вводить не нужно.</p>
-        <label><span data-i18n="sync.newPassword">Новый пароль</span><input type="password" id="syncNewPassword" minlength="8" required autocomplete="new-password" placeholder="Не менее 8 символов" data-i18n-placeholder="sync.passwordPlaceholder"></label>
-        <label><span data-i18n="sync.repeatPassword">Повторите пароль</span><input type="password" id="syncNewPasswordConfirm" minlength="8" required autocomplete="new-password"></label>
-        <button type="submit" class="primary-button" data-i18n="sync.saveNewPassword">Сохранить новый пароль</button>
+        <label><span data-i18n="sync.invite">Код приглашения (только для регистрации)</span><input type="text" id="syncInvite" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="200" placeholder="Выдаёт администратор" data-i18n-placeholder="sync.invitePlaceholder"></label>
+        <button type="button" class="forgot-password-button" id="syncForgotPassword" data-i18n="sync.forgotPassword">Забыли пароль?</button>
       </form>
       <div class="sync-connected" id="syncConnected" hidden>
         <button class="primary-button" id="syncNow" data-i18n="sync.syncNow">Синхронизировать сейчас</button>

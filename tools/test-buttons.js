@@ -3,7 +3,7 @@
  * Полный тест кнопок приложения «День» в настоящем браузере (Chromium через Playwright).
  *
  * Что делает:
- *   1. Поднимает локальный сервер с файлами проекта (интернет не нужен, Supabase подменён заглушкой).
+ *   1. Поднимает локальный сервер с файлами проекта (интернет не нужен, сервер «День» подменён заглушкой).
  *   2. Открывает приложение в 4 режимах: компьютер/телефон × гость/вошёл в аккаунт.
  *   3. СКВОЗНЫЕ СЦЕНАРИИ: добавить задачу → отметить → открыть → удалить, переключение видов, поиск и т.д.
  *   4. ОБХОД: настоящими нажатиями «как пользователь» кликает каждую видимую кнопку, ссылку,
@@ -46,11 +46,7 @@ function startServer() {
         serverState.fakeVersion--; res.writeHead(200, { 'Content-Type': 'text/javascript', 'Cache-Control': 'no-store' });
         return res.end("window.DAY_APP_RELEASE={version:'999',released:'2099-01-01',notes:['Тестовое обновление']};");
       }
-      if (p.startsWith('/__supabase/')) return handleSupabase(req, res, p);
-      if (p === '/sync-config.js' && serverState.mock) { // Supabase подменяется заглушкой на этом же адресе (без CORS)
-        res.writeHead(200, { 'Content-Type': 'text/javascript', 'Cache-Control': 'no-store' });
-        return res.end("window.SUPABASE_CONFIG = { url: location.origin + '/__supabase', anonKey: 'qa', vapidPublicKey: '' };");
-      }
+      if (p.startsWith('/api/')) return handleApi(req, res, p); // сервер «День» подменён заглушкой на этом же адресе (без CORS)
       if (p.endsWith('/')) p += 'index.html';
       const file = path.join(ROOT, p);
       if (!file.startsWith(ROOT) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) { res.writeHead(404); return res.end('not found'); }
@@ -112,34 +108,39 @@ function initScript({ tasks, signedIn, userId }) {
       const suffix = ${signedIn ? JSON.stringify(userId) : "'guest'"};
       localStorage.setItem('day-planner-tasks-v2:' + suffix, ${JSON.stringify(JSON.stringify(tasks))});
       localStorage.setItem('day-planner-period-plans-v1:' + suffix, JSON.stringify([{ id: 'p1', scope: 'all', anchorDate: __today, text: 'Старый план (без createdAt)' }, { id: 'p2', scope: 'all', anchorDate: __today, text: 'Второй старый план (без createdAt)' }, { id: 'p3', scope: 'all', anchorDate: __today, text: 'Новый план', plannedDate: '', createdAt: new Date().toISOString() }]));
-      ${signedIn ? `localStorage.setItem('day-sync-session-v1', JSON.stringify({ access_token: 'qa', refresh_token: 'qa', expires_at: Math.floor(Date.now() / 1000) + 7200, user: { id: ${JSON.stringify(userId)}, email: 'tester@example.com' } }));` : ''}
+      ${signedIn ? `localStorage.setItem('day-sync-session-v1', JSON.stringify({ access_token: 'den1.qa.qa', refresh_token: 'qa.1.qa', expires_at: Math.floor(Date.now() / 1000) + 7200, user: { id: ${JSON.stringify(userId)}, email: 'tester@example.com', role: 'user' } }));` : ''}
     }
   })();`;
 }
 
-/* Заглушка Supabase: тестовый сервер сам отвечает на /__supabase/* (тот же адрес, что и страница — CORS не нужен) */
+/* Заглушка сервера «День»: тестовый сервер сам отвечает на /api/* (тот же адрес, что и страница — CORS не нужен) */
 function setMock(sharedRow, userId, counter) { counter.answers = counter.answers || []; serverState.mock = { sharedRow, userId, counter }; }
-function handleSupabase(req, res, p) {
+function handleApi(req, res, p) {
   const { sharedRow, userId, counter } = serverState.mock || { sharedRow: [], userId: 'u', counter: { n: 0, answers: [] } };
   counter.n++;
   let body = ''; req.on('data', c => body += c);
   req.on('end', () => {
-    const m = req.method;
+    const m = req.method; const query = new URLSearchParams(req.url.split('?')[1] || '');
     const json = (obj, status = 200) => { res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
-    if (p.includes('/auth/v1/user')) return json({ id: userId, email: 'tester@example.com' });
-    if (p.includes('/auth/v1/token')) return json({ access_token: 'qa', refresh_token: 'qa', expires_in: 7200, expires_at: Math.floor(Date.now() / 1000) + 7200, user: { id: userId, email: 'tester@example.com' } });
-    if (p.includes('/auth/v1/')) return json({});
-    if (p.includes('/rest/v1/shared_tasks') && m === 'PATCH') {
-      let b = {}; try { b = JSON.parse(body || '{}'); } catch {}
-      const id = decodeURIComponent((/id=eq\.([^&]+)/.exec(req.url) || [])[1] || ''); const row = sharedRow.find(r => r.id === id);
-      if (row) { Object.assign(row, b); counter.patches = (counter.patches || 0) + 1; }
+    const parsed = () => { try { return JSON.parse(body || '{}'); } catch { return {}; } };
+    const user = { id: userId, email: 'tester@example.com', role: 'user' };
+    const shared = /^\/api\/shared\/([^/]+)(\/answer)?$/.exec(p);
+    if (p === '/api/auth/user') return json(user);
+    if (/^\/api\/auth\/(login|refresh|register)$/.test(p)) return json({ access_token: 'den1.qa.qa', refresh_token: 'qa.1.qa', token_type: 'bearer', expires_in: 7200, expires_at: Math.floor(Date.now() / 1000) + 7200, user });
+    if (p === '/api/shared/heads') return json(sharedRow.map(r => ({ id: r.id, updated_at: r.updated_at, pu: r.payload?.updatedAt || null, invited_emails: r.invited_emails, accepted_emails: r.accepted_emails })));
+    if (p === '/api/shared' && m === 'GET') { const ids = (query.get('ids') || '').split(','); return json(sharedRow.filter(r => ids.includes(r.id))); }
+    if (shared && shared[2] && m === 'POST') { const b = parsed(); counter.answers.push(!!b.accept); sharedRow.forEach(r => { r.invited_emails = []; if (b.accept) r.accepted_emails = ['tester@example.com']; }); res.writeHead(204); return res.end(); }
+    if (shared && m === 'PATCH') {
+      const row = sharedRow.find(r => r.id === decodeURIComponent(shared[1]));
+      if (row) { Object.assign(row, parsed()); counter.patches = (counter.patches || 0) + 1; }
       res.writeHead(204); return res.end();
     }
-    if (p.includes('/rest/v1/shared_tasks') && m === 'GET') return json(sharedRow);
-    if (p.includes('/rest/v1/rpc/get_shared_presence')) return json([]);
-    if (p.includes('/rest/v1/rpc/answer_shared_invite')) { let b = {}; try { b = JSON.parse(body || '{}'); } catch {} counter.answers.push(!!b.accept_invite); sharedRow.forEach(r => { r.invited_emails = []; if (b.accept_invite) r.accepted_emails = ['tester@example.com']; }); return json({}); }
-    if (p.includes('/rest/v1/') && m === 'GET') return json([]);
-    if (p.includes('/storage/v1/object/sign')) return json({ signedURL: '/__supabase/storage/v1/object/sign/x?token=qa' });
+    if (shared && m === 'GET') { const row = sharedRow.find(r => r.id === decodeURIComponent(shared[1])); return row ? json(row) : json({ message: 'Не найдено' }, 404); }
+    if (p === '/api/presence' && m === 'GET') return json([]);
+    if (p.startsWith('/api/files/shared/') && m === 'POST') return json({ path: `shared/${p.split('/')[4]}/qa.${query.get('ext') || 'jpg'}` }, 201);
+    if (p.startsWith('/api/files/') && m === 'GET') { res.writeHead(200, { 'Content-Type': 'image/png' }); return res.end(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64')); }
+    if (m === 'GET') return json([]);
+    if (p === '/api/shared' && m === 'POST') return json(parsed(), 201);
     res.writeHead(204); res.end();
   });
 }
@@ -677,12 +678,12 @@ async function runSpecial(browser, base, mobile, shotsDir) {
     const hist = (await page.locator('#financeHistoryDialog[open]').count()) === 1; ok(hist, hist ? '' : 'окно истории не открылось', 'Старые данные: «История» финансов открывается');
   });
 
-  /* Обратная связь: весь путь от кнопки до отправки (formsubmit.co подменён заглушкой — настоящие письма не уходят) */
+  /* Обратная связь: весь путь от кнопки до отправки (адрес /api/feedback подменён заглушкой) */
   const APPV = (/APP_VERSION = '(\d+)'/.exec(fs.readFileSync(path.join(ROOT, 'app.js'), 'utf-8')) || [])[1];
-  const hookFormsubmit = async (context, hits, state) => context.route(u => u.hostname === 'formsubmit.co', async route => {
+  const hookFormsubmit = async (context, hits, state) => context.route(u => u.pathname === '/api/feedback', async route => {
     const req = route.request(); hits.push((req.postDataBuffer() || Buffer.alloc(0)).toString('utf-8'));
     const okAns = state.mode === 'ok';
-    await route.fulfill({ status: okAns ? 200 : 500, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: okAns ? '{"success":"true"}' : '{"success":"false","message":"qa"}' });
+    await route.fulfill(okAns ? { status: 204, body: '' } : { status: 500, contentType: 'application/json', body: '{"message":"qa"}' });
   });
   const sendFeedback = async (page, click, text, email, withPhoto) => {
     await openMenu(page, click); await click('#openFeedback'); await page.waitForTimeout(250);
@@ -695,7 +696,7 @@ async function runSpecial(browser, base, mobile, shotsDir) {
     const hits = []; const st = { mode: 'ok' }; await hookFormsubmit(context, hits, st);
     await sendFeedback(page, click, 'Тест обратной связи', '', true);
     const closed = (await page.locator('#feedbackDialog[open]').count()) === 0; const body = hits[0] || '';
-    ok(closed && hits.length === 1 && body.includes('Тест обратной связи') && body.includes('tester@example.com') && body.includes(APPV) && /filename="[^"]+\.jpg"/.test(body), `окно закрылось: ${closed}; запросов: ${hits.length}; текст/почта/версия/фото в запросе: ${body.includes('Тест обратной связи')}/${body.includes('tester@example.com')}/${body.includes(APPV)}/${/filename=/.test(body)}`, 'Обратная связь: сообщение с фото уходит со всеми полями');
+    ok(closed && hits.length === 1 && body.includes('Тест обратной связи') && body.includes('tester@example.com') && body.includes(APPV) && body.includes('"photo":"data:image/jpeg;base64,'), `окно закрылось: ${closed}; запросов: ${hits.length}; текст/почта/версия/фото в запросе: ${body.includes('Тест обратной связи')}/${body.includes('tester@example.com')}/${body.includes(APPV)}/${/filename=/.test(body)}`, 'Обратная связь: сообщение с фото уходит со всеми полями');
     st.mode = 'fail'; await sendFeedback(page, click, 'Второе сообщение', '', false);
     const stillOpen = (await page.locator('#feedbackDialog[open]').count()) === 1; const kept = await page.inputValue('#feedbackText'); const label = (await page.locator('#feedbackSubmitButton').innerText()).trim(); const enabled = await page.locator('#feedbackSubmitButton').isEnabled();
     ok(stillOpen && kept === 'Второе сообщение' && enabled && /Отправить/.test(label), `окно открыто: ${stillOpen}; текст сохранён: ${kept === 'Второе сообщение'}; кнопка снова активна: ${enabled} («${label}»)`, 'Обратная связь: при сбое отправки текст не теряется, кнопка снова активна');

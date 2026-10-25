@@ -73,8 +73,7 @@ const TRANSLATIONS = { ru: {
   'update.accountSubtitle': 'Войти или зарегистрироваться', 'update.notificationsSubtitle': 'Напоминания и сводка дел', 'update.feedback': 'Обратная связь', 'update.feedbackSubtitle': 'Сообщить о проблеме, приложить фото',
   'notif.remindersLabel': 'Напоминания', 'notif.exactTitle': 'По времени задачи', 'notif.exactText': 'В точное время, указанное в напоминании', 'notif.dailyTitle': 'Сводка на сегодня', 'notif.dailyText': 'Количество дел и ближайшие задачи', 'notif.dailyTime': 'Первое напоминание в', 'notif.repeat': 'Как часто напоминать', 'notif.repeatOnce': 'Один раз в день', 'notif.repeatTwice': 'Два раза в день', 'notif.repeatHourly2': 'Каждые 2 часа (до 21:00)', 'notif.repeatHourly': 'Каждый час (до 21:00)', 'notif.dailyTime2': 'Второе напоминание в', 'notif.overdueTitle': 'Просроченные дела', 'notif.overdueText': 'Один раз в день, если остались незавершённые задачи', 'notif.test': 'Проверить уведомление', 'notif.save': 'Сохранить настройки', 'notif.hint': 'На iPhone уведомления работают для ежедневника, добавленного на экран «Домой». После входа в аккаунт серверные push-уведомления приходят и при закрытом приложении.',
   'feedback.helpLabel': 'Помощь разработчику', 'feedback.describe': 'Опишите проблему или предложение', 'feedback.placeholder': 'Что произошло? Что вы нажимали? Что ожидали увидеть?', 'feedback.voiceAria': 'Надиктовать текст', 'feedback.replyEmail': 'Email отправителя', 'feedback.emailPlaceholder': 'Будет взят из аккаунта', 'feedback.attachPhoto': '▧ Прикрепить фото проблемы', 'feedback.removePhotoAria': 'Убрать фото', 'feedback.send': 'Отправить разработчику', 'feedback.hint': 'Сообщение уйдёт разработчику в фоне. Фото перед отправкой автоматически уменьшается. Ответ придёт на email аккаунта или на тот, что вы укажете.',
-  'sync.cloudLabel': 'Облако', 'sync.title': 'Синхронизация', 'sync.email': 'Email', 'sync.password': 'Пароль', 'sync.passwordPlaceholder': 'Не менее 8 символов', 'sync.signUp': 'Регистрация', 'sync.signIn': 'Войти', 'sync.forgotPassword': 'Забыли пароль? Получить новое письмо',
-  'sync.recoveryNote': 'Откройте только самое новое письмо. Нажмите в нём «Reset password». Если письмо содержит цифровой код, его можно ввести ниже.', 'sync.codeFromEmail': 'Код из письма', 'sync.codePlaceholder': '6–8 цифр', 'sync.checkCode': 'Проверить код', 'sync.resendCode': 'Отправить новый код', 'sync.backToLogin': 'Вернуться ко входу',
+  'sync.cloudLabel': 'Облако', 'sync.title': 'Синхронизация', 'sync.email': 'Email', 'sync.password': 'Пароль', 'sync.passwordPlaceholder': 'Не менее 8 символов', 'sync.signUp': 'Регистрация', 'sync.signIn': 'Войти', 'sync.forgotPassword': 'Забыли пароль?', 'sync.invite': 'Код приглашения (только для регистрации)', 'sync.invitePlaceholder': 'Выдаёт администратор',
   'sync.codeConfirmedNote': 'Код подтверждён. Придумайте новый пароль — старый пароль вводить не нужно.', 'sync.newPassword': 'Новый пароль', 'sync.repeatPassword': 'Повторите пароль', 'sync.saveNewPassword': 'Сохранить новый пароль',
   'sync.syncNow': 'Синхронизировать сейчас', 'sync.switchUser': 'Сменить пользователя', 'sync.pinLogin': 'Быстрый вход по PIN', 'sync.pinHint': 'Четыре цифры хранятся только на этом устройстве.', 'sync.pinDigits': '4 цифры', 'sync.pinNewAria': 'Новый PIN-код', 'sync.pinSet': 'Установить PIN', 'sync.pinRemove': 'Убрать PIN',
   'sync.note': 'У каждого email свой отдельный ежедневник. На общем устройстве нажмите «Сменить пользователя», прежде чем другой человек войдёт в свой аккаунт.',
@@ -139,8 +138,7 @@ const TRANSLATIONS = { ru: {
   'update.accountSubtitle': 'Sign in or register', 'update.notificationsSubtitle': 'Reminders and daily summary', 'update.feedback': 'Feedback', 'update.feedbackSubtitle': 'Report an issue, attach a photo',
   'notif.remindersLabel': 'Reminders', 'notif.exactTitle': 'At task time', 'notif.exactText': 'At the exact time set in the reminder', 'notif.dailyTitle': "Today's summary", 'notif.dailyText': 'Task count and upcoming tasks', 'notif.dailyTime': 'First reminder at', 'notif.repeat': 'How often to remind', 'notif.repeatOnce': 'Once a day', 'notif.repeatTwice': 'Twice a day', 'notif.repeatHourly2': 'Every 2 hours (until 9 pm)', 'notif.repeatHourly': 'Every hour (until 9 pm)', 'notif.dailyTime2': 'Second reminder at', 'notif.overdueTitle': 'Overdue tasks', 'notif.overdueText': 'Once a day, if unfinished tasks remain', 'notif.test': 'Test notification', 'notif.save': 'Save settings', 'notif.hint': 'On iPhone, notifications work for the planner added to the Home Screen. After signing in, server push notifications arrive even when the app is closed.',
   'feedback.helpLabel': 'Help the developer', 'feedback.describe': 'Describe the issue or suggestion', 'feedback.placeholder': 'What happened? What did you tap? What did you expect?', 'feedback.voiceAria': 'Dictate text', 'feedback.replyEmail': 'Reply email', 'feedback.emailPlaceholder': "Taken from your account", 'feedback.attachPhoto': '▧ Attach a photo of the issue', 'feedback.removePhotoAria': 'Remove photo', 'feedback.send': 'Send to developer', 'feedback.hint': 'The message is sent to the developer in the background. Photos are shrunk automatically before sending. The reply arrives at your account email or the one you enter.',
-  'sync.cloudLabel': 'Cloud', 'sync.title': 'Sync', 'sync.email': 'Email', 'sync.password': 'Password', 'sync.passwordPlaceholder': 'At least 8 characters', 'sync.signUp': 'Sign up', 'sync.signIn': 'Sign in', 'sync.forgotPassword': 'Forgot password? Get a new email',
-  'sync.recoveryNote': 'Open only the newest email. Click "Reset password" in it. If the email contains a numeric code, you can enter it below.', 'sync.codeFromEmail': 'Code from the email', 'sync.codePlaceholder': '6–8 digits', 'sync.checkCode': 'Check code', 'sync.resendCode': 'Send a new code', 'sync.backToLogin': 'Back to sign in',
+  'sync.cloudLabel': 'Cloud', 'sync.title': 'Sync', 'sync.email': 'Email', 'sync.password': 'Password', 'sync.passwordPlaceholder': 'At least 8 characters', 'sync.signUp': 'Sign up', 'sync.signIn': 'Sign in', 'sync.forgotPassword': 'Forgot your password?', 'sync.invite': 'Invitation code (sign-up only)', 'sync.invitePlaceholder': 'Given by the administrator',
   'sync.codeConfirmedNote': 'Code confirmed. Choose a new password — you do not need the old one.', 'sync.newPassword': 'New password', 'sync.repeatPassword': 'Repeat password', 'sync.saveNewPassword': 'Save new password',
   'sync.syncNow': 'Sync now', 'sync.switchUser': 'Switch user', 'sync.pinLogin': 'Quick PIN sign-in', 'sync.pinHint': 'The four digits are stored only on this device.', 'sync.pinDigits': '4 digits', 'sync.pinNewAria': 'New PIN', 'sync.pinSet': 'Set PIN', 'sync.pinRemove': 'Remove PIN',
   'sync.note': 'Each email has its own separate planner. On a shared device, tap "Switch user" before someone else signs into their account.',
@@ -226,7 +224,6 @@ let focusIndex = 0;
 let focusTaskIds = [];
 let focusRotateTimer = null;
 let signUpBusy = false;
-let signUpCooldownUntil = 0;
 let sharedTasks = [];
 let sharedPresence = new Map();
 let currentSharedTab = 'tasks';
@@ -1322,12 +1319,12 @@ async function ensurePushSubscription(forceSave = false) {
     if (subscription && owner !== accountId) { await subscription.unsubscribe(); subscription = null; }
     // Ключ уведомлений сменился (новое облако) — старая подписка больше не принимает уведомления, оформляем заново.
     const currentKey = subscription?.options?.applicationServerKey;
-    if (subscription && currentKey && window.SUPABASE_CONFIG?.vapidPublicKey) {
-      const expected = urlBase64ToUint8Array(window.SUPABASE_CONFIG.vapidPublicKey); const actual = new Uint8Array(currentKey);
+    if (subscription && currentKey && window.DAY_SERVER?.vapidPublicKey) {
+      const expected = urlBase64ToUint8Array(window.DAY_SERVER.vapidPublicKey); const actual = new Uint8Array(currentKey);
       if (expected.length !== actual.length || expected.some((byte, index) => byte !== actual[index])) { await subscription.unsubscribe(); subscription = null; }
     }
     if (!subscription) {
-      const publicKey = window.SUPABASE_CONFIG?.vapidPublicKey;
+      const publicKey = window.DAY_SERVER?.vapidPublicKey;
       if (!publicKey) throw new Error('Push key is missing');
       subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(publicKey) });
       forceSave = true;
@@ -1470,19 +1467,8 @@ async function submitFeedback(event) {
   const button = $('#feedbackSubmitButton');
   button.disabled = true; button.textContent = 'Отправляем…';
   try {
-    const data = new FormData();
-    data.append('email', replyEmail);
-    data.append('Отправитель', replyEmail);
-    data.append('Аккаунт', accountEmail || 'без входа в облако');
-    data.append('Версия приложения', APP_VERSION);
-    data.append('Текст обращения', textValue);
-    data.append('_subject', `Обратная связь — День, версия ${APP_VERSION}`);
-    data.append('_template', 'table');
-    data.append('_captcha', 'false');
-    if (feedbackPhoto) data.append('attachment', feedbackPhoto, feedbackPhoto.name || 'photo.jpg');
-    const response = await fetch('https://formsubmit.co/ajax/75397e76b5b257f37da54b02fc3f7c85', { method: 'POST', headers: { Accept: 'application/json' }, body: data });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok || result.success === false) throw new Error(result.message || 'Ошибка отправки');
+    const photo = feedbackPhoto ? await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(feedbackPhoto); }) : null;
+    await window.DaySync.sendFeedback({ text: `День, версия ${APP_VERSION}. Аккаунт: ${accountEmail || 'без входа'}\n\n${textValue}`, email: replyEmail, ...(photo ? { photo } : {}) });
     $('#feedbackDialog').close(); resetFeedbackForm(); toast(`Сообщение отправлено. Ответ придёт на ${replyEmail}`);
   } catch {
     toast('Не удалось отправить. Проверьте интернет и попробуйте ещё раз.');
@@ -1510,7 +1496,7 @@ function setSyncStatus(status, title, text) {
 }
 function refreshSyncUi() {
   const user = window.DaySync?.user();
-  $('#syncAuthForm').hidden = !!user; $('#syncConnected').hidden = !user; $('#syncRecoveryCodeForm').hidden = true; $('#syncResetForm').hidden = true;
+  $('#syncAuthForm').hidden = !!user; $('#syncConnected').hidden = !user;
   $('#pinRemoveButton').hidden = !user || !localStorage.getItem(pinStorageKey());
   const avatar = $('#profileButton');
   if (user) {
@@ -1626,80 +1612,25 @@ async function handleSyncLogin(event) {
 }
 async function handleSyncSignUp() {
   const form = $('#syncAuthForm'); if (!form.reportValidity()) return;
-  const button = $('#syncSignUp');
-  const waitSeconds = Math.ceil((signUpCooldownUntil - Date.now()) / 1000);
-  if (signUpBusy || waitSeconds > 0) {
-    setSyncStatus('', 'Запрос уже отправлен', `Подождите ${Math.max(1, waitSeconds)} сек. и проверьте письмо. Повторно нажимать регистрацию не нужно.`);
-    return;
-  }
-  const email = $('#syncEmail').value.trim(); const password = $('#syncPassword').value;
-  signUpBusy = true; button.disabled = true; button.textContent = 'Отправляем…';
+  const invite = $('#syncInvite').value.trim();
+  if (!invite) { setSyncStatus('', L('Нужен код приглашения', 'Invitation code required'), L('Регистрация — только по приглашению. Попросите код у администратора и впишите его в поле «Код приглашения».', 'Sign-up is by invitation only. Ask the administrator for a code and enter it in the "Invitation code" field.')); $('#syncInvite').focus(); return; }
+  if (signUpBusy) return;
+  const button = $('#syncSignUp'); const email = $('#syncEmail').value.trim(); const password = $('#syncPassword').value;
+  signUpBusy = true; button.disabled = true;
   setSyncStatus('syncing', 'Создаём аккаунт…', email);
   try {
-    const result = await window.DaySync.signUp(email, password); $('#syncPassword').value = '';
-    signUpCooldownUntil = Date.now() + 35000;
-    if (result.access_token) {
-      markPinUnlocked(); switchAccountData(); await performSync();
-      if ($('#syncDialog').open) $('#syncDialog').close();
-      renderSharedInvitePrompt();
-    }
-    else setSyncStatus('connected', 'Регистрация создана', 'Проверьте почту и откройте самое новое письмо подтверждения. После подтверждения нажмите «Войти».');
+    await window.DaySync.signUp(email, password, invite); $('#syncPassword').value = ''; $('#syncInvite').value = '';
+    markPinUnlocked(); switchAccountData(); await performSync();
+    if ($('#syncDialog').open) $('#syncDialog').close();
+    renderSharedInvitePrompt();
   } catch (error) {
-    const limited = error.status === 429 || /35 seconds|security purposes|rate limit/i.test(error.message);
-    const exists = /already registered|already exists|user_already_exists/i.test(error.message);
-    if (limited) {
-      signUpCooldownUntil = Date.now() + Math.max(35000, (error.retryAfter || 0) * 1000);
-      setSyncStatus('', 'Запрос уже отправлен', 'Сервер получил регистрацию. Подождите 35 секунд, проверьте почту и не нажимайте кнопку несколько раз подряд.');
-    } else if (exists) setSyncStatus('', 'Email уже зарегистрирован', 'Нажмите «Войти» или воспользуйтесь восстановлением пароля.');
+    if (error.status === 409) setSyncStatus('', 'Email уже зарегистрирован', 'Нажмите «Войти».');
     else setSyncStatus('error', 'Не удалось зарегистрироваться', error.message);
-  } finally {
-    signUpBusy = false;
-    const restoreButton = () => {
-      const remaining = Math.ceil((signUpCooldownUntil - Date.now()) / 1000);
-      if (remaining > 0) {
-        button.disabled = true; button.textContent = `Подождите ${remaining} с`;
-        setTimeout(restoreButton, 1000);
-      } else { button.disabled = false; button.textContent = 'Регистрация'; }
-    };
-    restoreButton();
-  }
+  } finally { signUpBusy = false; button.disabled = false; }
 }
-async function handleForgotPassword() {
-  const email = $('#syncEmail').value.trim();
-  if (!email || !$('#syncEmail').checkValidity()) { $('#syncEmail').reportValidity(); return; }
-  await sendRecoveryCode(email);
-}
-async function sendRecoveryCode(email) {
-  if (!email || !/^\S+@\S+\.\S+$/.test(email)) { setSyncStatus('error', 'Введите email', 'Укажите почту, на которую зарегистрирован ежедневник.'); return; }
-  setSyncStatus('syncing', 'Отправляем письмо…', email);
-  try {
-    await window.DaySync.resetPassword(email); localStorage.setItem('day-password-recovery-email', email);
-    $('#syncRecoveryEmail').value = email; $('#syncAuthForm').hidden = true; $('#syncConnected').hidden = true; $('#syncResetForm').hidden = true; $('#syncRecoveryCodeForm').hidden = false;
-    setSyncStatus('', 'Письмо отправлено', 'Откройте только самое новое письмо. Нажмите в нём Reset password; старые письма уже недействительны.');
-    toast('Новое письмо восстановления отправлено');
-  }
-  catch (error) { setSyncStatus('error', 'Не удалось отправить письмо', error.message); }
-}
-async function handleVerifyRecoveryCode(event) {
-  event.preventDefault(); const email = $('#syncRecoveryEmail').value.trim(); const token = $('#syncRecoveryCode').value.trim().replace(/\s/g, '');
-  setSyncStatus('syncing', 'Проверяем код…', email);
-  try {
-    await window.DaySync.verifyRecoveryCode(email, token); $('#syncRecoveryCode').value = ''; $('#syncRecoveryCodeForm').hidden = true; $('#syncResetForm').hidden = false;
-    setSyncStatus('connected', 'Код подтверждён', 'Теперь придумайте новый пароль. Старый пароль не нужен.'); setTimeout(() => $('#syncNewPassword').focus(), 50);
-  } catch (error) { setSyncStatus('error', 'Код не подошёл', 'Введите код из самого нового письма или отправьте новый код.'); }
-}
-function showLoginForm() {
-  $('#syncRecoveryCodeForm').hidden = true; $('#syncResetForm').hidden = true; $('#syncConnected').hidden = true; $('#syncAuthForm').hidden = false;
-  const email = $('#syncRecoveryEmail').value.trim(); if (email) $('#syncEmail').value = email;
-  setSyncStatus('', 'Вход в аккаунт', 'Введите email и пароль или запросите код восстановления.');
-}
-async function handleResetPassword(event) {
-  event.preventDefault(); const password = $('#syncNewPassword').value; const confirm = $('#syncNewPasswordConfirm').value;
-  if (password !== confirm) { setSyncStatus('error', 'Пароли не совпадают', 'Введите одинаковый пароль в двух полях.'); return; }
-  try {
-    await window.DaySync.updatePassword(password); markPinUnlocked(); history.replaceState(null, '', location.pathname);
-    $('#syncNewPassword').value = ''; $('#syncNewPasswordConfirm').value = ''; localStorage.removeItem('day-password-recovery-email'); switchAccountData(); await performSync(false); toast('Новый пароль сохранён');
-  } catch (error) { setSyncStatus('error', 'Не удалось сменить пароль', error.message); }
+// Писем восстановления больше нет: новый пароль задаёт администратор.
+function handleForgotPassword() {
+  setSyncStatus('', L('Забыли пароль?', 'Forgot your password?'), L('Напишите администратору: он задаст вам новый пароль, и вы войдёте с ним.', 'Ask the administrator: they will set a new password for you to sign in with.'));
 }
 async function hashPin(pin) {
   const bytes = new TextEncoder().encode(`${accountSuffix()}:${pin}`); const digest = await crypto.subtle.digest('SHA-256', bytes);
@@ -2316,7 +2247,7 @@ $('#profileButton').addEventListener('click', openProfile); $('#closeProfile').a
 $('#chooseProfilePhoto').addEventListener('click', () => $('#profilePhotoInput').click()); $('#profileGalleryButton').addEventListener('click', () => $('#profilePhotoInput').click()); $('#profileCameraButton').addEventListener('click', () => $('#profileCameraInput').click());
 $('#profilePhotoInput').addEventListener('change', e => { prepareProfilePhoto(e.target.files[0]); e.target.value = ''; }); $('#profileCameraInput').addEventListener('change', e => { prepareProfilePhoto(e.target.files[0]); e.target.value = ''; });
 $('#removeProfilePhoto').addEventListener('click', () => { pendingProfilePhoto = ''; $('#profilePhotoInput').value = ''; $('#profileCameraInput').value = ''; renderProfile(); });
-$('#syncAuthForm').addEventListener('submit', handleSyncLogin); $('#syncSignUp').addEventListener('click', handleSyncSignUp); $('#syncForgotPassword').addEventListener('click', handleForgotPassword); $('#syncRecoveryCodeForm').addEventListener('submit', handleVerifyRecoveryCode); $('#syncResendRecoveryCode').addEventListener('click', () => sendRecoveryCode($('#syncRecoveryEmail').value.trim())); $('#syncBackToLogin').addEventListener('click', showLoginForm); $('#syncResetForm').addEventListener('submit', handleResetPassword);
+$('#syncAuthForm').addEventListener('submit', handleSyncLogin); $('#syncSignUp').addEventListener('click', handleSyncSignUp); $('#syncForgotPassword').addEventListener('click', handleForgotPassword);
 $('#syncNow').addEventListener('click', () => performSync()); $('#syncLogout').addEventListener('click', handleSyncLogout); $('#pinSaveButton').addEventListener('click', savePin); $('#pinRemoveButton').addEventListener('click', removePin);
 $('#pinUnlockForm').addEventListener('submit', unlockWithPin); $('#pinUsePassword').addEventListener('click', useAccountPassword);
 $('#pinSetupInput').addEventListener('input', event => preparePinField(event.target)); $('#pinUnlockInput').addEventListener('input', event => preparePinField(event.target));
@@ -2342,24 +2273,6 @@ function handleOpenTaskFromUrl() {
 }
 
 async function initializeAccount() {
-  if (new URLSearchParams(location.search).get('recovery') === 'code') {
-    refreshSyncUi(); const email = localStorage.getItem('day-password-recovery-email') || ''; $('#syncEmail').value = email; $('#syncRecoveryEmail').value = email; $('#syncAuthForm').hidden = true; $('#syncConnected').hidden = true; $('#syncRecoveryCodeForm').hidden = false; $('#syncDialog').showModal();
-    setSyncStatus('', 'Восстановление пароля', 'Введите email, получите новый код и укажите его здесь.'); return;
-  }
-  try {
-    const recovery = await window.DaySync?.consumeRecoveryFromUrl?.();
-    if (recovery === 'signup') {
-      markPinUnlocked(); switchAccountData(); refreshSyncUi(); await performSync(false); toast('Почта подтверждена. Аккаунт подключён'); return;
-    }
-    if (recovery === 'recovery') {
-      markPinUnlocked(); refreshSyncUi(); $('#syncAuthForm').hidden = true; $('#syncConnected').hidden = true; $('#syncResetForm').hidden = false; $('#syncDialog').showModal();
-      setSyncStatus('connected', 'Ссылка подтверждена', 'Теперь задайте новый пароль.'); return;
-    }
-  } catch (error) {
-    if (!window.DaySync?.user()) { await window.DaySync?.signOut?.(); }
-    refreshSyncUi(); const email = localStorage.getItem('day-password-recovery-email') || ''; $('#syncEmail').value = email; $('#syncRecoveryEmail').value = email; $('#syncAuthForm').hidden = true; $('#syncRecoveryCodeForm').hidden = false; $('#syncDialog').showModal();
-    setSyncStatus('error', 'Старая ссылка недействительна', 'Вернитесь ко входу и запросите новое письмо. Открывайте только самое новое письмо.'); return;
-  }
   refreshSyncUi();
   if (window.DaySync?.user()) { await maybeLockApp(); await performSync(false); }
   else if (localStorage.getItem('day-cloud-moved')) {

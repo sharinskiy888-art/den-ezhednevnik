@@ -36,6 +36,13 @@ jobs:
           BAD=$(grep -ohE "\?v=[0-9]+" index.html sw.js | grep -v "^?v=$V$" || true)
           [ -z "$BAD" ] || { echo "Есть ?v= не $V: $BAD"; exit 1; }
           echo "?v= везде $V"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Тесты сервера (pytest)
+        run: |
+          pip install -r server/requirements-test.txt
+          python -m pytest server -q -p no:cacheprovider -m etap2   # этап 3 добавится сюда после его приёмки
       - name: Автотест всех кнопок (Playwright)
         run: |
           npm i --no-save playwright

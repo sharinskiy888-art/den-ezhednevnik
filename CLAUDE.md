@@ -39,3 +39,11 @@ CI проверяет это сам, но проверяй и до пуша. Н�
 - `button-tester` — полный тест каждой кнопки (`node tools/test-buttons.js`, 4 режима + напоминания, приглашения, PIN, фото, финансы, копия, обновления). Только проверяет. Зови: «используй button-tester».
 - `tester` — быстрая проверка после правок; `code-reviewer` — смотрит diff; `deploy-version-checker` — сверяет версию во всех файлах.
 - `deployer` — по «залей» прогоняет проверки и, если чисто, делает git add/commit/push; при проблеме ничего не заливает.
+
+## Ветка `python-server` (переход на свой сервер, ТЗ — `arhiv/tz-den-python-crm.md`)
+- `server/` — свой сервер на Python (FastAPI + SQLite): `db.py` настройки и база, `auth.py` вход и админ, `access.py` ВСЕ проверки прав,
+  `sync.py` личные данные, `backup.py` копии, `main.py` запуск. Договор с приложением — `server/API.md`, тесты — `server/tests/`.
+- На этой ветке `sync.js` говорит уже с этим сервером (адрес — `sync-config.js`, `window.DAY_SERVER`), а не с Supabase. В `main` не сливать до переключения (этап 7).
+- Запуск: `DEN_SECRET=<32+ символов> python -m uvicorn server.main:app --port 8787` (настройки в `den.env`, его в репозиторий не класть).
+- Тесты сервера: `pip install -r server/requirements-test.txt`, затем `python -m pytest server -m etap2` (принятые этапы) — 100% до пуша.
+- Внешних библиотек не больше 4 (fastapi, uvicorn, pydantic, pytest). Не использовать `TestClient`, `UploadFile`, `EmailStr` — они тянут лишние библиотеки.
