@@ -1,0 +1,628 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0e3764">
+  <script>try{var t=localStorage.getItem("day-theme-v1");if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+  <meta name="description" content="Простой ежедневник, который работает офлайн на телефоне и Windows.">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css?v=97">
+  <title>День — ежедневник</title>
+  <script>
+    (() => {
+      const query = new URLSearchParams(location.search);
+      const hash = new URLSearchParams(location.hash.replace(/^#/, ''));
+      const isRecovery = query.get('recovery') === '1' || query.get('type') === 'recovery' || hash.get('type') === 'recovery';
+      if (isRecovery) location.replace(`reset.html${location.search}${location.hash}`);
+    })();
+  </script>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Основная навигация">
+      <a class="brand" href="#" aria-label="День — главная">
+        <span class="brand-mark">D</span>
+        <span>День</span>
+      </a>
+      <nav class="side-nav" id="plannerSideNav">
+        <button class="nav-item active" data-view="today"><span>●</span><span data-i18n="nav.today">Сегодня</span></button>
+        <button class="nav-item" data-view="upcoming"><span>→</span><span data-i18n="nav.upcoming">Предстоящие</span></button>
+        <button class="nav-item" data-view="completed"><span>✓</span><span data-i18n="nav.completed">Выполнено</span></button>
+        <button type="button" class="nav-item shared-nav-entry" id="desktopSharedButton"><span>◎</span><span data-i18n="nav.shared">Совместные</span><i class="shared-badge" id="desktopSharedBadge" hidden></i></button>
+        <button type="button" class="nav-item" id="desktopPlansButton"><span>▦</span><span data-i18n="nav.plans">Планы</span></button>
+      </nav>
+      <nav class="side-nav" id="financeSideNav" hidden>
+        <button type="button" class="nav-item active" data-finance-nav="overview"><span>◉</span><span data-i18n="fnav.overview">Обзор</span></button>
+        <button type="button" class="nav-item" data-finance-nav="expense"><span>−</span><span data-i18n="fnav.expense">Добавить расход</span></button>
+        <button type="button" class="nav-item" data-finance-nav="income"><span>+</span><span data-i18n="fnav.income">Добавить доход</span></button>
+        <button type="button" class="nav-item" data-finance-nav="categories"><span>◐</span><span data-i18n="fnav.categories">По категориям</span></button>
+        <button type="button" class="nav-item" data-finance-nav="history"><span>☰</span><span data-i18n="fnav.history">История</span></button>
+      </nav>
+      <div class="sidebar-footer" id="financeSidebarFooter" hidden>
+        <div class="finance-side-balance"><small data-i18n="fnav.balance">Баланс периода</small><strong id="financeSideBalance">0 ₽</strong></div>
+      </div>
+      <div class="sidebar-footer" id="plannerSidebarFooter">
+        <div class="progress-ring" id="progressRing"><span id="progressPercent">0%</span></div>
+        <div><strong data-i18n="sidebar.dayProgress">Прогресс дня</strong><small id="progressCaption" data-i18n="sidebar.startSmall">Начните с малого</small></div>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <div class="cloud-banner" id="cloudBanner" role="status" hidden><b>⚠</b><span id="cloudBannerText"></span></div>
+      <header class="topbar">
+        <div class="identity-header">
+          <button class="avatar" id="profileButton" aria-label="Открыть профиль" title="Личный профиль"><span id="profileInitial">Я</span><img id="profileAvatarImage" alt="" hidden></button>
+          <div>
+            <p class="eyebrow" id="dateEyebrow"></p>
+            <h1 id="pageTitle">Добрый день!</h1>
+            <p class="subtitle" id="pageSubtitle">Спокойный план — продуктивный день.</p>
+          </div>
+        </div>
+        <div class="app-tabs" role="group" aria-label="Раздел приложения">
+          <button type="button" class="app-tab active" id="tabPlanner" aria-pressed="true" data-i18n="tabs.planner">Ежедневник</button>
+          <button type="button" class="app-tab" id="tabFinance" aria-pressed="false" data-i18n="tabs.finance">Финансы</button>
+        </div>
+        <div class="top-actions">
+          <div class="lang-switch" role="group" aria-label="Язык / Language">
+            <button type="button" class="lang-button active" id="langButtonRu" data-lang="ru">RU</button>
+            <button type="button" class="lang-button" id="langButtonEn" data-lang="en">EN</button>
+          </div>
+          <button type="button" class="icon-button update-button" id="updateButton" title="Обновления" aria-label="Обновления">≡<span class="update-badge" id="updateBadge" hidden></span></button>
+          <button class="icon-button" id="installButton" title="Установить приложение" hidden>⇩</button>
+        </div>
+      </header>
+
+      <div id="plannerView">
+      <section class="period-bar" aria-label="Масштаб планирования">
+        <div class="period-switch" role="group" aria-label="Период">
+          <button class="period-button active" data-period="day" data-i18n="period.day">День</button>
+          <button class="period-button" data-period="week" data-i18n="period.week">Неделя</button>
+          <button class="period-button" data-period="month" data-i18n="period.month">Месяц</button>
+          <button class="period-button" data-period="year" data-i18n="period.year">Год</button>
+        </div>
+        <div class="period-nav">
+          <button id="periodPrev" aria-label="Предыдущий период" data-i18n-aria="period.prevAria">‹</button>
+          <button id="periodToday" data-i18n="period.today">Сегодня</button>
+          <button id="periodNext" aria-label="Следующий период" data-i18n-aria="period.nextAria">›</button>
+        </div>
+      </section>
+
+      <section class="week-strip" id="weekStrip" aria-label="Выбор даты"></section>
+
+      <section class="calendar-overview" id="calendarOverview" hidden></section>
+
+      <section class="overview" aria-label="Сводка">
+        <article class="focus-card" id="focusCard">
+          <div>
+            <span class="card-label" data-i18n="focus.label">Фокус дня</span>
+            <h2 id="focusTitle">Добавьте первую задачу</h2>
+            <p id="focusMeta">Выберите самое важное дело</p>
+          </div>
+          <div class="focus-illustration" id="focusIllustration" aria-hidden="true">01</div>
+        </article>
+        <article class="stat-card">
+          <span class="stat-icon violet">✓</span>
+          <div><strong id="doneCount">0</strong><small data-i18n="stats.done">выполнено</small></div>
+        </article>
+        <article class="stat-card">
+          <span class="stat-icon coral">◷</span>
+          <div><strong id="plannedCount">0</strong><small data-i18n="stats.planned">в плане</small></div>
+        </article>
+      </section>
+
+      <section class="tasks-section">
+        <form class="quick-capture" id="quickForm">
+          <div class="quick-icon">＋</div>
+          <button type="button" class="mobile-new-task" id="mobileNewTaskButton"><span>＋</span> <span data-i18n="quick.newTask">Новая задача</span></button>
+          <textarea id="quickInput" rows="1" maxlength="1000" placeholder="Введите список дел — каждое с новой строки. Они будут переноситься до выполнения" data-i18n-placeholder="quick.placeholder"></textarea>
+          <button type="button" class="voice-button" id="voiceButton" aria-label="Добавить задачу голосом" title="Голосовой ввод" data-i18n-aria="quick.voiceAria" data-i18n-title="quick.voiceTitle">🎙</button>
+          <button type="submit" class="quick-submit" data-i18n="quick.add">Добавить</button>
+        </form>
+        <div class="task-tools">
+          <label class="search-field" aria-label="Поиск задач" data-i18n-aria="quick.searchAria">
+            <span>⌕</span>
+            <input type="search" id="taskSearch" placeholder="Поиск по всем задачам и архиву" data-i18n-placeholder="quick.searchPlaceholder">
+          </label>
+        </div>
+        <button type="button" class="week-overview-link" id="weekOverviewButton">
+          <span><strong data-i18n="quick.weekTasks">Задачи на неделю</strong><small id="weekOverviewLabel">13–19 июля</small></span>
+          <b aria-hidden="true">›</b>
+        </button>
+        <div class="section-heading">
+          <div>
+            <h2 id="listTitle">Задачи на сегодня</h2>
+            <p id="taskSummary">Пока всё свободно</p>
+          </div>
+        </div>
+        <div class="task-list" id="taskList"></div>
+        <div class="empty-state" id="emptyState" hidden>
+          <div class="empty-icon">☕</div>
+          <h3 id="emptyStateTitle">На этот день задач нет</h3>
+          <p id="emptyStateText">Оставьте время для себя или добавьте новое дело.</p>
+          <button class="text-button" id="emptyAddButton" data-i18n="quick.addTaskShort">+ Добавить задачу</button>
+        </div>
+      </section>
+      </div>
+
+      <div id="financeView" hidden>
+        <section class="period-bar" aria-label="Период финансов">
+          <div class="period-switch" role="group" aria-label="Период">
+            <button class="period-button" data-finance-period="day" data-i18n="period.day">День</button>
+            <button class="period-button" data-finance-period="week" data-i18n="period.week">Неделя</button>
+            <button class="period-button active" data-finance-period="month" data-i18n="period.month">Месяц</button>
+            <button class="period-button" data-finance-period="year" data-i18n="period.year">Год</button>
+          </div>
+          <div class="period-nav finance-period-nav">
+            <button id="financePeriodPrev" aria-label="Предыдущий период" data-i18n-aria="period.prevAria">‹</button>
+            <button id="financePeriodToday" class="finance-period-label" aria-label="Перейти к сегодняшнему дню" data-i18n="period.today" data-i18n-aria="finance.todayAria">Сегодня</button>
+            <button id="financePeriodNext" aria-label="Следующий период" data-i18n-aria="period.nextAria">›</button>
+          </div>
+        </section>
+
+        <section class="finance-summary" id="financeSummarySection" aria-label="Сводка по финансам">
+          <article class="stat-card">
+            <span class="stat-icon green">↓</span>
+            <div><strong id="financeIncomeTotal">0 ₽</strong><small data-i18n="finance.income">доход</small></div>
+          </article>
+          <article class="stat-card">
+            <span class="stat-icon coral">↑</span>
+            <div><strong id="financeExpenseTotal">0 ₽</strong><small data-i18n="finance.expense">расход</small></div>
+          </article>
+          <article class="stat-card">
+            <span class="stat-icon violet">=</span>
+            <div><strong id="financeBalanceTotal">0 ₽</strong><small data-i18n="finance.balance">баланс</small></div>
+          </article>
+        </section>
+
+        <section class="tasks-section">
+          <div class="finance-kind-switch" role="group" aria-label="Тип операции">
+            <button type="button" class="finance-kind-button active" data-kind="expense" data-i18n="finance.expenseKind">Расход</button>
+            <button type="button" class="finance-kind-button" data-kind="income" data-i18n="finance.incomeKind">Доход</button>
+          </div>
+          <form class="finance-capture" id="financeQuickForm">
+            <span class="voice-field voice-field-textarea">
+              <textarea id="financeQuickInput" rows="1" maxlength="400" placeholder="Например: кофе 250 (или несколько строк — по одной покупке в каждой)" data-i18n-placeholder="finance.inputPlaceholder"></textarea>
+              <button type="button" class="field-voice-button" id="financeVoiceButton" aria-label="Продиктовать расход" data-i18n-aria="finance.voiceAria">🎙</button>
+            </span>
+            <p class="finance-hint" id="financeVoiceHint" data-i18n="finance.voiceHint">Нажмите и удерживайте 🎙, скажите покупку и сумму, отпустите</p>
+            <p class="finance-hint" data-i18n="fa.hint">Нажмите на иконку категории, чтобы сразу добавить сумму</p>
+            <div class="finance-category-grid" id="financeCategoryGrid"></div>
+            <div class="finance-photo-actions">
+              <button type="button" class="attachment-button" id="financeCameraButton" data-i18n="finance.camera">📷 Сфотографировать чек</button>
+              <button type="button" class="attachment-button" id="financeGalleryButton" data-i18n="finance.gallery">▧ Из галереи</button>
+            </div>
+            <input type="file" id="financeCameraInput" accept="image/*" capture="environment" hidden>
+            <input type="file" id="financeGalleryInput" accept="image/*" hidden>
+            <div class="finance-photo-preview" id="financePhotoPreview" hidden>
+              <img id="financePhotoPreviewImage" alt="Чек" data-i18n-alt="finance.receiptAlt">
+              <span data-i18n="finance.photoAttached">Чек прикреплён — сохранится вместе с операцией ниже</span>
+              <button type="button" id="removeExpensePhoto" aria-label="Удалить фото" data-i18n-aria="finance.removePhotoAria">×</button>
+            </div>
+            <button type="submit" class="finance-submit" data-i18n="quick.add">Добавить</button>
+          </form>
+        </section>
+
+        <section class="tasks-section" id="financeBreakdownSection">
+          <div class="section-heading">
+            <div>
+              <h2 data-i18n="finance.byCategory">По категориям</h2>
+              <p data-i18n="finance.whereMoneyGoes">Куда уходят деньги за выбранный период</p>
+            </div>
+          </div>
+          <div class="finance-breakdown" id="financeBreakdown"></div>
+          <label class="finance-limit-add" id="financeLimitAdd" hidden><select id="financeLimitAddSelect" aria-label="Лимит для категории" data-i18n-aria="limit.addAria"></select></label>
+          <div class="empty-state" id="financeBreakdownEmpty" hidden>
+            <div class="empty-icon">◐</div>
+            <h3 data-i18n="finance.breakdownEmptyTitle">Пока нечего показать</h3>
+            <p data-i18n="finance.breakdownEmptyText">Разбивка по категориям появится после первой операции за этот период.</p>
+          </div>
+        </section>
+
+      </div>
+    </main>
+
+    <button class="fab" id="addButton" aria-label="Добавить задачу" data-i18n-aria="quick.addTaskAria"><span>+</span><b id="fabLabel" data-i18n="quick.newTask">Новая задача</b></button>
+
+    <nav class="bottom-nav" aria-label="Мобильная навигация">
+      <button class="mobile-nav finance-only" data-finance-nav="overview" hidden><span>◉</span><small data-i18n="fnav.overview">Обзор</small></button>
+      <button class="mobile-nav active planner-only" data-view="today"><span>◉</span><small data-i18n="nav.today">Сегодня</small></button>
+      <button class="mobile-nav shared-nav-entry planner-only" id="mobileSharedButton"><span>◎</span><small data-i18n="nav.shared">Совместные</small><i class="shared-badge" id="mobileSharedBadge" hidden></i></button>
+      <button class="mobile-add" id="mobileAddButton" aria-label="Добавить задачу" data-i18n-aria="quick.addTaskAria">+</button>
+      <button class="mobile-nav finance-only" data-finance-nav="history" hidden><span>☰</span><small data-i18n="fnav.history">История</small></button>
+      <button class="mobile-nav planner-only" id="mobilePlansButton"><span>▦</span><small data-i18n="nav.plans">Планы</small></button>
+    </nav>
+  </div>
+
+  <aside class="update-prompt" id="updatePrompt" role="status" aria-live="polite" hidden>
+    <span class="update-prompt-icon" aria-hidden="true">↻</span>
+    <div class="update-prompt-copy">
+      <strong id="updatePromptTitle">Доступно обновление</strong>
+      <small id="updatePromptText">Новая версия ежедневника готова</small>
+    </div>
+    <button type="button" id="promptApplyUpdate" data-i18n="update.updateAction">Обновить</button>
+  </aside>
+
+  <aside class="shared-invite-prompt" id="sharedInvitePrompt" role="dialog" aria-modal="true" aria-labelledby="sharedInvitePromptTitle" hidden>
+    <span class="shared-invite-prompt-icon" aria-hidden="true">◎</span>
+    <div class="shared-invite-prompt-copy">
+      <span data-i18n="shared.taskLabel">Совместная задача</span>
+      <strong id="sharedInvitePromptTitle">Новое приглашение</strong>
+      <small id="sharedInvitePromptDescription"></small>
+      <em id="sharedInvitePromptOwner"></em>
+    </div>
+    <div class="shared-invite-prompt-actions">
+      <button type="button" class="invite-decline later" id="sharedInvitePromptDecline" data-i18n="shared.later">Позже</button>
+      <button type="button" class="invite-accept" id="sharedInvitePromptAccept" data-i18n="shared.accept">Принять</button>
+    </div>
+  </aside>
+
+  <aside class="reminder-alert" id="reminderAlert" role="alertdialog" aria-modal="true" aria-labelledby="reminderAlertTitle" hidden>
+    <span class="reminder-alert-icon" aria-hidden="true">🔔</span>
+    <div class="reminder-alert-copy">
+      <span data-i18n="reminder.label">Напоминание</span>
+      <strong id="reminderAlertTitle">Пора выполнить задачу</strong>
+      <small id="reminderAlertText"></small>
+    </div>
+    <div class="reminder-alert-actions">
+      <button type="button" class="secondary-button" id="reminderAlertDismiss" data-i18n="reminder.later">Позже</button>
+      <button type="button" class="primary-button" id="reminderAlertOpen" data-i18n="reminder.openTask">Открыть задачу</button>
+    </div>
+  </aside>
+
+  <dialog id="taskDialog">
+    <form id="taskForm" method="dialog">
+      <div class="dialog-header">
+        <div><span class="card-label" data-i18n="task.planLabel">План</span><h2 id="dialogTitle">Новая задача</h2></div>
+        <button type="button" class="close-button" id="closeDialog" aria-label="Закрыть" data-i18n-aria="common.close">×</button>
+      </div>
+      <input type="hidden" id="taskId">
+      <input type="hidden" id="taskSource" value="personal">
+      <section class="shared-view" id="sharedView" hidden></section>
+      <div class="task-type-switch" id="taskTypeSwitch" role="group" aria-label="Тип задачи">
+        <button type="button" class="active" data-task-type="personal" data-i18n="task.personal">Личная</button>
+        <button type="button" data-task-type="shared" data-i18n="task.shared">Совместная</button>
+      </div>
+      <section class="shared-task-fields" id="sharedTaskFields" hidden>
+        <div class="shared-task-presence" id="sharedTaskPresence" hidden></div>
+        <label><span data-i18n="task.inviteMembers">Пригласить участников</span>
+          <textarea id="sharedEmails" rows="2" maxlength="500" placeholder="email@example.com — каждый адрес с новой строки" data-i18n-placeholder="task.emailsPlaceholder"></textarea>
+        </label>
+        <small class="shared-field-hint" data-i18n="task.inviteHint">После входа с указанной почтой участник увидит приглашение по центру экрана и в разделе «Совместные».</small>
+        <label><span data-i18n="task.status">Статус выполнения</span>
+          <select id="sharedTaskStatus">
+            <option value="new" data-i18n="task.statusNew">Новая — ещё не начата</option>
+            <option value="accepted" data-i18n="task.statusAccepted">Принял</option>
+            <option value="open" data-i18n="task.statusOpen">В работе</option>
+            <option value="question" data-i18n="task.statusQuestion">Есть вопрос</option>
+            <option value="review" data-i18n="task.statusReview">Готово, на проверке</option>
+            <option value="completed" data-i18n="task.statusCompleted">Принято и завершено</option>
+          </select>
+        </label>
+        <div class="shared-reports" id="sharedReports" hidden>
+          <span class="shared-reports-title" data-i18n="task.reports">Отчёты по задаче</span>
+          <div class="report-list" id="sharedReportList"></div>
+          <textarea id="reportText" rows="2" maxlength="1000" placeholder="Что сделано, вопрос организатору…" data-i18n-placeholder="task.reportPlaceholder"></textarea>
+          <div class="report-pending" id="reportPending" hidden></div>
+          <div class="report-tools">
+            <button type="button" class="secondary-button" id="reportPhotoButton" data-i18n="task.reportPhoto">📷 Фото</button>
+            <button type="button" class="secondary-button" id="reportVoiceButton">🎤 Голос</button>
+            <button type="button" class="primary-button" id="reportSend" data-i18n="task.reportSend">Отправить отчёт</button>
+          </div>
+          <input type="file" id="reportPhotoInput" accept="image/*" hidden>
+        </div>
+      </section>
+      <label><span data-i18n="task.title">Название</span>
+        <span class="voice-field"><input id="taskTitle" maxlength="80" placeholder="Например, подготовить отчёт" required data-i18n-placeholder="task.titlePlaceholder"><button type="button" class="field-voice-button" id="voiceTitleButton" aria-label="Продиктовать название" data-i18n-aria="task.voiceTitleAria">🎙</button></span>
+      </label>
+      <div class="form-row">
+        <label><span data-i18n="task.date">Дата</span><input type="date" id="taskDate" required></label>
+        <label><span data-i18n="task.when">Когда выполнить</span>
+          <select id="taskTimeMode">
+            <option value="anytime" data-i18n="task.anytime">Без времени — в течение дня</option>
+            <option value="exact" data-i18n="task.exactTime">Указать точное время</option>
+          </select>
+          <input type="time" id="taskTime" hidden aria-label="Точное время задачи" data-i18n-aria="task.exactTimeAria">
+        </label>
+      </div>
+      <p class="completion-help" data-i18n="task.completionHelp">Завершите дело галочкой в списке — название автоматически перечеркнётся.</p>
+      <div id="personalOnlyFields">
+        <label class="check-label"><input type="checkbox" id="taskAutoCarry"> <span data-i18n="task.autoCarry">Автоматически переносить на следующий день, пока задача не выполнена</span></label>
+        <label><span data-i18n="task.priority">Приоритет</span>
+          <select id="taskPriority"><option value="normal" data-i18n="task.priorityNormal">Обычный</option><option value="high" data-i18n="task.priorityHigh">Высокий</option><option value="low" data-i18n="task.priorityLow">Низкий</option></select>
+        </label>
+        <label><span data-i18n="task.repeat">Повторение</span>
+          <select id="taskRepeat"><option value="none" data-i18n="task.repeatNone">Не повторять</option><option value="daily" data-i18n="task.repeatDaily">Каждый день</option><option value="weekdays" data-i18n="task.repeatWeekdays">По будням</option><option value="weekly" data-i18n="task.repeatWeekly">Каждую неделю</option><option value="monthly" data-i18n="task.repeatMonthly">Каждый месяц</option></select>
+        </label>
+        <label><span data-i18n="task.remind">Напомнить</span><input type="datetime-local" id="taskReminder"></label>
+      </div>
+      <fieldset class="notes-subtasks-field">
+        <legend data-i18n="task.subtasksNoteLegend">Подзадачи и заметка</legend>
+        <label class="sub-field subtasks-sub-field">
+          <span class="sub-field-title"><span data-i18n="task.subtasksTitle">☑ Подзадачи</span> <small data-i18n="task.subtasksHint">— чек-лист внутри задачи, каждый пункт с новой строки</small></span>
+          <span class="voice-field voice-field-textarea"><textarea id="taskSubtasks" rows="3" maxlength="600" placeholder="Например:&#10;Купить материалы&#10;Позвонить клиенту" data-i18n-placeholder="task.subtasksPlaceholder"></textarea><button type="button" class="field-voice-button" id="voiceSubtasksButton" aria-label="Продиктовать подзадачу" data-i18n-aria="task.voiceSubtasksAria">🎙</button></span>
+        </label>
+        <div class="sub-field-divider" aria-hidden="true"></div>
+        <label class="sub-field note-sub-field">
+          <span class="sub-field-title"><span data-i18n="task.noteTitle">📝 Заметка</span> <small data-i18n="task.noteHint">— просто текст, не чек-лист</small></span>
+          <span class="voice-field voice-field-textarea"><textarea id="taskNote" rows="3" maxlength="600" placeholder="Необязательные детали, комментарии, адрес и т.п." data-i18n-placeholder="task.notePlaceholder"></textarea><button type="button" class="field-voice-button" id="voiceNoteButton" aria-label="Продиктовать заметку" data-i18n-aria="task.voiceNoteAria">🎙</button></span>
+        </label>
+      </fieldset>
+      <fieldset class="attachment-field">
+        <legend data-i18n="task.attachmentLegend">Вложение</legend>
+        <div class="attachment-actions">
+          <button type="button" class="attachment-button" id="taskCameraButton" data-i18n="task.camera">📷 Камера</button>
+          <button type="button" class="attachment-button" id="taskGalleryButton" data-i18n="task.gallery">▧ Галерея</button>
+          <button type="button" class="attachment-button" id="taskDocumentButton" data-i18n="task.document">📎 Документ</button>
+        </div>
+        <input type="file" id="taskCameraInput" accept="image/*" capture="environment" hidden>
+        <input type="file" id="taskGalleryInput" accept="image/*" hidden>
+        <input type="file" id="taskDocumentInput" hidden>
+        <span class="photo-help" data-i18n="task.attachmentHelp">Можно прикрепить фотографию или документ любого формата размером до 4 МБ.</span>
+      </fieldset>
+      <div class="photo-preview" id="photoPreview" hidden>
+        <img id="photoPreviewImage" alt="Предпросмотр вложения" hidden data-i18n-alt="task.previewAlt">
+        <span class="attachment-file-icon" id="attachmentFileIcon" hidden>📄</span>
+        <div class="attachment-preview-info"><strong id="attachmentName"></strong><small id="photoMeta"></small><a id="attachmentOpen" target="_blank" rel="noopener" data-i18n="task.openFile">Открыть файл</a></div>
+        <button type="button" id="removePhoto" data-i18n="common.delete">Удалить</button>
+      </div>
+      <label><span data-i18n="task.attachmentComment">Комментарий к вложению</span><input id="taskProofNote" maxlength="240" placeholder="Например, помещение проверено, замечаний нет" data-i18n-placeholder="task.attachmentCommentPlaceholder"></label>
+      <div class="dialog-actions">
+        <button type="button" class="danger-button" id="deleteTask" hidden data-i18n="common.delete">Удалить</button>
+        <button type="button" class="secondary-button" id="cancelDialog" data-i18n="common.cancel">Отмена</button>
+        <button type="submit" class="primary-button" data-i18n="common.save">Сохранить</button>
+      </div>
+      <div class="dialog-actions shared-view-actions" id="sharedViewActions" hidden>
+        <button type="button" class="danger-button" id="svDelete" hidden></button>
+        <button type="button" class="secondary-button" id="svEdit" hidden></button>
+        <button type="button" class="primary-button" id="svClose"></button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="financeHistoryDialog" class="shared-dialog finance-history-dialog">
+    <div class="shared-panel">
+      <div class="dialog-header">
+        <div><span class="card-label" data-i18n="fnav.history">История</span><h2 data-i18n="finance.history">История операций</h2></div>
+        <button type="button" class="close-button" id="closeFinanceHistory" aria-label="Закрыть" data-i18n-aria="common.close">×</button>
+      </div>
+      <div class="fh-filters">
+        <label><span data-i18n="fh.from">С</span><input type="date" id="fhFrom"></label>
+        <label><span data-i18n="fh.to">По</span><input type="date" id="fhTo"></label>
+        <div class="fh-quick" role="group">
+          <button type="button" data-fh-range="month" data-i18n="fh.thisMonth">Этот месяц</button>
+          <button type="button" data-fh-range="last" data-i18n="fh.lastMonth">Прошлый месяц</button>
+          <button type="button" data-fh-range="year" data-i18n="fh.thisYear">Этот год</button>
+        </div>
+        <label><span data-i18n="fh.kind">Тип</span><select id="fhKind"><option value="" data-i18n="fh.all">Все</option><option value="expense" data-i18n="finance.expenseKind">Расход</option><option value="income" data-i18n="finance.incomeKind">Доход</option></select></label>
+        <label><span data-i18n="fh.category">Категория</span><select id="fhCategory"></select></label>
+        <label class="fh-search"><span data-i18n="fh.search">Поиск</span><input type="search" id="fhSearch" placeholder="Например: кофе" data-i18n-placeholder="fh.searchPlaceholder"></label>
+      </div>
+      <p class="fh-summary" id="financeHistorySummary"></p>
+      <div class="task-list" id="financeList"></div>
+      <div class="empty-state" id="financeEmptyState" hidden>
+        <div class="empty-icon">₽</div>
+        <h3 data-i18n="fh.emptyTitle">Ничего не найдено</h3>
+        <p data-i18n="fh.emptyText">Измените даты, категорию или текст поиска.</p>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="financeAddDialog" class="finance-add-dialog">
+    <form id="financeAddForm" method="dialog">
+      <div class="dialog-header">
+        <div class="fa-head"><i id="faIcon"></i><div><span class="card-label" id="faKindLabel">Расход</span><h2 id="faTitle">Категория</h2></div></div>
+        <button type="button" class="close-button" id="closeFinanceAdd" aria-label="Закрыть" data-i18n-aria="common.close">×</button>
+      </div>
+      <label><span data-i18n="fa.amount">Сумма</span><input id="faAmount" type="text" inputmode="decimal" autocomplete="off" required placeholder="0"></label>
+      <label><span data-i18n="fa.note">Комментарий (необязательно)</span><input id="faNote" maxlength="80" placeholder="Например: обед с коллегами" data-i18n-placeholder="fa.notePlaceholder"></label>
+      <label><span data-i18n="fa.date">Дата</span><input id="faDate" type="date" required></label>
+      <button type="submit" class="finance-submit" id="faSubmit" data-i18n="quick.add">Добавить</button>
+    </form>
+  </dialog>
+
+  <dialog id="sharedDialog" class="shared-dialog">
+    <div class="shared-panel">
+      <div class="dialog-header">
+        <div><span class="card-label" data-i18n="shared.workLabel">Общая работа</span><h2 data-i18n="nav.shared">Совместные</h2></div>
+        <button type="button" class="close-button" id="closeShared" aria-label="Закрыть" data-i18n-aria="common.close">×</button>
+      </div>
+      <div class="shared-tabs" role="tablist">
+        <button type="button" class="active" data-shared-tab="tasks" data-i18n="shared.tasksTab">Задачи</button>
+        <button type="button" data-shared-tab="people" data-i18n="shared.peopleTab">Участники</button>
+        <button type="button" data-shared-tab="invites"><span data-i18n="shared.invitesTab">Приглашения</span> <i id="sharedInviteCount" hidden></i></button>
+      </div>
+      <div class="shared-summary" id="sharedSummary"></div>
+      <div class="shared-content" id="sharedContent"></div>
+      <button type="button" class="primary-button shared-add-button" id="sharedAddButton" data-i18n="shared.newTask">＋ Новая совместная задача</button>
+    </div>
+  </dialog>
+
+  <dialog id="reminderDialog" class="reminder-dialog">
+    <div class="reminder-panel">
+      <div class="dialog-header">
+        <div><span class="card-label" data-i18n="plans.personalOverview">Личный обзор</span><h2 data-i18n="plans.title">Дела и планы</h2></div>
+        <button type="button" class="close-button" id="closeReminders" aria-label="Закрыть" data-i18n-aria="common.close">×</button>
+      </div>
+      <div class="planning-tabs" role="tablist" aria-label="Период планирования">
+        <button type="button" class="planning-tab active" data-planning-view="week" data-i18n="period.week">Неделя</button>
+        <button type="button" class="planning-tab" data-planning-view="month" data-i18n="period.month">Месяц</button>
+        <button type="button" class="planning-tab" data-planning-view="year" data-i18n="period.year">Год</button>
+      </div>
+      <section id="todayPlanningPanel" hidden>
+        <div class="mini-task-list" id="miniTaskList"></div>
+        <button class="primary-button notification-permission" id="enableNotifications" data-i18n="plans.enableNotifications">Включить уведомления</button>
+      </section>
+      <section id="longPlanningPanel" hidden>
+        <div class="plan-period-heading">
+          <strong id="planPeriodTitle">Планы на неделю</strong>
+          <div class="plan-period-nav"><button type="button" id="planPeriodPrev" aria-label="Предыдущий период" data-i18n-aria="period.prevAria">‹</button><small id="planPeriodLabel"></small><button type="button" id="planPeriodNext" aria-label="Следующий период" data-i18n-aria="period.nextAria">›</button></div>
+        </div>
+        <form id="planForm" class="plan-entry-form">
+          <textarea id="planInput" rows="2" maxlength="1000" required placeholder="Например: заниматься английским" data-i18n-placeholder="plans.inputPlaceholder"></textarea>
+          <label class="plan-date-label"><span><span data-i18n="plans.when">Когда планируется</span> <small data-i18n="plans.optional">необязательно</small></span><input type="date" id="planDate"></label>
+          <small class="plan-form-hint" data-i18n="plans.hint">Один план виден в своей неделе, месяце и году. Можно написать несколько пунктов с новой строки.</small>
+          <button type="submit" class="primary-button" data-i18n="plans.addToList">Добавить в список</button>
+        </form>
+        <div class="period-plan-list" id="periodPlanList"></div>
+      </section>
+    </div>
+  </dialog>
+
+  <dialog id="updateDialog" class="update-dialog">
+    <div class="update-panel">
+      <div class="dialog-header">
+        <div><span class="card-label" data-i18n="update.appLabel">Приложение</span><h2 data-i18n="update.title">Обновления</h2></div>
+        <button type="button" class="close-button" id="closeUpdate" aria-label="Закрыть" data-i18n-aria="common.close">×</button>
+      </div>
+      <div class="update-state">
+        <span class="update-state-icon">↻</span>
+        <div><strong id="updateStatusTitle">Обновления</strong><small id="updateStatusText">Новых обновлений нет</small></div>
+      </div>
+      <div class="update-release">
+        <div><span data-i18n="update.latestVersion">Последняя версия</span><strong id="latestVersionLabel">39</strong></div>
+        <ul id="updateNotes"><li data-i18n="update.defaultNote">Центр обновлений и ручная установка новой версии.</li></ul>
+      </div>
+      <div class="update-actions">
+        <button type="button" class="primary-button" id="applyUpdateButton" hidden data-i18n="update.updateApp">Обновить приложение</button>
+      </div>
+      <p class="update-hint" data-i18n="update.hint">Задачи, фотографии и настройки при обновлении не удаляются.</p>
+      <div class="menu-tools" aria-label="Дополнительные возможности">
+        <button type="button" class="menu-tool" id="openAccountFromMenu"><span>👤</span><div><strong id="accountMenuTitle">Аккаунт</strong><small id="accountMenuSubtitle" data-i18n="update.accountSubtitle">Войти или зарегистрироваться</small></div><b>›</b></button>
+        <button type="button" class="menu-tool" id="openNotificationSettings"><span>🔔</span><div><strong data-i18n="nav.notifications">Уведомления</strong><small data-i18n="update.notificationsSubtitle">Напоминания и сводка дел</small></div><b>›</b></button>
+        <button type="button" class="menu-tool" id="exportBackup"><span>💾</span><div><strong data-i18n="backup.export">Сохранить копию данных</strong><small data-i18n="backup.exportSub">Файл с задачами, планами и финансами</small></div><b>›</b></button>
+        <button type="button" class="menu-tool" id="importBackup"><span>📥</span><div><strong data-i18n="backup.import">Восстановить из копии</strong><small data-i18n="backup.importSub">Добавит недостающие записи из файла</small></div><b>›</b></button>
+        <input type="file" id="importBackupInput" accept="application/json,.json" hidden>
+        <button type="button" class="menu-tool" id="openFeedback"><span>✉</span><div><strong data-i18n="update.feedback">Обратная связь</strong><small data-i18n="update.feedbackSubtitle">Сообщить о проблеме, приложить фото</small></div><b>›</b></button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="notificationDialog" class="settings-dialog">
+    <form id="notificationForm" class="settings-panel">
+      <div class="dialog-header">
+        <div><span class="card-label" data-i18n="notif.remindersLabel">Напоминания</span><h2 data-i18n="nav.notifications">Уведомления</h2></div>
+        <button type="button" class="close-button" id="closeNotificationSettings" aria-label="Закрыть" data-i18n-aria="common.close">×</button>
+      </div>
+      <div class="permission-state" id="notificationPermissionState"></div>
+      <label class="setting-toggle"><span><strong data-i18n="notif.exactTitle">По времени задачи</strong><small data-i18n="notif.exactText">В точное время, указанное в напоминании</small></span><input type="checkbox" id="notifyExact" checked></label>
+      <label class="setting-toggle"><span><strong data-i18n="notif.dailyTitle">Сводка на сегодня</strong><small data-i18n="notif.dailyText">Количество дел и ближайшие задачи</small></span><input type="checkbox" id="notifyDaily" checked></label>
+      <label class="notification-time"><span data-i18n="notif.dailyTime">Первое напоминание в</span><input type="time" id="notifyDailyTime" value="09:00"></label>
+      <label class="notification-time"><span data-i18n="notif.repeat">Как часто напоминать</span><select id="notifyRepeat"><option value="once" data-i18n="notif.repeatOnce">Один раз в день</option><option value="twice" data-i18n="notif.repeatTwice">Два раза в день</option><option value="hourly2" data-i18n="notif.repeatHourly2">Каждые 2 часа (до 21:00)</option><option value="hourly" data-i18n="notif.repeatHourly">Каждый час (до 21:00)</option></select></label>
+      <label class="notification-time" id="notifyTime2Row"><span data-i18n="notif.dailyTime2">Второе напоминание в</span><input type="time" id="notifyDailyTime2" value="18:00"></label>
+      <label class="setting-toggle"><span><strong data-i18n="notif.overdueTitle">Просроченные дела</strong><small data-i18n="notif.overdueText">Один раз в день, если остались незавершённые задачи</small></span><input type="checkbox" id="notifyOverdue" checked></label>
+      <button type="button" class="secondary-button notification-test" id="testNotification" data-i18n="notif.test">Проверить уведомление</button>
+      <button type="submit" class="primary-button notification-save" data-i18n="notif.save">Сохранить настройки</button>
+      <p class="settings-hint" data-i18n="notif.hint">На iPhone уведомления работают для ежедневника, добавленного на экран «Домой». После входа в аккаунт серверные push-уведомления приходят и при закрытом приложении.</p>
+    </form>
+  </dialog>
+
+  <dialog id="feedbackDialog" class="settings-dialog">
+    <form id="feedbackForm" class="settings-panel" enctype="multipart/form-data">
+      <div class="dialog-header">
+        <div><span class="card-label" data-i18n="feedback.helpLabel">Помощь разработчику</span><h2 data-i18n="update.feedback">Обратная связь</h2></div>
+        <button type="button" class="close-button" id="closeFeedback" aria-label="Закрыть" data-i18n-aria="common.close">×</button>
+      </div>
+      <label><span data-i18n="feedback.describe">Опишите проблему или предложение</span>
+        <div class="feedback-text-wrap"><textarea id="feedbackText" rows="6" maxlength="3000" required placeholder="Что произошло? Что вы нажимали? Что ожидали увидеть?" data-i18n-placeholder="feedback.placeholder"></textarea><button type="button" class="field-voice-button" id="feedbackVoiceButton" aria-label="Надиктовать текст" title="Надиктовать текст" data-i18n-aria="feedback.voiceAria" data-i18n-title="feedback.voiceAria">🎙</button></div>
+      </label>
+      <label><span data-i18n="feedback.replyEmail">Email отправителя</span><input type="email" id="feedbackReplyEmail" readonly autocomplete="email" placeholder="Будет взят из аккаунта" data-i18n-placeholder="feedback.emailPlaceholder"></label>
+      <input type="file" id="feedbackPhotoInput" accept="image/*" hidden>
+      <button type="button" class="attachment-button feedback-photo-button" id="chooseFeedbackPhoto" data-i18n="feedback.attachPhoto">▧ Прикрепить фото проблемы</button>
+      <div class="feedback-file" id="feedbackFile" hidden><span id="feedbackFileName"></span><button type="button" id="removeFeedbackPhoto" aria-label="Убрать фото" data-i18n-aria="feedback.removePhotoAria">×</button></div>
+      <button type="submit" class="primary-button" id="feedbackSubmitButton" data-i18n="feedback.send">Отправить разработчику</button>
+      <p class="settings-hint" data-i18n="feedback.hint">Сообщение уйдёт разработчику в фоне. Фото перед отправкой автоматически уменьшается. Ответ придёт на email аккаунта или на тот, что вы укажете.</p>
+    </form>
+  </dialog>
+
+  <dialog id="syncDialog" class="sync-dialog">
+    <div class="sync-panel">
+      <div class="dialog-header">
+        <div><span class="card-label" data-i18n="sync.cloudLabel">Облако</span><h2 data-i18n="sync.title">Синхронизация</h2></div>
+        <button type="button" class="close-button" id="closeSync" aria-label="Закрыть" data-i18n-aria="common.close">×</button>
+      </div>
+      <div class="sync-state" id="syncState">
+        <span class="sync-state-icon">☁</span>
+        <div><strong id="syncStateTitle">Не подключено</strong><small id="syncStateText">Войдите на каждом устройстве с одинаковым email.</small></div>
+      </div>
+      <form id="syncAuthForm">
+        <label><span data-i18n="sync.email">Email</span><input type="email" id="syncEmail" autocomplete="email" required placeholder="name@example.com"></label>
+        <label><span data-i18n="sync.password">Пароль</span><input type="password" id="syncPassword" autocomplete="current-password" minlength="8" required placeholder="Не менее 8 символов" data-i18n-placeholder="sync.passwordPlaceholder"></label>
+        <div class="sync-actions">
+          <button type="button" class="secondary-button" id="syncSignUp" data-i18n="sync.signUp">Регистрация</button>
+          <button type="submit" class="primary-button" data-i18n="sync.signIn">Войти</button>
+        </div>
+        <button type="button" class="forgot-password-button" id="syncForgotPassword" data-i18n="sync.forgotPassword">Забыли пароль? Получить новое письмо</button>
+      </form>
+      <form id="syncRecoveryCodeForm" hidden>
+        <p class="sync-reset-note" data-i18n="sync.recoveryNote">Откройте только самое новое письмо. Нажмите в нём «Reset password». Если письмо содержит цифровой код, его можно ввести ниже.</p>
+        <label><span data-i18n="sync.email">Email</span><input type="email" id="syncRecoveryEmail" autocomplete="email" required placeholder="name@example.com"></label>
+        <label><span data-i18n="sync.codeFromEmail">Код из письма</span><input type="text" id="syncRecoveryCode" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6,8}" maxlength="8" required placeholder="6–8 цифр" data-i18n-placeholder="sync.codePlaceholder"></label>
+        <button type="submit" class="primary-button" data-i18n="sync.checkCode">Проверить код</button>
+        <button type="button" class="secondary-button recovery-button" id="syncResendRecoveryCode" data-i18n="sync.resendCode">Отправить новый код</button>
+        <button type="button" class="forgot-password-button" id="syncBackToLogin" data-i18n="sync.backToLogin">Вернуться ко входу</button>
+      </form>
+      <form id="syncResetForm" hidden>
+        <p class="sync-reset-note" data-i18n="sync.codeConfirmedNote">Код подтверждён. Придумайте новый пароль — старый пароль вводить не нужно.</p>
+        <label><span data-i18n="sync.newPassword">Новый пароль</span><input type="password" id="syncNewPassword" minlength="8" required autocomplete="new-password" placeholder="Не менее 8 символов" data-i18n-placeholder="sync.passwordPlaceholder"></label>
+        <label><span data-i18n="sync.repeatPassword">Повторите пароль</span><input type="password" id="syncNewPasswordConfirm" minlength="8" required autocomplete="new-password"></label>
+        <button type="submit" class="primary-button" data-i18n="sync.saveNewPassword">Сохранить новый пароль</button>
+      </form>
+      <div class="sync-connected" id="syncConnected" hidden>
+        <button class="primary-button" id="syncNow" data-i18n="sync.syncNow">Синхронизировать сейчас</button>
+        <button class="secondary-button" id="syncLogout" data-i18n="sync.switchUser">Сменить пользователя</button>
+        <div class="pin-settings">
+          <strong data-i18n="sync.pinLogin">Быстрый вход по PIN</strong><small data-i18n="sync.pinHint">Четыре цифры хранятся только на этом устройстве.</small>
+          <input type="text" id="pinSetupInput" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" autocomplete="off" enterkeyhint="done" data-form-type="other" placeholder="4 цифры" aria-label="Новый PIN-код" data-i18n-placeholder="sync.pinDigits" data-i18n-aria="sync.pinNewAria">
+          <div><button type="button" class="primary-button" id="pinSaveButton" data-i18n="sync.pinSet">Установить PIN</button><button type="button" class="secondary-button" id="pinRemoveButton" data-i18n="sync.pinRemove">Убрать PIN</button></div>
+        </div>
+      </div>
+      <p class="sync-note" data-i18n="sync.note">У каждого email свой отдельный ежедневник. На общем устройстве нажмите «Сменить пользователя», прежде чем другой человек войдёт в свой аккаунт.</p>
+    </div>
+  </dialog>
+
+  <dialog id="pinDialog" class="pin-dialog">
+    <form id="pinUnlockForm">
+      <div class="pin-lock-icon">🔒</div><h2 data-i18n="pin.enter">Введите PIN</h2><p data-i18n="pin.hint">Четыре цифры для быстрого входа в ежедневник.</p>
+      <input type="text" id="pinUnlockInput" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" required autocomplete="off" enterkeyhint="done" data-form-type="other" aria-label="PIN-код" data-i18n-aria="pin.codeAria">
+      <button type="submit" class="primary-button" data-i18n="pin.open">Открыть ежедневник</button>
+      <button type="button" class="secondary-button" id="pinUsePassword" data-i18n="pin.usePassword">Войти по почте и паролю</button>
+      <small id="pinError" role="status"></small>
+    </form>
+  </dialog>
+
+  <dialog id="profileDialog" class="profile-dialog">
+    <div class="profile-panel">
+      <div class="dialog-header">
+        <div><span class="card-label" data-i18n="profile.personalDataLabel">Личные данные</span><h2 data-i18n="profile.myProfile">Мой профиль</h2></div>
+        <button type="button" class="close-button" id="closeProfile" aria-label="Закрыть" data-i18n-aria="common.close">×</button>
+      </div>
+      <form id="profileForm">
+        <div class="profile-photo-editor">
+          <button type="button" class="profile-photo-preview" id="chooseProfilePhoto" aria-label="Выбрать фотографию из галереи" data-i18n-aria="profile.chooseAria">
+            <span id="profilePreviewInitial">Я</span><img id="profilePreviewImage" alt="Фотография профиля" hidden data-i18n-alt="profile.photoAlt">
+            <i aria-hidden="true">＋</i>
+          </button>
+          <div><strong data-i18n="profile.photo">Фотография</strong><small data-i18n="profile.photoHint">Будет показана в правом верхнем углу</small><div class="profile-photo-actions"><button type="button" id="profileGalleryButton" data-i18n="finance.gallery2">Из галереи</button><button type="button" id="profileCameraButton" data-i18n="profile.takePhoto">Сделать фото</button></div><button type="button" class="profile-photo-remove" id="removeProfilePhoto" data-i18n="profile.removePhoto">Удалить фото</button></div>
+          <input type="file" id="profilePhotoInput" accept="image/*" hidden>
+          <input type="file" id="profileCameraInput" accept="image/*" capture="user" hidden>
+        </div>
+        <label><span data-i18n="profile.howToAddress">Как к вам обращаться</span><input id="profileName" maxlength="40" placeholder="Например, Александр" data-i18n-placeholder="profile.namePlaceholder"></label>
+        <div class="theme-field"><strong data-i18n="profile.theme">Цвет оформления</strong>
+          <div class="theme-picker" id="themePicker" role="group" aria-label="Цвет оформления" data-i18n-aria="profile.theme">
+            <button type="button" data-theme-choice="blue" aria-label="Синий"></button><button type="button" data-theme-choice="green" aria-label="Зелёный"></button><button type="button" data-theme-choice="crimson" aria-label="Бордовый"></button><button type="button" data-theme-choice="purple" aria-label="Фиолетовый"></button><button type="button" data-theme-choice="graphite" aria-label="Графит"></button>
+          </div></div>
+        <p class="profile-note" data-i18n="profile.note">Здесь можно изменить имя и фотографию профиля.</p>
+        <div class="profile-actions"><button type="submit" class="primary-button" data-i18n="common.save">Сохранить</button></div>
+      </form>
+    </div>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastAction" hidden></button></div>
+  <script src="sync-config.js?v=97"></script>
+  <script src="sync.js?v=97"></script>
+  <script src="i18n-en.js?v=97"></script>
+  <script src="app.js?v=97"></script>
+</body>
+</html>

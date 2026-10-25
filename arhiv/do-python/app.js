@@ -1,0 +1,2388 @@
+const STORAGE_KEY = 'day-planner-tasks-v2';
+const LEGACY_KEY = 'day-planner-tasks-v1';
+const DELETED_KEY = 'day-planner-deleted-v1';
+const PROFILE_KEY = 'day-planner-profile-v1';
+const PLAN_KEY = 'day-planner-period-plans-v1';
+const STATE_UPDATED_KEY = 'day-planner-state-updated-v1';
+const PIN_KEY = 'day-planner-pin-v1';
+const PIN_UNLOCKED_AT_KEY = 'day-planner-pin-unlocked-at-v1';
+const PIN_RELOCK_MS = 30 * 60 * 1000;
+const NOTIFICATION_KEY = 'day-planner-notifications-v1';
+const EXPENSES_KEY = 'day-planner-expenses-v1';
+const FINANCE_LIMITS_KEY = 'day-planner-finance-limits-v1';
+const DELETED_EXPENSES_KEY = 'day-planner-deleted-expenses-v1';
+const APP_VERSION = '97';
+const UPDATE_SEEN_KEY = 'day-planner-update-seen-v1';
+const UPDATE_APPLIED_KEY = 'day-planner-update-applied-v1';
+const LANG_KEY = 'day-planner-lang-v1';
+let appLang = localStorage.getItem(LANG_KEY) === 'en' ? 'en' : 'ru';
+const TRANSLATIONS = { ru: {
+  'nav.today': 'Сегодня', 'nav.upcoming': 'Предстоящие', 'nav.completed': 'Выполнено', 'nav.shared': 'Совместные', 'nav.plans': 'Планы', 'nav.notifications': 'Уведомления',
+  'greeting.night': 'Доброй ночи', 'greeting.morning': 'Доброе утро', 'greeting.day': 'Добрый день', 'greeting.evening': 'Добрый вечер',
+  'word.task': 'задача', 'word.tasks': 'задачи', 'word.entry': 'операция', 'word.entries': 'операции', 'word.day': 'день', 'word.days': 'дня',
+  'focus.at': 'В', 'focus.carriesOver': 'Переносится до выполнения', 'focus.anytime': 'В удобное время', 'focus.noUrgent': 'Срочных дел нет', 'focus.allDone': 'Все дела завершены', 'focus.noUrgentHint': 'Важные задачи не отмечены — остальные дела ждут своей очереди', 'focus.restHint': 'Можно спокойно отдохнуть',
+  'header.searchTitle': 'Поиск по ежедневнику', 'header.searchSubtitle': 'Ищем в активных, выполненных и архивных задачах.', 'header.searchResults': 'Результаты поиска',
+  'header.upcomingTitle': 'Предстоящие дела', 'header.upcomingSubtitle': 'Всё важное — в одном списке.', 'header.upcomingList': 'Ближайшие задачи',
+  'header.completedSubtitle': 'Приятно видеть результат.', 'header.completedList': 'Готовые задачи',
+  'header.planDay': 'План на день', 'header.planWeek': 'План на неделю', 'header.planMonth': 'План на месяц', 'header.planYear': 'План на год',
+  'header.remaining': 'осталось', 'header.unfinishedNote': 'Незавершённые дела не потеряются.', 'header.todayTasks': 'Задачи на сегодня', 'header.tasksFor': 'Задачи на', 'header.tasksColon': 'Задачи:',
+  'profile.defaultInitial': 'Я', 'profile.titlePrefix': 'Профиль', 'profile.setUpTitle': 'Настроить личный профиль',
+  'stats.greatDay': 'Отличный день!', 'stats.keepGoing': 'Так держать', 'stats.of': 'из', 'stats.allFree': 'Пока всё свободно',
+  'task.carriedOver': 'Переносилась', 'task.autoCarryTag': 'Автоперенос', 'task.markDoneAria': 'Отметить задачу выполненной', 'task.photoReport': 'фотоотчёт', 'task.attachmentTag': 'вложение', 'task.important': 'Важно', 'task.canWait': 'Можно позже', 'task.editAria': 'Редактировать',
+  'task.notFound': 'Ничего не найдено', 'task.noTasksToday': 'На этот день задач нет', 'task.notFoundHint': 'Проверьте написание или введите другое слово. Поиск выполняется по всему архиву.', 'task.noTasksHint': 'Оставьте время для себя или добавьте новое дело.',
+  'finance.openReceiptAria': 'Открыть фото чека', 'finance.hasReceiptTitle': 'Есть фото чека', 'finance.deleteEntryAria': 'Удалить операцию', 'finance.voiceHintFallback': 'Нажмите 🎙 — откроется поле, затем нажмите значок микрофона на клавиатуре и продиктуйте покупку и сумму',
+  'toast.enterAmount': 'Укажите сумму, например «кофе 250»', 'toast.entriesAdded': 'Добавлено операций', 'toast.incomeAdded': 'Доход добавлен', 'toast.expenseAdded': 'Расход добавлен', 'toast.entryDeleted': 'Операция удалена',
+  'sidebar.dayProgress': 'Прогресс дня', 'sidebar.startSmall': 'Начните с малого',
+  'tabs.planner': 'Ежедневник', 'tabs.finance': 'Финансы',
+  'period.day': 'День', 'period.week': 'Неделя', 'period.month': 'Месяц', 'period.year': 'Год', 'period.today': 'Сегодня', 'period.prevAria': 'Предыдущий период', 'period.nextAria': 'Следующий период',
+  'focus.label': 'Фокус дня',
+  'stats.done': 'выполнено', 'stats.planned': 'в плане',
+  'limit.set': 'лимит на месяц', 'limit.change': 'изменить лимит', 'limit.of': 'из', 'limit.overBy': 'превышен на', 'limit.prompt': 'Лимит в месяц для категории (пусто — убрать)', 'limit.saved': 'Лимит сохранён', 'limit.removed': 'Лимит убран', 'limit.exceeded': '⚠ Лимит превышен', 'limit.stillOver': '⚠ Сверх лимита', 'limit.near': 'Почти лимит', 'limit.addOther': '＋ Лимит для категории…', 'limit.addAria': 'Лимит для категории',
+  'fnav.overview': 'Обзор', 'fnav.expense': 'Добавить расход', 'fnav.income': 'Добавить доход', 'fnav.categories': 'По категориям', 'fnav.history': 'История', 'fnav.balance': 'Баланс периода', 'fnav.addExpenseAria': 'Добавить расход',
+  'quick.newTask': 'Новая задача', 'quick.placeholder': 'Введите список дел — каждое с новой строки. Они будут переноситься до выполнения', 'quick.voiceAria': 'Добавить задачу голосом', 'quick.voiceTitle': 'Голосовой ввод', 'quick.add': 'Добавить', 'quick.searchAria': 'Поиск задач', 'quick.searchPlaceholder': 'Поиск по всем задачам и архиву', 'quick.weekTasks': 'Задачи на неделю', 'quick.addTaskShort': '+ Добавить задачу', 'quick.addTaskAria': 'Добавить задачу',
+  'finance.income': 'доход', 'finance.expense': 'расход', 'finance.balance': 'баланс', 'finance.expenseKind': 'Расход', 'finance.incomeKind': 'Доход',
+  'finance.inputPlaceholder': 'Например: кофе 250 (или несколько строк — по одной покупке в каждой)', 'finance.voiceAria': 'Продиктовать расход', 'finance.voiceHint': 'Нажмите и удерживайте 🎙, скажите покупку и сумму, отпустите',
+  'finance.camera': '📷 Сфотографировать чек', 'finance.gallery': '▧ Из галереи', 'finance.gallery2': 'Из галереи', 'finance.receiptAlt': 'Чек', 'finance.photoAttached': 'Чек прикреплён — сохранится вместе с операцией ниже', 'finance.removePhotoAria': 'Удалить фото',
+  'finance.byCategory': 'По категориям', 'finance.whereMoneyGoes': 'Куда уходят деньги за выбранный период', 'finance.breakdownEmptyTitle': 'Пока нечего показать', 'finance.breakdownEmptyText': 'Разбивка по категориям появится после первой операции за этот период.',
+  'finance.history': 'История операций', 'fh.from': 'С', 'fh.to': 'По', 'fh.thisMonth': 'Этот месяц', 'fh.lastMonth': 'Прошлый месяц', 'fh.thisYear': 'Этот год', 'fh.kind': 'Тип', 'fh.all': 'Все', 'fh.allCategories': 'Все категории', 'fh.category': 'Категория', 'fh.search': 'Поиск', 'fh.searchPlaceholder': 'Например: кофе', 'fh.emptyTitle': 'Ничего не найдено', 'fh.emptyText': 'Измените даты, категорию или текст поиска.', 'fa.amount': 'Сумма', 'fa.note': 'Комментарий (необязательно)', 'fa.notePlaceholder': 'Например: обед с коллегами', 'fa.date': 'Дата', 'fa.hint': 'Нажмите на иконку категории, чтобы сразу добавить сумму', 'finance.emptyTitle': 'Записей пока нет', 'finance.emptyText': 'Добавьте первую операцию текстом выше — например «кофе 250».',
+  'finance.todayAria': 'Перейти к сегодняшнему дню',
+  'update.updateAction': 'Обновить',
+  'shared.taskLabel': 'Совместная задача', 'shared.decline': 'Отклонить', 'shared.accept': 'Принять', 'shared.workLabel': 'Общая работа', 'shared.tasksTab': 'Задачи', 'shared.peopleTab': 'Участники', 'shared.invitesTab': 'Приглашения', 'shared.newTask': '＋ Новая совместная задача',
+  'reminder.label': 'Напоминание', 'reminder.later': 'Позже', 'reminder.openTask': 'Открыть задачу',
+  'common.close': 'Закрыть', 'common.delete': 'Удалить', 'common.cancel': 'Отмена', 'common.save': 'Сохранить',
+  'backup.export': 'Сохранить копию данных', 'backup.exportSub': 'Файл с задачами, планами и финансами', 'backup.import': 'Восстановить из копии', 'backup.importSub': 'Добавит недостающие записи из файла',
+  'cloud.quota': 'Облако недоступно: закончился бесплатный лимит. Телефон и компьютер сейчас не синхронизируются, задачи хранятся на этом устройстве.', 'cloud.movedTitle': 'Облако обновлено', 'cloud.movedText': 'Войдите ещё раз тем же email и паролем — ваши задачи на этом устройстве сохранены и снова начнут синхронизироваться.', 'cloud.failed': 'Не удалось синхронизировать с облаком. Задачи сохраняются на этом устройстве.', 'task.planLabel': 'План', 'task.personal': 'Личная', 'task.shared': 'Совместная', 'task.youOrganize': 'вы организатор', 'task.organizer': 'организатор',
+  'task.inviteMembers': 'Пригласить участников', 'task.emailsPlaceholder': 'email@example.com — каждый адрес с новой строки', 'task.inviteHint': 'После входа с указанной почтой участник увидит приглашение по центру экрана и в разделе «Совместные».',
+  'task.status': 'Статус выполнения', 'task.statusNew': 'Новая — ещё не начата', 'task.statusAccepted': 'Принял', 'task.statusOpen': 'В работе', 'task.statusQuestion': 'Есть вопрос', 'task.statusReview': 'Готово, на проверке', 'task.statusCompleted': 'Принято и завершено', 'shared.later': 'Позже', 'task.reports': 'Отчёты по задаче', 'task.reportPlaceholder': 'Что сделано, вопрос организатору…', 'task.reportPhoto': '📷 Фото', 'task.reportSend': 'Отправить отчёт',
+  'task.title': 'Название', 'task.titlePlaceholder': 'Например, подготовить отчёт', 'task.voiceTitleAria': 'Продиктовать название',
+  'task.date': 'Дата', 'task.when': 'Когда выполнить', 'task.anytime': 'Без времени — в течение дня', 'task.exactTime': 'Указать точное время', 'task.exactTimeAria': 'Точное время задачи',
+  'task.completionHelp': 'Завершите дело галочкой в списке — название автоматически перечеркнётся.',
+  'task.autoCarry': 'Автоматически переносить на следующий день, пока задача не выполнена',
+  'task.priority': 'Приоритет', 'task.priorityNormal': 'Обычный', 'task.priorityHigh': 'Высокий', 'task.priorityLow': 'Низкий',
+  'task.repeat': 'Повторение', 'task.repeatNone': 'Не повторять', 'task.repeatDaily': 'Каждый день', 'task.repeatWeekdays': 'По будням', 'task.repeatWeekly': 'Каждую неделю', 'task.repeatMonthly': 'Каждый месяц',
+  'task.remind': 'Напомнить',
+  'task.subtasksNoteLegend': 'Подзадачи и заметка', 'task.subtasksTitle': '☑ Подзадачи', 'task.subtasksHint': '— чек-лист внутри задачи, каждый пункт с новой строки', 'task.subtasksPlaceholder': 'Например:\nКупить материалы\nПозвонить клиенту', 'task.voiceSubtasksAria': 'Продиктовать подзадачу',
+  'task.noteTitle': '📝 Заметка', 'task.noteHint': '— просто текст, не чек-лист', 'task.notePlaceholder': 'Необязательные детали, комментарии, адрес и т.п.', 'task.voiceNoteAria': 'Продиктовать заметку',
+  'task.attachmentLegend': 'Вложение', 'task.camera': '📷 Камера', 'task.gallery': '▧ Галерея', 'task.document': '📎 Документ', 'task.attachmentHelp': 'Можно прикрепить фотографию или документ любого формата размером до 4 МБ.',
+  'task.previewAlt': 'Предпросмотр вложения', 'task.openFile': 'Открыть файл',
+  'task.attachmentComment': 'Комментарий к вложению', 'task.attachmentCommentPlaceholder': 'Например, помещение проверено, замечаний нет',
+  'task.editTitle': 'Редактировать задачу', 'task.newTitle': 'Новая задача', 'task.newByVoice': 'Новая задача голосом',
+  'plans.personalOverview': 'Личный обзор', 'plans.title': 'Дела и планы', 'plans.enableNotifications': 'Включить уведомления',
+  'plans.when': 'Когда планируется', 'plans.optional': 'необязательно', 'plans.inputPlaceholder': 'Например: заниматься английским', 'plans.hint': 'Один план виден в своей неделе, месяце и году. Можно написать несколько пунктов с новой строки.', 'plans.addToList': 'Добавить в список',
+  'update.appLabel': 'Приложение', 'update.title': 'Обновления', 'update.latestVersion': 'Последняя версия', 'update.defaultNote': 'Центр обновлений и ручная установка новой версии.', 'update.updateApp': 'Обновить приложение', 'update.hint': 'Задачи, фотографии и настройки при обновлении не удаляются.',
+  'update.accountSubtitle': 'Войти или зарегистрироваться', 'update.notificationsSubtitle': 'Напоминания и сводка дел', 'update.feedback': 'Обратная связь', 'update.feedbackSubtitle': 'Сообщить о проблеме, приложить фото',
+  'notif.remindersLabel': 'Напоминания', 'notif.exactTitle': 'По времени задачи', 'notif.exactText': 'В точное время, указанное в напоминании', 'notif.dailyTitle': 'Сводка на сегодня', 'notif.dailyText': 'Количество дел и ближайшие задачи', 'notif.dailyTime': 'Первое напоминание в', 'notif.repeat': 'Как часто напоминать', 'notif.repeatOnce': 'Один раз в день', 'notif.repeatTwice': 'Два раза в день', 'notif.repeatHourly2': 'Каждые 2 часа (до 21:00)', 'notif.repeatHourly': 'Каждый час (до 21:00)', 'notif.dailyTime2': 'Второе напоминание в', 'notif.overdueTitle': 'Просроченные дела', 'notif.overdueText': 'Один раз в день, если остались незавершённые задачи', 'notif.test': 'Проверить уведомление', 'notif.save': 'Сохранить настройки', 'notif.hint': 'На iPhone уведомления работают для ежедневника, добавленного на экран «Домой». После входа в аккаунт серверные push-уведомления приходят и при закрытом приложении.',
+  'feedback.helpLabel': 'Помощь разработчику', 'feedback.describe': 'Опишите проблему или предложение', 'feedback.placeholder': 'Что произошло? Что вы нажимали? Что ожидали увидеть?', 'feedback.voiceAria': 'Надиктовать текст', 'feedback.replyEmail': 'Email отправителя', 'feedback.emailPlaceholder': 'Будет взят из аккаунта', 'feedback.attachPhoto': '▧ Прикрепить фото проблемы', 'feedback.removePhotoAria': 'Убрать фото', 'feedback.send': 'Отправить разработчику', 'feedback.hint': 'Сообщение уйдёт разработчику в фоне. Фото перед отправкой автоматически уменьшается. Ответ придёт на email аккаунта или на тот, что вы укажете.',
+  'sync.cloudLabel': 'Облако', 'sync.title': 'Синхронизация', 'sync.email': 'Email', 'sync.password': 'Пароль', 'sync.passwordPlaceholder': 'Не менее 8 символов', 'sync.signUp': 'Регистрация', 'sync.signIn': 'Войти', 'sync.forgotPassword': 'Забыли пароль? Получить новое письмо',
+  'sync.recoveryNote': 'Откройте только самое новое письмо. Нажмите в нём «Reset password». Если письмо содержит цифровой код, его можно ввести ниже.', 'sync.codeFromEmail': 'Код из письма', 'sync.codePlaceholder': '6–8 цифр', 'sync.checkCode': 'Проверить код', 'sync.resendCode': 'Отправить новый код', 'sync.backToLogin': 'Вернуться ко входу',
+  'sync.codeConfirmedNote': 'Код подтверждён. Придумайте новый пароль — старый пароль вводить не нужно.', 'sync.newPassword': 'Новый пароль', 'sync.repeatPassword': 'Повторите пароль', 'sync.saveNewPassword': 'Сохранить новый пароль',
+  'sync.syncNow': 'Синхронизировать сейчас', 'sync.switchUser': 'Сменить пользователя', 'sync.pinLogin': 'Быстрый вход по PIN', 'sync.pinHint': 'Четыре цифры хранятся только на этом устройстве.', 'sync.pinDigits': '4 цифры', 'sync.pinNewAria': 'Новый PIN-код', 'sync.pinSet': 'Установить PIN', 'sync.pinRemove': 'Убрать PIN',
+  'sync.note': 'У каждого email свой отдельный ежедневник. На общем устройстве нажмите «Сменить пользователя», прежде чем другой человек войдёт в свой аккаунт.',
+  'pin.enter': 'Введите PIN', 'pin.hint': 'Четыре цифры для быстрого входа в ежедневник.', 'pin.codeAria': 'PIN-код', 'pin.open': 'Открыть ежедневник', 'pin.usePassword': 'Войти по почте и паролю',
+  'profile.personalDataLabel': 'Личные данные', 'profile.myProfile': 'Мой профиль', 'profile.chooseAria': 'Выбрать фотографию из галереи', 'profile.photoAlt': 'Фотография профиля',
+  'profile.photo': 'Фотография', 'profile.theme': 'Цвет оформления', 'profile.photoHint': 'Будет показана в правом верхнем углу', 'profile.takePhoto': 'Сделать фото', 'profile.removePhoto': 'Удалить фото',
+  'profile.howToAddress': 'Как к вам обращаться', 'profile.namePlaceholder': 'Например, Александр', 'profile.note': 'Здесь можно изменить имя и фотографию профиля.'
+}, en: {
+  'nav.today': 'Today', 'nav.upcoming': 'Upcoming', 'nav.completed': 'Completed', 'nav.shared': 'Shared', 'nav.plans': 'Plans', 'nav.notifications': 'Notifications',
+  'greeting.night': 'Good night', 'greeting.morning': 'Good morning', 'greeting.day': 'Good afternoon', 'greeting.evening': 'Good evening',
+  'word.task': 'task', 'word.tasks': 'tasks', 'word.entry': 'entry', 'word.entries': 'entries', 'word.day': 'day', 'word.days': 'days',
+  'focus.at': 'At', 'focus.carriesOver': 'Carries over until done', 'focus.anytime': 'Anytime', 'focus.noUrgent': 'No urgent tasks', 'focus.allDone': 'All done', 'focus.noUrgentHint': 'No important tasks flagged — the rest can wait their turn', 'focus.restHint': 'Take a break',
+  'header.searchTitle': 'Search the planner', 'header.searchSubtitle': 'Searching active, completed and archived tasks.', 'header.searchResults': 'Search results',
+  'header.upcomingTitle': 'Upcoming tasks', 'header.upcomingSubtitle': 'Everything important, in one list.', 'header.upcomingList': 'Upcoming tasks',
+  'header.completedSubtitle': "Good to see it done.", 'header.completedList': 'Completed tasks',
+  'header.planDay': 'Day plan', 'header.planWeek': 'Week plan', 'header.planMonth': 'Month plan', 'header.planYear': 'Year plan',
+  'header.remaining': 'remaining:', 'header.unfinishedNote': "Unfinished tasks won't be lost.", 'header.todayTasks': "Today's tasks", 'header.tasksFor': 'Tasks for', 'header.tasksColon': 'Tasks:',
+  'profile.defaultInitial': 'U', 'profile.titlePrefix': 'Profile', 'profile.setUpTitle': 'Set up your profile',
+  'stats.greatDay': 'Great day!', 'stats.keepGoing': 'Keep it up', 'stats.of': 'of', 'stats.allFree': 'All clear for now',
+  'task.carriedOver': 'Carried over', 'task.autoCarryTag': 'Auto-carry', 'task.markDoneAria': 'Mark task done', 'task.photoReport': 'photo', 'task.attachmentTag': 'attachment', 'task.important': 'Important', 'task.canWait': 'Can wait', 'task.editAria': 'Edit',
+  'task.notFound': 'Nothing found', 'task.noTasksToday': 'No tasks for this day', 'task.notFoundHint': 'Check the spelling or try another word. Search covers the full archive.', 'task.noTasksHint': 'Leave time for yourself or add a new task.',
+  'finance.openReceiptAria': 'Open receipt photo', 'finance.hasReceiptTitle': 'Has a receipt photo', 'finance.deleteEntryAria': 'Delete entry', 'finance.voiceHintFallback': 'Tap 🎙 — the field opens, then tap the microphone icon on your keyboard and dictate the purchase and amount',
+  'toast.enterAmount': 'Enter an amount, e.g. "coffee 250"', 'toast.entriesAdded': 'Entries added', 'toast.incomeAdded': 'Income added', 'toast.expenseAdded': 'Expense added', 'toast.entryDeleted': 'Entry deleted',
+  'sidebar.dayProgress': 'Day progress', 'sidebar.startSmall': 'Start small',
+  'tabs.planner': 'Planner', 'tabs.finance': 'Finance',
+  'period.day': 'Day', 'period.week': 'Week', 'period.month': 'Month', 'period.year': 'Year', 'period.today': 'Today', 'period.prevAria': 'Previous period', 'period.nextAria': 'Next period',
+  'focus.label': 'Focus of the day',
+  'stats.done': 'done', 'stats.planned': 'planned',
+  'limit.set': 'monthly limit', 'limit.change': 'change limit', 'limit.of': 'of', 'limit.overBy': 'over by', 'limit.prompt': 'Monthly limit for category (leave empty to remove)', 'limit.saved': 'Limit saved', 'limit.removed': 'Limit removed', 'limit.exceeded': '⚠ Limit exceeded', 'limit.stillOver': '⚠ Over the limit', 'limit.near': 'Close to the limit', 'limit.addOther': '＋ Limit for a category…', 'limit.addAria': 'Limit for a category',
+  'fnav.overview': 'Overview', 'fnav.expense': 'Add expense', 'fnav.income': 'Add income', 'fnav.categories': 'By category', 'fnav.history': 'History', 'fnav.balance': 'Period balance', 'fnav.addExpenseAria': 'Add expense',
+  'quick.newTask': 'New task', 'quick.placeholder': 'Enter your to-dos — one per line. Unfinished ones carry over automatically', 'quick.voiceAria': 'Add task by voice', 'quick.voiceTitle': 'Voice input', 'quick.add': 'Add', 'quick.searchAria': 'Search tasks', 'quick.searchPlaceholder': 'Search all tasks and archive', 'quick.weekTasks': 'Tasks this week', 'quick.addTaskShort': '+ Add task', 'quick.addTaskAria': 'Add task',
+  'finance.income': 'income', 'finance.expense': 'expense', 'finance.balance': 'balance', 'finance.expenseKind': 'Expense', 'finance.incomeKind': 'Income',
+  'finance.inputPlaceholder': 'E.g. coffee 250 (or several lines — one purchase per line)', 'finance.voiceAria': 'Dictate expense', 'finance.voiceHint': 'Press and hold 🎙, say the purchase and amount, then release',
+  'finance.camera': '📷 Photograph receipt', 'finance.gallery': '▧ From gallery', 'finance.gallery2': 'From gallery', 'finance.receiptAlt': 'Receipt', 'finance.photoAttached': 'Receipt attached — will be saved with the entry below', 'finance.removePhotoAria': 'Remove photo',
+  'finance.byCategory': 'By category', 'finance.whereMoneyGoes': 'Where your money goes this period', 'finance.breakdownEmptyTitle': 'Nothing to show yet', 'finance.breakdownEmptyText': 'The category breakdown will appear after your first entry this period.',
+  'finance.history': 'History', 'fh.from': 'From', 'fh.to': 'To', 'fh.thisMonth': 'This month', 'fh.lastMonth': 'Last month', 'fh.thisYear': 'This year', 'fh.kind': 'Type', 'fh.all': 'All', 'fh.allCategories': 'All categories', 'fh.category': 'Category', 'fh.search': 'Search', 'fh.searchPlaceholder': 'E.g. coffee', 'fh.emptyTitle': 'Nothing found', 'fh.emptyText': 'Change the dates, category or search text.', 'fa.amount': 'Amount', 'fa.note': 'Comment (optional)', 'fa.notePlaceholder': 'E.g. lunch with colleagues', 'fa.date': 'Date', 'fa.hint': 'Tap a category icon to add an amount right away', 'finance.emptyTitle': 'No entries yet', 'finance.emptyText': 'Add your first entry above — e.g. "coffee 250".',
+  'finance.todayAria': 'Jump to today',
+  'update.updateAction': 'Update',
+  'shared.taskLabel': 'Shared task', 'shared.decline': 'Decline', 'shared.accept': 'Accept', 'shared.workLabel': 'Shared work', 'shared.tasksTab': 'Tasks', 'shared.peopleTab': 'Members', 'shared.invitesTab': 'Invites', 'shared.newTask': '＋ New shared task',
+  'reminder.label': 'Reminder', 'reminder.later': 'Later', 'reminder.openTask': 'Open task',
+  'common.close': 'Close', 'common.delete': 'Delete', 'common.cancel': 'Cancel', 'common.save': 'Save',
+  'backup.export': 'Save a data backup', 'backup.exportSub': 'A file with tasks, plans and finance', 'backup.import': 'Restore from backup', 'backup.importSub': 'Adds missing items from the file',
+  'cloud.quota': 'Cloud unavailable: the free plan limit is used up. Your phone and computer are not syncing right now; tasks are kept on this device.', 'cloud.movedTitle': 'Cloud updated', 'cloud.movedText': 'Sign in again with the same email and password — your tasks on this device are kept and will sync again.', 'cloud.failed': 'Could not sync with the cloud. Tasks are saved on this device.', 'task.planLabel': 'Plan', 'task.personal': 'Personal', 'task.shared': 'Shared', 'task.youOrganize': 'you organize', 'task.organizer': 'organizer',
+  'task.inviteMembers': 'Invite members', 'task.emailsPlaceholder': 'email@example.com — one address per line', 'task.inviteHint': 'After signing in with that email, the person will see the invite centered on screen and in "Shared".',
+  'task.status': 'Status', 'task.statusNew': 'New — not started', 'task.statusAccepted': 'Accepted', 'task.statusOpen': 'In progress', 'task.statusQuestion': 'Has a question', 'task.statusReview': 'Done, in review', 'task.statusCompleted': 'Accepted and done', 'shared.later': 'Later', 'task.reports': 'Task reports', 'task.reportPlaceholder': 'What was done, a question for the organizer…', 'task.reportPhoto': '📷 Photo', 'task.reportSend': 'Send report',
+  'task.title': 'Title', 'task.titlePlaceholder': 'E.g. prepare the report', 'task.voiceTitleAria': 'Dictate title',
+  'task.date': 'Date', 'task.when': 'When', 'task.anytime': 'No specific time — anytime that day', 'task.exactTime': 'Set exact time', 'task.exactTimeAria': 'Exact task time',
+  'task.completionHelp': 'Check it off in the list — the title crosses out automatically.',
+  'task.autoCarry': 'Automatically carry over to the next day until done',
+  'task.priority': 'Priority', 'task.priorityNormal': 'Normal', 'task.priorityHigh': 'High', 'task.priorityLow': 'Low',
+  'task.repeat': 'Repeat', 'task.repeatNone': "Don't repeat", 'task.repeatDaily': 'Every day', 'task.repeatWeekdays': 'Weekdays', 'task.repeatWeekly': 'Every week', 'task.repeatMonthly': 'Every month',
+  'task.remind': 'Remind me',
+  'task.subtasksNoteLegend': 'Subtasks and note', 'task.subtasksTitle': '☑ Subtasks', 'task.subtasksHint': '— a checklist inside the task, one item per line', 'task.subtasksPlaceholder': 'E.g.:\nBuy supplies\nCall the client', 'task.voiceSubtasksAria': 'Dictate subtask',
+  'task.noteTitle': '📝 Note', 'task.noteHint': '— plain text, not a checklist', 'task.notePlaceholder': 'Optional details, comments, address, etc.', 'task.voiceNoteAria': 'Dictate note',
+  'task.attachmentLegend': 'Attachment', 'task.camera': '📷 Camera', 'task.gallery': '▧ Gallery', 'task.document': '📎 Document', 'task.attachmentHelp': 'You can attach a photo or a document of any format up to 4 MB.',
+  'task.previewAlt': 'Attachment preview', 'task.openFile': 'Open file',
+  'task.attachmentComment': 'Attachment comment', 'task.attachmentCommentPlaceholder': 'E.g. the site was inspected, no issues',
+  'task.editTitle': 'Edit task', 'task.newTitle': 'New task', 'task.newByVoice': 'New task by voice',
+  'plans.personalOverview': 'Personal overview', 'plans.title': 'To-dos and plans', 'plans.enableNotifications': 'Enable notifications',
+  'plans.when': 'Target date', 'plans.optional': 'optional', 'plans.inputPlaceholder': 'E.g. practice English', 'plans.hint': 'A plan is shown in its own week, month and year. You can enter several items, one per line.', 'plans.addToList': 'Add to list',
+  'update.appLabel': 'App', 'update.title': 'Updates', 'update.latestVersion': 'Latest version', 'update.defaultNote': 'Update center and manual install of the new version.', 'update.updateApp': 'Update app', 'update.hint': 'Tasks, photos and settings are kept when updating.',
+  'update.accountSubtitle': 'Sign in or register', 'update.notificationsSubtitle': 'Reminders and daily summary', 'update.feedback': 'Feedback', 'update.feedbackSubtitle': 'Report an issue, attach a photo',
+  'notif.remindersLabel': 'Reminders', 'notif.exactTitle': 'At task time', 'notif.exactText': 'At the exact time set in the reminder', 'notif.dailyTitle': "Today's summary", 'notif.dailyText': 'Task count and upcoming tasks', 'notif.dailyTime': 'First reminder at', 'notif.repeat': 'How often to remind', 'notif.repeatOnce': 'Once a day', 'notif.repeatTwice': 'Twice a day', 'notif.repeatHourly2': 'Every 2 hours (until 9 pm)', 'notif.repeatHourly': 'Every hour (until 9 pm)', 'notif.dailyTime2': 'Second reminder at', 'notif.overdueTitle': 'Overdue tasks', 'notif.overdueText': 'Once a day, if unfinished tasks remain', 'notif.test': 'Test notification', 'notif.save': 'Save settings', 'notif.hint': 'On iPhone, notifications work for the planner added to the Home Screen. After signing in, server push notifications arrive even when the app is closed.',
+  'feedback.helpLabel': 'Help the developer', 'feedback.describe': 'Describe the issue or suggestion', 'feedback.placeholder': 'What happened? What did you tap? What did you expect?', 'feedback.voiceAria': 'Dictate text', 'feedback.replyEmail': 'Reply email', 'feedback.emailPlaceholder': "Taken from your account", 'feedback.attachPhoto': '▧ Attach a photo of the issue', 'feedback.removePhotoAria': 'Remove photo', 'feedback.send': 'Send to developer', 'feedback.hint': 'The message is sent to the developer in the background. Photos are shrunk automatically before sending. The reply arrives at your account email or the one you enter.',
+  'sync.cloudLabel': 'Cloud', 'sync.title': 'Sync', 'sync.email': 'Email', 'sync.password': 'Password', 'sync.passwordPlaceholder': 'At least 8 characters', 'sync.signUp': 'Sign up', 'sync.signIn': 'Sign in', 'sync.forgotPassword': 'Forgot password? Get a new email',
+  'sync.recoveryNote': 'Open only the newest email. Click "Reset password" in it. If the email contains a numeric code, you can enter it below.', 'sync.codeFromEmail': 'Code from the email', 'sync.codePlaceholder': '6–8 digits', 'sync.checkCode': 'Check code', 'sync.resendCode': 'Send a new code', 'sync.backToLogin': 'Back to sign in',
+  'sync.codeConfirmedNote': 'Code confirmed. Choose a new password — you do not need the old one.', 'sync.newPassword': 'New password', 'sync.repeatPassword': 'Repeat password', 'sync.saveNewPassword': 'Save new password',
+  'sync.syncNow': 'Sync now', 'sync.switchUser': 'Switch user', 'sync.pinLogin': 'Quick PIN sign-in', 'sync.pinHint': 'The four digits are stored only on this device.', 'sync.pinDigits': '4 digits', 'sync.pinNewAria': 'New PIN', 'sync.pinSet': 'Set PIN', 'sync.pinRemove': 'Remove PIN',
+  'sync.note': 'Each email has its own separate planner. On a shared device, tap "Switch user" before someone else signs into their account.',
+  'pin.enter': 'Enter PIN', 'pin.hint': 'Four digits for quick sign-in to the planner.', 'pin.codeAria': 'PIN', 'pin.open': 'Open planner', 'pin.usePassword': 'Sign in with email and password',
+  'profile.personalDataLabel': 'Personal data', 'profile.myProfile': 'My profile', 'profile.chooseAria': 'Choose a photo from gallery', 'profile.photoAlt': 'Profile photo',
+  'profile.photo': 'Photo', 'profile.theme': 'Color theme', 'profile.photoHint': 'Shown in the top-right corner', 'profile.takePhoto': 'Take a photo', 'profile.removePhoto': 'Remove photo',
+  'profile.howToAddress': 'What should we call you', 'profile.namePlaceholder': 'E.g. Alex', 'profile.note': 'You can change your name and profile photo here.'
+} };
+const LOCALE = () => appLang === 'en' ? 'en-US' : 'ru-RU';
+function tr(key) { const dict = TRANSLATIONS[appLang] || TRANSLATIONS.ru; return dict[key] ?? TRANSLATIONS.ru[key] ?? key; }
+function applyStaticTranslations() {
+  $$('[data-i18n]').forEach(el => { el.textContent = tr(el.dataset.i18n); });
+  $$('[data-i18n-placeholder]').forEach(el => { el.placeholder = tr(el.dataset.i18nPlaceholder); });
+  $$('[data-i18n-aria]').forEach(el => { el.setAttribute('aria-label', tr(el.dataset.i18nAria)); });
+  $$('[data-i18n-title]').forEach(el => { el.title = tr(el.dataset.i18nTitle); });
+  $$('[data-i18n-alt]').forEach(el => { el.alt = tr(el.dataset.i18nAlt); });
+}
+function setLang(lang) {
+  appLang = lang === 'en' ? 'en' : 'ru';
+  localStorage.setItem(LANG_KEY, appLang);
+  document.documentElement.lang = appLang;
+  $$('.lang-button').forEach(b => b.classList.toggle('active', b.dataset.lang === appLang));
+  applyStaticTranslations();
+  render(); renderFinance(); renderProfile();
+  // Часть интерфейса переводится слоем i18n-en.js прямо в разметке; при возврате на русский
+  // эти тексты восстанавливаются только перезагрузкой страницы.
+  if (appLang === 'en') window.DayI18nEn?.start(); else if (window.DayI18nEn) { window.DayI18nEn.stop(); location.reload(); }
+}
+const $ = (selector) => document.querySelector(selector);
+const $$ = (selector) => [...document.querySelectorAll(selector)];
+const pad = (n) => String(n).padStart(2, '0');
+const toKey = (date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+const fromKey = (key) => { const [y, m, d] = key.split('-').map(Number); return new Date(y, m - 1, d); };
+let todayKey = toKey(new Date());
+
+const accountSuffix = () => window.DaySync?.user()?.id || 'guest';
+const taskStorageKey = () => `${STORAGE_KEY}:${accountSuffix()}`;
+const deletedStorageKey = () => `${DELETED_KEY}:${accountSuffix()}`;
+const profileStorageKey = () => `${PROFILE_KEY}:${accountSuffix()}`;
+const planStorageKey = () => `${PLAN_KEY}:${accountSuffix()}`;
+const stateUpdatedStorageKey = () => `${STATE_UPDATED_KEY}:${accountSuffix()}`;
+const pinStorageKey = () => `${PIN_KEY}:${accountSuffix()}`;
+const pinUnlockedAtStorageKey = () => `${PIN_UNLOCKED_AT_KEY}:${accountSuffix()}`;
+const notificationStorageKey = () => `${NOTIFICATION_KEY}:${accountSuffix()}`;
+const expensesStorageKey = () => `${EXPENSES_KEY}:${accountSuffix()}`;
+const financeLimitsStorageKey = () => `${FINANCE_LIMITS_KEY}:${accountSuffix()}`;
+const deletedExpensesStorageKey = () => `${DELETED_EXPENSES_KEY}:${accountSuffix()}`;
+
+let tasks = loadTasks();
+let selectedDate = todayKey;
+let searchQuery = '';
+let currentView = 'today';
+let currentPeriod = 'day';
+let installPrompt = null;
+let pendingPhoto = null;
+let pendingAttachment = null;
+let deletedIds = loadDeletedIds();
+let suppressSync = false;
+let syncTimer = null;
+let syncInFlight = false;
+let activeRecognition = null;
+let activeVoiceButton = null;
+const HAS_SPEECH_RECOGNITION = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+let profile = loadProfile();
+let pendingProfilePhoto = profile.photo || '';
+let periodPlans = loadPeriodPlans();
+let appStateUpdatedAt = localStorage.getItem(stateUpdatedStorageKey()) || new Date(0).toISOString();
+let currentPlanningView = 'week';
+let planningAnchorDate = selectedDate;
+let feedbackPhoto = null;
+let pushSubscriptionActive = false;
+let pushSubscriptionRegisteredAt = 0;
+let pendingNotificationTaskId = '';
+const defaultNotificationSettings = { exact: true, daily: true, dailyTime: '09:00', repeat: 'once', dailyTime2: '18:00', overdue: true };
+function loadNotificationSettings() { try { return { ...defaultNotificationSettings, ...JSON.parse(localStorage.getItem(notificationStorageKey()) || '{}') }; } catch { return { ...defaultNotificationSettings }; } }
+let notificationSettings = loadNotificationSettings();
+let pinUnlocked = false;
+let appHiddenAt = 0;
+let latestAppVersion = APP_VERSION;
+let latestUpdateNotes = ['Центр обновлений и ручная установка новой версии.'];
+let updateInProgress = false;
+let focusIndex = 0;
+let focusTaskIds = [];
+let focusRotateTimer = null;
+let signUpBusy = false;
+let signUpCooldownUntil = 0;
+let sharedTasks = [];
+let sharedPresence = new Map();
+let currentSharedTab = 'tasks';
+let sharedLoading = false;
+let activeSharedInviteId = '';
+let sharedDialogBaseline = null;
+const L = (ru, en) => appLang === 'en' ? en : ru;
+// Статусы совместной задачи: исполнитель отмечает «Принял», «В работе», «Есть вопрос», «Готово»; организатор — «Принято и завершено».
+const SHARED_STATUSES = { new: ['Новая', 'New', '○'], accepted: ['Принял', 'Accepted', '✓'], open: ['В работе', 'In progress', '▶'], question: ['Есть вопрос', 'Question', '?'], review: ['Готово, на проверке', 'Done, in review', '◷'], completed: ['Завершено', 'Completed', '✓'] };
+let sharedPromptSnoozed = new Set(); let pendingReport = { photo: null, voice: null, voiceSec: 0 }; let reportRecorder = null;
+let sharedPresenceBusy = false;
+let expenses = loadExpenses();
+let financeLimits = loadFinanceLimits();
+let deletedExpenseIds = loadDeletedExpenseIds();
+let activeTab = 'planner';
+let financeKind = 'expense';
+
+// Приведение данных любого возраста к текущему формату: старые записи (из прошлых версий, из облака, из файла копии)
+// не должны ломать экраны. Функции безопасно вызывать повторно.
+function isDay(x) { return /^\d{4}-\d{2}-\d{2}$/.test(x); } // функция, а не const: нужна ещё до того, как выполнится остальной код файла
+function normalizeTask(t) {
+  if (!t || typeof t !== 'object') return null;
+  return { autoCarry: false, reminder: '', notified: false, photo: null, attachment: null, photoCapturedAt: '', proofNote: '', repeat: 'none', carryCount: 0, note: '', time: '', completed: false, ...t,
+    id: typeof t.id === 'string' && t.id ? t.id : crypto.randomUUID(),
+    title: String(t.title ?? ''), date: isDay(t.date) ? t.date : toKey(new Date()),
+    priority: ['low', 'normal', 'high'].includes(t.priority) ? t.priority : 'normal',
+    subtasks: Array.isArray(t.subtasks) ? t.subtasks.filter(x => x && typeof x === 'object').map(x => ({ ...x, title: String(x.title ?? ''), done: !!x.done })) : [],
+    updatedAt: t.updatedAt || new Date(0).toISOString() };
+}
+function normalizePlan(p) {
+  if (!p || typeof p !== 'object') return null;
+  return { ...p, id: typeof p.id === 'string' && p.id ? p.id : crypto.randomUUID(), text: String(p.text ?? ''),
+    createdAt: p.createdAt || (isDay(p.anchorDate) ? `${p.anchorDate}T00:00:00.000Z` : new Date(0).toISOString()) };
+}
+function normalizeExpense(e) {
+  if (!e || typeof e !== 'object') return null;
+  const stamp = e.occurredAt || e.updatedAt || new Date(0).toISOString();
+  return { kind: 'expense', ...e, id: typeof e.id === 'string' && e.id ? e.id : crypto.randomUUID(), title: String(e.title ?? ''),
+    amount: Number.isFinite(Number(e.amount)) ? Number(e.amount) : 0, occurredAt: stamp, updatedAt: e.updatedAt || stamp };
+}
+function loadTasks() {
+  try {
+    let current = localStorage.getItem(taskStorageKey());
+    // Старые «общие» данные (до появления аккаунтов) больше не подхватываются чужим аккаунтом: они видны только без входа.
+    const legacy = accountSuffix() === 'guest' ? localStorage.getItem(STORAGE_KEY) || localStorage.getItem(LEGACY_KEY) : null;
+    const parsed = JSON.parse(current || legacy || 'null');
+    if (Array.isArray(parsed)) return parsed.map(normalizeTask).filter(Boolean);
+    return seedTasks();
+  } catch { return seedTasks(); }
+}
+
+// Надгробия удалённых записей: { id: время удаления }. Хранятся, пока не истекут (90 дней),
+// а не стираются после первой синхронизации — иначе другое устройство вернёт удалённое обратно.
+function loadTombstones(key) {
+  try {
+    const raw = JSON.parse(localStorage.getItem(key) || '{}');
+    if (Array.isArray(raw)) { const now = new Date().toISOString(); return Object.fromEntries(raw.map(id => [id, now])); }
+    return raw && typeof raw === 'object' ? raw : {};
+  } catch { return {}; }
+}
+function markDeleted(tombstones, key, id) {
+  tombstones[id] = new Date().toISOString();
+  localStorage.setItem(key, JSON.stringify(tombstones));
+}
+function loadDeletedIds() { return loadTombstones(deletedStorageKey()); }
+function loadExpenses() {
+  try { const list = JSON.parse(localStorage.getItem(expensesStorageKey()) || '[]'); return Array.isArray(list) ? list.map(normalizeExpense).filter(Boolean) : []; } catch { return []; }
+}
+function loadDeletedExpenseIds() { return loadTombstones(deletedExpensesStorageKey()); }
+function loadProfile() {
+  try { return { name: '', photo: '', ...JSON.parse(localStorage.getItem(profileStorageKey()) || '{}') }; }
+  catch { return { name: '', photo: '' }; }
+}
+function loadPeriodPlans() {
+  try {
+    const value = JSON.parse(localStorage.getItem(planStorageKey()) || '[]');
+    if (!Array.isArray(value)) return [];
+    return value.filter(plan => plan && typeof plan === 'object').map(plan => {
+      if (plan.plannedDate) return { ...plan, scope: 'all', anchorDate: plan.plannedDate };
+      let anchorDate = plan.anchorDate;
+      if (!anchorDate && plan.scope === 'week') anchorDate = plan.period;
+      if (!anchorDate && plan.scope === 'month') anchorDate = `${plan.period}-01`;
+      if (!anchorDate && plan.scope === 'year') anchorDate = `${plan.period}-01-01`;
+      return { ...plan, scope: 'all', anchorDate: anchorDate || todayKey };
+    }).map(normalizePlan);
+  }
+  catch { return []; }
+}
+// Месячные лимиты расходов по категориям: { категория: сумма }. Хранятся вместе с профилем и планами
+// в общей строке настроек и синхронизируются только при изменении.
+function loadFinanceLimits() {
+  try { const value = JSON.parse(localStorage.getItem(financeLimitsStorageKey()) || '{}'); return value && typeof value === 'object' && !Array.isArray(value) ? value : {}; } catch { return {}; }
+}
+function saveFinanceLimits() {
+  try { localStorage.setItem(financeLimitsStorageKey(), JSON.stringify(financeLimits)); touchAppState(); } catch {}
+}
+function touchAppState() {
+  appStateUpdatedAt = new Date().toISOString(); localStorage.setItem(stateUpdatedStorageKey(), appStateUpdatedAt); queueCloudSync();
+}
+function savePeriodPlans() {
+  try { localStorage.setItem(planStorageKey(), JSON.stringify(periodPlans)); touchAppState(); return true; }
+  catch { toast('Не удалось сохранить планы'); return false; }
+}
+function saveProfile() {
+  try { localStorage.setItem(profileStorageKey(), JSON.stringify(profile)); touchAppState(); return true; }
+  catch { toast('Не удалось сохранить фотографию. Выберите снимок меньшего размера'); return false; }
+}
+function profileDisplayName() {
+  const emailName = window.DaySync?.user()?.email?.split('@')[0] || '';
+  const value = (profile.name || emailName).trim(); return value ? value.charAt(0).toLocaleUpperCase(appLang) + value.slice(1) : '';
+}
+function greetingText() {
+  const hour = new Date().getHours(); const key = hour < 6 ? 'greeting.night' : hour < 12 ? 'greeting.morning' : hour < 18 ? 'greeting.day' : 'greeting.evening';
+  return tr(key);
+}
+function taskWord(count) {
+  if (appLang === 'en') return count === 1 ? tr('word.task') : tr('word.tasks');
+  const n = Math.abs(count) % 100; const n1 = n % 10; return n > 10 && n < 20 ? 'задач' : n1 === 1 ? 'задача' : n1 > 1 && n1 < 5 ? 'задачи' : 'задач';
+}
+
+function switchAccountData() {
+  tasks = loadTasks(); deletedIds = loadDeletedIds(); profile = loadProfile(); pendingProfilePhoto = profile.photo || ''; periodPlans = loadPeriodPlans(); appStateUpdatedAt = localStorage.getItem(stateUpdatedStorageKey()) || new Date(0).toISOString(); sharedTasks = []; expenses = loadExpenses(); financeLimits = loadFinanceLimits(); deletedExpenseIds = loadDeletedExpenseIds(); runAutoCarry(); render(); renderFinance(); refreshSyncUi(); renderProfile(); loadSharedTasks(false);
+}
+
+function seedTasks() {
+  return [];
+}
+
+function save() {
+  try { localStorage.setItem(taskStorageKey(), JSON.stringify(tasks)); if (!suppressSync) queueCloudSync(); return true; }
+  catch { toast('Не хватает памяти. Удалите несколько больших вложений.'); return false; }
+}
+
+function saveExpenses() {
+  try { localStorage.setItem(expensesStorageKey(), JSON.stringify(expenses)); if (!suppressSync) queueCloudSync(); return true; }
+  catch { toast('Не хватает памяти для сохранения операций.'); return false; }
+}
+
+function runAutoCarry() {
+  let changed = false;
+  tasks.forEach(task => {
+    if (!task.completed && task.autoCarry && task.date < todayKey) {
+      task.carriedFrom = task.carriedFrom || task.date;
+      const missedDays = Math.max(1, Math.round((fromKey(todayKey) - fromKey(task.date)) / 86400000));
+      task.carryCount = (task.carryCount || 0) + missedDays;
+      task.date = todayKey;
+      task.updatedAt = new Date().toISOString();
+      changed = true;
+    }
+  });
+  if (changed) save();
+}
+
+function expenseWord(count) {
+  if (appLang === 'en') return count === 1 ? tr('word.entry') : tr('word.entries');
+  const n = Math.abs(count) % 100; const n1 = n % 10; return n > 10 && n < 20 ? 'операций' : n1 === 1 ? 'операция' : n1 > 1 && n1 < 5 ? 'операции' : 'операций';
+}
+const WEEKDAY_ABBR = () => appLang === 'en' ? ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'] : ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+function EXPENSE_CATEGORIES() {
+  return appLang === 'en' ? [
+    ['home', 'Home', '⌂', '#8e6c55'], ['transport', 'Transport', '◇', '#4c7185'], ['health', 'Pharmacy', '+', '#5d8b78'],
+    ['utilities', 'Utilities', '▥', '#99704f'], ['groceries', 'Groceries', '◒', '#758c55'], ['clothes', 'Clothes', '♢', '#87658c'],
+    ['education', 'Education', '□', '#5f7196'], ['cafe', 'Cafe', '☕', '#ae6b55'], ['travel', 'Travel', '✈', '#537f83'],
+    ['other', 'Other', '•', '#8a8996']
+  ] : [
+    ['home', 'Дом', '⌂', '#8e6c55'], ['transport', 'Транспорт', '◇', '#4c7185'], ['health', 'Аптека', '+', '#5d8b78'],
+    ['utilities', 'ЖКХ', '▥', '#99704f'], ['groceries', 'Продукты', '◒', '#758c55'], ['clothes', 'Одежда', '♢', '#87658c'],
+    ['education', 'Учёба', '□', '#5f7196'], ['cafe', 'Кафе', '☕', '#ae6b55'], ['travel', 'Путешествия', '✈', '#537f83'],
+    ['other', 'Другое', '•', '#8a8996']
+  ];
+}
+function INCOME_CATEGORIES() {
+  return appLang === 'en'
+    ? [['salary', 'Salary', '$', '#3f7a5c'], ['gift', 'Gift', '♥', '#a06b8f'], ['other', 'Other', '•', '#8a8996']]
+    : [['salary', 'Зарплата', '₽', '#3f7a5c'], ['gift', 'Подарок', '♥', '#a06b8f'], ['other', 'Другое', '•', '#8a8996']];
+}
+const EXPENSE_CATEGORY_KEYWORDS = {
+  home: ['дом', 'мебел', 'ремонт', 'home', 'furniture', 'repair'],
+  transport: ['бензин', 'азс', 'такси', 'метро', 'автобус', 'парковк', 'авто', 'gas', 'fuel', 'taxi', 'metro', 'bus', 'parking', 'car'],
+  health: ['аптек', 'врач', 'лекарств', 'клиник', 'pharmacy', 'doctor', 'medicine', 'clinic'],
+  utilities: ['жкх', 'электр', 'вода', 'газ', 'интернет', 'связь', 'utilities', 'electric', 'water', 'internet', 'phone bill'],
+  groceries: ['продукт', 'магазин', 'молок', 'хлеб', 'супермаркет', 'groceries', 'grocery', 'milk', 'bread', 'supermarket'],
+  clothes: ['одежд', 'обувь', 'clothes', 'shoes'],
+  education: ['курс', 'книг', 'учёб', 'школ', 'course', 'book', 'school', 'tuition'],
+  cafe: ['кафе', 'кофе', 'ресторан', 'обед', 'cafe', 'coffee', 'restaurant', 'lunch'],
+  travel: ['отел', 'билет', 'путешеств', 'самолёт', 'hotel', 'ticket', 'travel', 'flight']
+};
+let selectedFinanceCategory = 'groceries';
+let financePeriod = 'month';
+let financeSelectedDate = todayKey;
+let pendingExpensePhoto = null;
+function financePeriodBounds() {
+  const d = fromKey(financeSelectedDate);
+  if (financePeriod === 'day') return [financeSelectedDate, financeSelectedDate];
+  if (financePeriod === 'week') return weekBounds(financeSelectedDate);
+  if (financePeriod === 'month') return [toKey(new Date(d.getFullYear(), d.getMonth(), 1)), toKey(new Date(d.getFullYear(), d.getMonth() + 1, 0))];
+  return [`${d.getFullYear()}-01-01`, `${d.getFullYear()}-12-31`];
+}
+function moveFinancePeriod(direction) {
+  const d = fromKey(financeSelectedDate);
+  if (financePeriod === 'day') d.setDate(d.getDate() + direction);
+  else if (financePeriod === 'week') d.setDate(d.getDate() + direction * 7);
+  else if (financePeriod === 'month') d.setMonth(d.getMonth() + direction);
+  else d.setFullYear(d.getFullYear() + direction);
+  financeSelectedDate = toKey(d); renderFinance();
+}
+async function prepareExpensePhoto(file) {
+  if (!file) return;
+  if (file.size > 4 * 1024 * 1024) { toast('Файл слишком большой. Максимальный размер — 4 МБ'); return; }
+  const url = URL.createObjectURL(file); const image = new Image();
+  image.onload = () => {
+    const max = 1280; const scale = Math.min(1, max / Math.max(image.width, image.height));
+    const canvas = document.createElement('canvas'); canvas.width = Math.round(image.width * scale); canvas.height = Math.round(image.height * scale);
+    canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
+    pendingExpensePhoto = canvas.toDataURL('image/jpeg', .76);
+    URL.revokeObjectURL(url); renderExpensePhotoPreview(); toast('Чек прикреплён');
+  };
+  image.onerror = () => { URL.revokeObjectURL(url); toast('Не удалось прочитать фотографию'); };
+  image.src = url;
+}
+function renderExpensePhotoPreview() {
+  $('#financePhotoPreview').hidden = !pendingExpensePhoto;
+  $('#financePhotoPreviewImage').src = pendingExpensePhoto || '';
+}
+function detectFinanceCategory(text, kind) {
+  if (kind === 'income') return 'other';
+  const lower = text.toLowerCase();
+  const found = Object.entries(EXPENSE_CATEGORY_KEYWORDS).find(([, words]) => words.some(w => lower.includes(w)));
+  return found ? found[0] : 'other';
+}
+function financeCategoryMeta(kind, id) {
+  const list = kind === 'income' ? INCOME_CATEGORIES() : EXPENSE_CATEGORIES();
+  return list.find(([categoryId]) => categoryId === id) || list[list.length - 1];
+}
+function financeCategoryLabel(kind, id) { return financeCategoryMeta(kind, id)[1]; }
+// В английском режиме суммы показываются со знаком $ (по просьбе владельца), в русском — в рублях.
+function formatMoney(amount) { return new Intl.NumberFormat(LOCALE(), { style: 'currency', currency: appLang === 'en' ? 'USD' : 'RUB', maximumFractionDigits: 0 }).format(amount); }
+function parseFinanceAmount(text, kind) {
+  const matches = [...text.matchAll(/(\d[\d\s]*(?:[.,]\d{1,2})?)/g)];
+  const raw = matches.at(-1)?.[0] || '';
+  const amount = Number(raw.replace(/\s/g, '').replace(',', '.'));
+  if (!(amount > 0)) return null;
+  const title = text.replace(raw, '').replace(/[-—:₽р.$]+$/, '').replace(/^\$\s*/, '').trim() || (kind === 'income' ? tr('finance.incomeKind') : tr('finance.expenseKind'));
+  return { title, amount };
+}
+function parseFinanceLines(text, kind, manualCategory) {
+  const isMulti = /\r?\n/.test(text.trim());
+  return text.split(/\r?\n/).map(line => line.trim()).filter(Boolean).map(line => {
+    const parsed = parseFinanceAmount(line, kind);
+    if (!parsed) return null;
+    const category = kind === 'income' ? (manualCategory || 'other') : (isMulti ? detectFinanceCategory(line, kind) : (manualCategory || detectFinanceCategory(line, kind)));
+    return { ...parsed, category };
+  }).filter(Boolean);
+}
+function renderFinanceCategoryGrid() {
+  const list = financeKind === 'income' ? INCOME_CATEGORIES() : EXPENSE_CATEGORIES();
+  if (!list.some(([id]) => id === selectedFinanceCategory)) selectedFinanceCategory = list[0][0];
+  $('#financeCategoryGrid').innerHTML = list.map(([id, label, icon, color]) => `
+    <button type="button" class="finance-category-chip${id === selectedFinanceCategory ? ' selected' : ''}${financeKind === 'expense' && limitState(categoryMonthSpent(id, todayKey.slice(0, 7)), financeLimits[id]) === 'over' ? ' over-limit' : ''}" data-category="${id}" style="--cat:${color}">
+      <i>${icon}</i>${escapeHtml(label)}
+    </button>`).join('');
+}
+function expensesInPeriod() {
+  const [start, end] = financePeriodBounds();
+  return expenses.filter(e => { const d = (e.occurredAt || '').slice(0, 10); return d >= start && d <= end; });
+}
+function financeCategoryBreakdown() {
+  const list = financeKind === 'income' ? INCOME_CATEGORIES() : EXPENSE_CATEGORIES();
+  const periodEntries = expensesInPeriod().filter(e => e.kind === financeKind);
+  const total = periodEntries.reduce((sum, e) => sum + e.amount, 0);
+  return list.map(([id, label, icon, color]) => {
+    const amount = periodEntries.filter(e => e.category === id).reduce((sum, e) => sum + e.amount, 0);
+    return { id, label, icon, color, amount, pct: total ? Math.round(amount / total * 100) : 0 };
+  }).filter(row => row.amount > 0 || (financeKind === 'expense' && financeLimits[row.id] > 0)).sort((a, b) => b.amount - a.amount);
+}
+// Месяц, к которому относится лимит на экране: месяц выбранного периода, но не позже текущего.
+function financeLimitMonth() {
+  const end = financePeriodBounds()[1];
+  return (end < todayKey ? end : todayKey).slice(0, 7);
+}
+function categoryMonthSpent(category, month = financeLimitMonth()) {
+  return expenses.filter(e => e.kind === 'expense' && e.category === category && (e.occurredAt || '').slice(0, 7) === month).reduce((sum, e) => sum + e.amount, 0);
+}
+function limitState(spent, limit) { return !(limit > 0) ? '' : spent > limit ? 'over' : spent >= limit * 0.8 ? 'warn' : 'ok'; }
+function monthLabel(month) { const [y, m] = month.split('-').map(Number); return new Date(y, m - 1, 1).toLocaleDateString(LOCALE(), { month: 'long' }); }
+function editFinanceLimit(category) {
+  const label = (EXPENSE_CATEGORIES().find(([id]) => id === category) || [])[1] || category;
+  const current = financeLimits[category] || '';
+  const answer = window.prompt(`${tr('limit.prompt')} «${label}»`, current ? String(current) : '');
+  if (answer === null) return;
+  const value = Number(String(answer).replace(/[^\d.,]/g, '').replace(',', '.'));
+  if (value > 0) { financeLimits = { ...financeLimits, [category]: Math.round(value) }; toast(`${tr('limit.saved')}: ${label} — ${formatMoney(Math.round(value))}`); }
+  else { const next = { ...financeLimits }; delete next[category]; financeLimits = next; toast(`${tr('limit.removed')}: ${label}`); }
+  saveFinanceLimits(); renderFinance();
+}
+// После добавления расхода: предупредить, если категория подошла к лимиту (80%) или превысила его.
+function checkLimitsAfterAdd(rows) {
+  const month = todayKey.slice(0, 7); let message = '';
+  [...new Set(rows.map(row => row.category))].forEach(category => {
+    const limit = financeLimits[category]; if (!(limit > 0)) return;
+    const spent = categoryMonthSpent(category, month); const before = spent - rows.filter(r => r.category === category).reduce((sum, r) => sum + r.amount, 0);
+    const label = (EXPENSE_CATEGORIES().find(([id]) => id === category) || [])[1] || category;
+    if (spent > limit && before <= limit) message = `${tr('limit.exceeded')} «${label}»: ${formatMoney(spent)} ${tr('limit.of')} ${formatMoney(limit)}`;
+    else if (spent > limit && !message) message = `${tr('limit.stillOver')} «${label}»: ${formatMoney(spent)} ${tr('limit.of')} ${formatMoney(limit)}`;
+    else if (spent >= limit * 0.8 && before < limit * 0.8 && !message) message = `${tr('limit.near')} «${label}»: ${formatMoney(spent)} ${tr('limit.of')} ${formatMoney(limit)}`;
+  });
+  return message;
+}
+function renderFinanceBreakdown() {
+  const rows = financeCategoryBreakdown();
+  const month = financeLimitMonth();
+  $('#financeBreakdown').innerHTML = rows.map(row => {
+    const limit = financeKind === 'expense' ? financeLimits[row.id] : 0;
+    const spent = limit ? categoryMonthSpent(row.id, month) : 0; const state = limitState(spent, limit);
+    const limitBlock = financeKind !== 'expense' ? '' : limit
+      ? `<div class="finance-limit ${state}"><div class="finance-limit-bar"><em style="width:${Math.min(100, Math.round(spent / limit * 100))}%"></em></div><small>${state === 'over' ? '⚠ ' : ''}${formatMoney(spent)} ${tr('limit.of')} ${formatMoney(limit)} · ${monthLabel(month)}${state === 'over' ? ` · ${tr('limit.overBy')} ${formatMoney(spent - limit)}` : ''}</small><button type="button" class="finance-limit-edit" data-edit-limit="${row.id}">${tr('limit.change')}</button></div>`
+      : `<div class="finance-limit"><button type="button" class="finance-limit-edit" data-edit-limit="${row.id}">＋ ${tr('limit.set')}</button></div>`;
+    return `
+    <div class="finance-breakdown-row${state ? ' limit-' + state : ''}">
+      <button type="button" class="finance-breakdown-icon" data-quick-add="${row.id}" style="background:${row.color}" aria-label="${escapeHtml(row.label)}: ${tr('quick.add')}">${row.icon}<em>+</em></button>
+      <span>${escapeHtml(row.label)}<small>${row.pct}%</small></span>
+      <b>${formatMoney(row.amount)}</b>
+      ${limitBlock}
+    </div>`; }).join('');
+  // Лимит можно поставить и на категорию, где расходов ещё не было.
+  const free = financeKind === 'expense' ? EXPENSE_CATEGORIES().filter(([id]) => !rows.some(row => row.id === id)) : [];
+  $('#financeLimitAdd').hidden = !free.length;
+  $('#financeLimitAddSelect').innerHTML = `<option value="">${tr('limit.addOther')}</option>` + free.map(([id, label, icon]) => `<option value="${id}">${icon} ${escapeHtml(label)}</option>`).join('');
+  $('#financeBreakdownEmpty').hidden = !!rows.length;
+  $('#financeBreakdown').hidden = !rows.length;
+}
+function renderFinance() {
+  $$('[data-finance-period]').forEach(b => b.classList.toggle('active', b.dataset.financePeriod === financePeriod));
+  renderFinanceCategoryGrid(); renderFinanceBreakdown();
+  const periodEntries = expensesInPeriod();
+  const income = periodEntries.filter(e => e.kind === 'income').reduce((sum, e) => sum + e.amount, 0);
+  const spent = periodEntries.filter(e => e.kind === 'expense').reduce((sum, e) => sum + e.amount, 0);
+  $('#financeIncomeTotal').textContent = formatMoney(income);
+  $('#financeExpenseTotal').textContent = formatMoney(spent);
+  $('#financeBalanceTotal').textContent = formatMoney(income - spent);
+  if ($('#financeSideBalance')) $('#financeSideBalance').textContent = formatMoney(income - spent);
+  if ($('#financeHistoryDialog')?.open) renderFinanceHistory();
+}
+// ——— История операций: отдельное окно с выбором дат, типа, категории и поиском ———
+function setHistoryRange(range) {
+  const now = fromKey(todayKey); const y = now.getFullYear(); const m = now.getMonth();
+  const key = date => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  const ranges = { month: [new Date(y, m, 1), now], last: [new Date(y, m - 1, 1), new Date(y, m, 0)], year: [new Date(y, 0, 1), now] };
+  const [from, to] = ranges[range] || ranges.month;
+  $('#fhFrom').value = key(from); $('#fhTo').value = key(to);
+  $$('[data-fh-range]').forEach(b => b.classList.toggle('active', b.dataset.fhRange === range));
+}
+function renderHistoryCategoryOptions() {
+  const kind = $('#fhKind').value; const current = $('#fhCategory').value;
+  const list = kind === 'income' ? INCOME_CATEGORIES() : kind === 'expense' ? EXPENSE_CATEGORIES() : [...EXPENSE_CATEGORIES(), ...INCOME_CATEGORIES().filter(([id]) => !EXPENSE_CATEGORIES().some(([e]) => e === id))];
+  $('#fhCategory').innerHTML = `<option value="">${tr('fh.allCategories')}</option>` + list.map(([id, label, icon]) => `<option value="${id}">${icon} ${escapeHtml(label)}</option>`).join('');
+  if (list.some(([id]) => id === current)) $('#fhCategory').value = current;
+}
+function openFinanceHistory() {
+  if (!$('#fhFrom').value) setHistoryRange('month');
+  renderHistoryCategoryOptions(); renderFinanceHistory();
+  if (!$('#financeHistoryDialog').open) $('#financeHistoryDialog').showModal();
+}
+function renderFinanceHistory() {
+  let from = $('#fhFrom').value || '0000-01-01'; let to = $('#fhTo').value || '9999-12-31'; if (from > to) [from, to] = [to, from];
+  const kind = $('#fhKind').value; const category = $('#fhCategory').value; const query = $('#fhSearch').value.trim().toLocaleLowerCase(appLang);
+  const list = expenses.filter(e => {
+    const day = (e.occurredAt || '').slice(0, 10);
+    if (day < from || day > to) return false;
+    if (kind && e.kind !== kind) return false;
+    if (category && e.category !== category) return false;
+    if (query) { const [, label] = financeCategoryMeta(e.kind, e.category); if (!`${e.title} ${label} ${e.amount}`.toLocaleLowerCase(appLang).includes(query)) return false; }
+    return true;
+  }).sort((a, b) => (b.occurredAt || '').localeCompare(a.occurredAt || ''));
+  const spent = list.filter(e => e.kind === 'expense').reduce((sum, e) => sum + e.amount, 0);
+  const income = list.filter(e => e.kind === 'income').reduce((sum, e) => sum + e.amount, 0);
+  $('#financeHistorySummary').innerHTML = list.length ? `<b>${list.length} ${expenseWord(list.length)}</b>${spent ? ` · ${tr('finance.expense')} <span class="expense">−${formatMoney(spent)}</span>` : ''}${income ? ` · ${tr('finance.income')} <span class="income">+${formatMoney(income)}</span>` : ''}` : '';
+  $('#financeList').innerHTML = list.map(e => {
+    const [, label, icon, color] = financeCategoryMeta(e.kind, e.category);
+    return `
+    <article class="task finance-row">
+      <i class="finance-row-icon" style="background:${color}">${icon}</i>
+      <div class="finance-row-main">
+        <b>${escapeHtml(e.title)}${e.photo ? ` <a class="finance-photo-flag" href="${e.photo}" target="_blank" rel="noopener" aria-label="${tr('finance.openReceiptAria')}" title="${tr('finance.hasReceiptTitle')}">📷</a>` : ''}</b>
+        <small>${escapeHtml(label)} · ${fromKey((e.occurredAt || '').slice(0, 10) || todayKey).toLocaleDateString(LOCALE(), { day: 'numeric', month: 'short', year: (e.occurredAt || '').slice(0, 4) === todayKey.slice(0, 4) ? undefined : 'numeric' })}</small>
+      </div>
+      <strong class="finance-amount ${e.kind}">${e.kind === 'income' ? '+' : '−'}${formatMoney(e.amount)}</strong>
+      <button type="button" class="finance-delete" data-delete-expense="${e.id}" aria-label="${tr('finance.deleteEntryAria')}">×</button>
+    </article>`;
+  }).join('');
+  $('#financeEmptyState').hidden = !!list.length; $('#financeList').hidden = !list.length;
+}
+// ——— Быстрое добавление через иконку категории ———
+let financeAddTarget = { kind: 'expense', category: '' };
+function openFinanceAdd(kind, category) {
+  const [, label, icon, color] = financeCategoryMeta(kind, category);
+  financeAddTarget = { kind, category };
+  $('#faIcon').textContent = icon; $('#faIcon').style.background = color;
+  $('#faKindLabel').textContent = kind === 'income' ? tr('finance.incomeKind') : tr('finance.expenseKind');
+  $('#faTitle').textContent = label;
+  $('#faAmount').value = ''; $('#faNote').value = ''; $('#faDate').value = todayKey;
+  $('#financeAddDialog').showModal(); setTimeout(() => $('#faAmount').focus(), 60);
+}
+function submitFinanceAdd(event) {
+  event.preventDefault();
+  const amount = Math.round(Number(String($('#faAmount').value).replace(/\s/g, '').replace(',', '.').replace(/[^\d.]/g, '')) * 100) / 100;
+  if (!(amount > 0)) { toast(tr('toast.enterAmount')); $('#faAmount').focus(); return; }
+  const { kind, category } = financeAddTarget; const [, label] = financeCategoryMeta(kind, category);
+  const now = new Date(); const day = $('#faDate').value || todayKey;
+  const occurredAt = day === todayKey ? now.toISOString() : new Date(`${day}T12:00:00`).toISOString();
+  const row = { id: crypto.randomUUID(), kind, title: $('#faNote').value.trim() || label, amount, category, photo: null, occurredAt, updatedAt: now.toISOString() };
+  expenses.push(row); saveExpenses(); $('#financeAddDialog').close(); renderFinance();
+  const limitMessage = kind === 'expense' ? checkLimitsAfterAdd([row]) : '';
+  if (limitMessage) { toast(limitMessage, '', null, 6000); if (navigator.vibrate) navigator.vibrate([120, 60, 120]); return; }
+  toast(`${kind === 'income' ? tr('toast.incomeAdded') : tr('toast.expenseAdded')}: ${label} — ${formatMoney(amount)}`);
+}
+function addFinanceEntry(event) {
+  event.preventDefault();
+  const input = $('#financeQuickInput');
+  const rows = parseFinanceLines(input.value, financeKind, selectedFinanceCategory);
+  if (!rows.length) { toast(tr('toast.enterAmount')); return; }
+  const now = new Date().toISOString();
+  rows.forEach(row => expenses.push({ id: crypto.randomUUID(), kind: financeKind, title: row.title, amount: row.amount, category: row.category, photo: pendingExpensePhoto, occurredAt: now, updatedAt: now }));
+  saveExpenses(); renderFinance();
+  input.value = ''; pendingExpensePhoto = null; renderExpensePhotoPreview();
+  const limitMessage = financeKind === 'expense' ? checkLimitsAfterAdd(rows) : '';
+  if (limitMessage) { toast(limitMessage, '', null, 6000); if (navigator.vibrate) navigator.vibrate([120, 60, 120]); return; }
+  toast(rows.length > 1 ? `${tr('toast.entriesAdded')}: ${rows.length}` : (financeKind === 'income' ? tr('toast.incomeAdded') : tr('toast.expenseAdded')));
+}
+function deleteExpense(id) {
+  expenses = expenses.filter(e => e.id !== id);
+  markDeleted(deletedExpenseIds, deletedExpensesStorageKey(), id);
+  saveExpenses(); renderFinance(); toast(tr('toast.entryDeleted'));
+}
+function setActiveTab(tab) {
+  activeTab = tab;
+  $('#tabPlanner').classList.toggle('active', tab === 'planner'); $('#tabPlanner').setAttribute('aria-pressed', String(tab === 'planner'));
+  $('#tabFinance').classList.toggle('active', tab === 'finance'); $('#tabFinance').setAttribute('aria-pressed', String(tab === 'finance'));
+  $('#plannerView').hidden = tab !== 'planner';
+  $('#financeView').hidden = tab !== 'finance';
+  if (tab === 'finance') { if ($('#taskDialog')?.open) closeDialog(); renderFinance(); }
+  // Боковая панель, нижнее меню и плавающая кнопка показывают разделы текущей вкладки.
+  const finance = tab === 'finance';
+  $('#plannerSideNav').hidden = finance; $('#plannerSidebarFooter').hidden = finance;
+  $('#financeSideNav').hidden = !finance; $('#financeSidebarFooter').hidden = !finance;
+  $('.bottom-nav')?.classList.toggle('finance-mode', finance);
+  $$('.planner-only').forEach(el => { el.hidden = finance; }); $$('.finance-only').forEach(el => { el.hidden = !finance; });
+  // На компьютере в «Финансах» плавающая кнопка не нужна: форма расхода уже на экране, а пункт «Добавить расход» есть в боковой панели.
+  $('#addButton').classList.toggle('finance-hidden', finance);
+  $('#fabLabel').dataset.i18n = finance ? 'fnav.expense' : 'quick.newTask'; $('#fabLabel').textContent = tr($('#fabLabel').dataset.i18n);
+  const addAria = finance ? 'fnav.addExpenseAria' : 'quick.addTaskAria';
+  ['#addButton', '#mobileAddButton'].forEach(sel => { $(sel).dataset.i18nAria = addAria; $(sel).setAttribute('aria-label', tr(addAria)); });
+}
+function setFinanceKind(kind) {
+  const button = $(`.finance-kind-button[data-kind="${kind}"]`); if (button && financeKind !== kind) button.click();
+}
+function focusFinanceEntry(kind = 'expense') {
+  setFinanceKind(kind);
+  $('#financeQuickForm').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  setTimeout(() => $('#financeQuickInput').focus({ preventScroll: true }), 250);
+}
+function goFinanceSection(target) {
+  $$('[data-finance-nav]').forEach(b => b.classList.toggle('active', b.dataset.financeNav === target));
+  if (target === 'expense' || target === 'income') { focusFinanceEntry(target); return; }
+  if (target === 'history') { openFinanceHistory(); return; }
+  const section = { overview: '#financeSummarySection', categories: '#financeBreakdownSection' }[target];
+  if (target === 'overview') { window.scrollTo({ top: 0, behavior: 'smooth' }); $('.main-content')?.scrollTo?.({ top: 0, behavior: 'smooth' }); }
+  $(section)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function formatLong(key) { return fromKey(key).toLocaleDateString(LOCALE(), { weekday: 'long', day: 'numeric', month: 'long' }); }
+function formatHeaderDate(key) { const text = fromKey(key).toLocaleDateString(LOCALE(), { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }); return text.charAt(0).toLocaleUpperCase(appLang) + text.slice(1); }
+function escapeHtml(value = '') { const d = document.createElement('div'); d.textContent = value; return d.innerHTML; }
+function REPEAT_LABELS() {
+  return appLang === 'en'
+    ? { daily: 'Every day', weekdays: 'Weekdays', weekly: 'Every week', monthly: 'Every month' }
+    : { daily: 'Каждый день', weekdays: 'По будням', weekly: 'Каждую неделю', monthly: 'Каждый месяц' };
+}
+const FIXED_HOLIDAYS = { '01-01': 'Новый год', '01-02': 'Новогодние каникулы', '01-03': 'Новогодние каникулы', '01-04': 'Новогодние каникулы', '01-05': 'Новогодние каникулы', '01-06': 'Новогодние каникулы', '01-07': 'Рождество Христово', '01-08': 'Новогодние каникулы', '02-23': 'День защитника Отечества', '03-08': 'Международный женский день', '05-01': 'Праздник Весны и Труда', '05-09': 'День Победы', '06-12': 'День России', '11-04': 'День народного единства' };
+const OFFICIAL_HOLIDAYS_2026 = (() => {
+  const result = {}; const addRange = (start, end, name) => { const d = fromKey(start); const last = fromKey(end); while (d <= last) { result[toKey(d)] = name; d.setDate(d.getDate() + 1); } };
+  addRange('2026-01-01', '2026-01-11', 'Новогодние каникулы'); addRange('2026-02-21', '2026-02-23', 'Праздничные выходные'); addRange('2026-03-07', '2026-03-09', 'Праздничные выходные'); addRange('2026-05-01', '2026-05-03', 'Праздник Весны и Труда'); addRange('2026-05-09', '2026-05-11', 'День Победы'); addRange('2026-06-12', '2026-06-14', 'День России'); result['2026-11-04'] = 'День народного единства'; result['2026-12-31'] = 'Официальный выходной'; return result;
+})();
+function holidayName(key) { if (appLang !== 'ru') return ''; return OFFICIAL_HOLIDAYS_2026[key] || FIXED_HOLIDAYS[key.slice(5)] || ''; }
+function formatShortDate(key) { return fromKey(key).toLocaleDateString(LOCALE(), { day: 'numeric', month: 'short' }); }
+function weekBounds(key) {
+  const date = fromKey(key); const start = new Date(date); start.setDate(date.getDate() - ((date.getDay() + 6) % 7));
+  const end = new Date(start); end.setDate(start.getDate() + 6); return [toKey(start), toKey(end)];
+}
+function formatWeekRange(key) {
+  const [startKey, endKey] = weekBounds(key); const start = fromKey(startKey); const end = fromKey(endKey);
+  if (start.getMonth() === end.getMonth()) {
+    const month = appLang === 'en' ? end.toLocaleDateString(LOCALE(), { month: 'long' }) : end.toLocaleDateString(LOCALE(), { day: 'numeric', month: 'long' }).replace(/^\d+\s*/, '');
+    return appLang === 'en' ? `${month} ${start.getDate()}–${end.getDate()}` : `${start.getDate()}–${end.getDate()} ${month}`;
+  }
+  return `${start.toLocaleDateString(LOCALE(), { day: 'numeric', month: 'short' })} — ${end.toLocaleDateString(LOCALE(), { day: 'numeric', month: 'short' })}`;
+}
+function periodBounds() {
+  const d = fromKey(selectedDate);
+  if (currentPeriod === 'day') return [selectedDate, selectedDate];
+  if (currentPeriod === 'week') return weekBounds(selectedDate);
+  if (currentPeriod === 'month') return [toKey(new Date(d.getFullYear(), d.getMonth(), 1)), toKey(new Date(d.getFullYear(), d.getMonth() + 1, 0))];
+  return [`${d.getFullYear()}-01-01`, `${d.getFullYear()}-12-31`];
+}
+
+function renderPeriod() {
+  const strip = $('#weekStrip'); const overview = $('#calendarOverview');
+  $$('.period-button').forEach(b => b.classList.toggle('active', b.dataset.period === currentPeriod));
+  if (currentPeriod === 'day' || currentPeriod === 'week') {
+    strip.hidden = false; overview.hidden = true; renderWeek();
+  } else {
+    strip.hidden = true; overview.hidden = false;
+    if (currentPeriod === 'month') renderMonth(); else renderYear();
+  }
+}
+
+function renderWeek() {
+  const base = fromKey(selectedDate); const monday = new Date(base); monday.setDate(base.getDate() - ((base.getDay() + 6) % 7));
+  const names = WEEKDAY_ABBR();
+  $('#weekStrip').innerHTML = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(monday); d.setDate(monday.getDate() + i); const key = toKey(d);
+    const dayTasks = tasks.filter(t => t.date === key && !t.completed); const importantCount = dayTasks.filter(t => t.priority === 'high').length;
+    const priorityText = importantCount ? `, ${appLang === 'en' ? 'important tasks: ' + importantCount : 'важных задач: ' + importantCount}` : ''; const holiday = holidayName(key); const weekend = [0, 6].includes(d.getDay());
+    return `<button class="day-button ${key === selectedDate ? 'selected' : ''} ${dayTasks.length ? 'has-tasks' : ''} ${importantCount ? 'has-high-priority' : ''} ${weekend ? 'weekend' : ''} ${holiday ? 'holiday' : ''}" data-date="${key}" aria-label="${formatLong(key)}${holiday ? `, ${holiday}` : ''}${priorityText}" title="${holiday}"><em ${importantCount ? '' : 'hidden'} aria-hidden="true">!</em><span>${names[i]}</span><b>${d.getDate()}</b><i></i></button>`;
+  }).join('');
+  $$('.day-button').forEach(b => b.addEventListener('click', () => { selectedDate = b.dataset.date; if (currentPeriod === 'day') render(); else { renderPeriod(); renderStats(); } }));
+}
+
+function renderMonth() {
+  const anchor = fromKey(selectedDate); const first = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+  const start = new Date(first); start.setDate(first.getDate() - ((first.getDay() + 6) % 7));
+  const heads = WEEKDAY_ABBR().map(x => `<div class="month-grid-head">${x}</div>`).join('');
+  const days = Array.from({ length: 42 }, (_, i) => {
+    const d = new Date(start); d.setDate(start.getDate() + i); const key = toKey(d); const count = tasks.filter(t => t.date === key && !t.completed).length; const holiday = holidayName(key); const weekend = [0, 6].includes(d.getDay());
+    return `<button class="month-day ${d.getMonth() !== anchor.getMonth() ? 'outside' : ''} ${key === selectedDate ? 'selected' : ''} ${weekend ? 'weekend' : ''} ${holiday ? 'holiday' : ''}" data-month-date="${key}" title="${holiday}" aria-label="${formatLong(key)}${holiday ? `, ${holiday}` : ''}"><b>${d.getDate()}</b>${holiday ? '<em>праздник</em>' : count ? `<small>${count} дел</small>` : ''}</button>`;
+  }).join('');
+  $('#calendarOverview').innerHTML = `<div class="month-grid">${heads}${days}</div>`;
+  $$('[data-month-date]').forEach(b => b.addEventListener('click', () => { selectedDate = b.dataset.monthDate; currentPeriod = 'day'; render(); }));
+}
+
+function renderYear() {
+  const year = fromKey(selectedDate).getFullYear();
+  $('#calendarOverview').innerHTML = `<div class="year-grid">${Array.from({ length: 12 }, (_, month) => {
+    const count = tasks.filter(t => { const d = fromKey(t.date); return d.getFullYear() === year && d.getMonth() === month && !t.completed; }).length;
+    const name = new Date(year, month, 1).toLocaleDateString('ru-RU', { month: 'long' });
+    return `<button class="year-month" data-month="${month}"><strong>${name[0].toUpperCase() + name.slice(1)}</strong><span><b>${count}</b> активных дел</span></button>`;
+  }).join('')}</div>`;
+  $$('[data-month]').forEach(b => b.addEventListener('click', () => { selectedDate = toKey(new Date(year, Number(b.dataset.month), 1)); currentPeriod = 'month'; render(); }));
+}
+
+function visibleTasks() {
+  let result; const [start, end] = periodBounds();
+  if (searchQuery) result = tasks;
+  else if (currentView === 'upcoming') result = tasks.filter(t => t.date >= todayKey && !t.completed);
+  else if (currentView === 'completed') result = tasks.filter(t => t.completed);
+  else result = tasks.filter(t => t.date >= start && t.date <= end);
+  if (searchQuery) result = result.filter(t => `${t.title} ${t.note || ''} ${t.proofNote || ''} ${t.attachment?.name || ''} ${(t.subtasks || []).map(s => s.title).join(' ')}`.toLocaleLowerCase('ru').includes(searchQuery));
+  const priorityOrder = { high: 0, normal: 1, low: 2 };
+  return result.sort((a, b) => {
+    if (searchQuery) return (b.date + (b.time || '99:99')).localeCompare(a.date + (a.time || '99:99'));
+    const completedLast = currentView === 'today' && currentPeriod === 'day' ? Number(a.completed) - Number(b.completed) : 0;
+    return completedLast || (a.date + (a.time || '99:99')).localeCompare(b.date + (b.time || '99:99')) || (priorityOrder[a.priority] ?? 1) - (priorityOrder[b.priority] ?? 1);
+  });
+}
+
+function carryDayLabel(count) {
+  if (appLang === 'en') return `${count} ${count === 1 ? tr('word.day') : tr('word.days')}`;
+  return `${count} ${count === 1 ? 'день' : count < 5 ? 'дня' : 'дней'}`;
+}
+// Принятые совместные задачи показываются в ежедневнике рядом с личными (по тем же правилам периода и поиска).
+function visibleSharedTasks() {
+  if (!window.DaySync?.user()) return [];
+  const [start, end] = periodBounds(); const list = acceptedSharedTasks();
+  if (searchQuery) return list.filter(t => `${t.title} ${t.note || ''} ${(t.subtasks || []).map(s => s.title).join(' ')}`.toLocaleLowerCase('ru').includes(searchQuery));
+  if (currentView === 'upcoming') return list.filter(t => t.date >= todayKey && t.status !== 'completed');
+  if (currentView === 'completed') return list.filter(t => t.status === 'completed');
+  // Незавершённая совместная задача не пропадает вместе со своим днём: пока она не завершена, она показывается
+  // в любом периоде, который включает сегодня, как просроченная.
+  const includesToday = todayKey >= start && todayKey <= end;
+  return list.filter(t => (t.date >= start && t.date <= end) || (includesToday && isSharedOverdue(t)));
+}
+function isSharedOverdue(t) { return !!t?.date && t.date < todayKey && t.status !== 'completed'; }
+function renderTaskRow(t) {
+    const subDone = (t.subtasks || []).filter(s => s.done).length;
+    const carryLabel = t.carryCount ? `${tr('task.carriedOver')} ${carryDayLabel(t.carryCount)}` : tr('task.autoCarryTag');
+    return `<article class="task priority-${t.priority || 'normal'} ${t.completed ? 'completed' : ''}" data-task-id="${t.id}">
+    <input class="check" type="checkbox" data-check="${t.id}" ${t.completed ? 'checked' : ''} aria-label="${tr('task.markDoneAria')} ${escapeHtml(t.title)}">
+    <div class="task-main"><div class="task-title">${escapeHtml(t.title)}</div><div class="task-meta">
+      <span>${currentPeriod !== 'day' || currentView !== 'today' ? formatShortDate(t.date) + ' · ' : ''}${t.time || tr('task.anytime')}</span>
+      ${t.autoCarry ? `<span class="tag carry">↻ ${carryLabel}</span>` : ''}${t.photo ? `<span class="photo-chip">📷 ${tr('task.photoReport')}</span>` : ''}
+      ${t.repeat && t.repeat !== 'none' ? `<span class="tag repeat">⟳ ${REPEAT_LABELS()[t.repeat]}</span>` : ''}
+      ${(t.subtasks || []).length ? `<span class="tag checklist">☑ ${subDone}/${t.subtasks.length}</span>` : ''}
+      ${t.attachment || t.photo ? `<span class="tag">📎 ${tr('task.attachmentTag')}</span>` : ''}
+      ${t.priority === 'high' ? `<span class="priority-label high">${tr('task.important')}</span>` : t.priority === 'low' ? `<span class="priority-label low">${tr('task.canWait')}</span>` : ''}
+    </div>${(t.subtasks || []).length ? `<div class="subtask-list">${t.subtasks.map((s, i) => `<button type="button" class="subtask ${s.done ? 'done' : ''}" data-subtask="${t.id}" data-sub-index="${i}"><i>${s.done ? '✓' : ''}</i>${escapeHtml(s.title)}</button>`).join('')}</div>` : ''}</div><button class="more-button" data-edit="${t.id}" aria-label="${tr('task.editAria')} ${escapeHtml(t.title)}">•••</button></article>`;
+}
+function renderSharedTaskRow(t) {
+  const done = t.status === 'completed'; const subDone = (t.subtasks || []).filter(s => s.done).length;
+  const owner = t.ownerId === window.DaySync?.user()?.id ? tr('task.youOrganize') : `${tr('task.organizer')}: ${escapeHtml((t.ownerEmail || '').split('@')[0])}`;
+  return `<article class="task shared-day-task ${done ? 'completed' : ''}" data-shared-task-id="${t.id}">
+    <input class="check" type="checkbox" data-shared-check="${t.id}" ${done ? 'checked' : ''} aria-label="${tr('task.markDoneAria')} ${escapeHtml(t.title)}">
+    <div class="task-main"><div class="task-title">${escapeHtml(t.title)}</div><div class="task-meta">
+      <span>${currentPeriod !== 'day' || currentView !== 'today' || isSharedOverdue(t) ? formatShortDate(t.date) + ' · ' : ''}${t.time || tr('task.anytime')}</span>
+      ${isSharedOverdue(t) ? `<span class="tag overdue-tag">⏰ ${L('Просрочена', 'Overdue')}</span>` : ''}<span class="tag shared-tag">◎ ${tr('task.shared')}</span><span class="tag">${owner}</span>
+      ${t.status === 'review' ? `<span class="tag">${tr('task.statusReview')}</span>` : ''}
+      ${(t.subtasks || []).length ? `<span class="tag checklist">☑ ${subDone}/${t.subtasks.length}</span>` : ''}
+    </div>${(t.subtasks || []).length ? `<div class="subtask-list">${t.subtasks.map((s, i) => `<button type="button" class="subtask ${s.done ? 'done' : ''}" data-shared-day-subtask="${t.id}" data-sub-index="${i}"><i>${s.done ? '✓' : ''}</i>${escapeHtml(s.title)}${s.done && s.doneBy ? ` <small>${escapeHtml(s.doneBy.split('@')[0])}</small>` : ''}</button>`).join('')}</div>` : ''}</div><button class="more-button" data-shared-edit="${t.id}" aria-label="${tr('task.editAria')} ${escapeHtml(t.title)}">•••</button></article>`;
+}
+function renderTasks() {
+  const list = visibleTasks(); const sharedList = visibleSharedTasks();
+  const priorityOrder = { high: 0, normal: 1, low: 2 };
+  const rows = [...list.map(task => ({ task, shared: false, completed: !!task.completed })), ...sharedList.map(task => ({ task, shared: true, completed: task.status === 'completed' }))];
+  if (sharedList.length) rows.sort((a, b) => {
+    if (searchQuery) return (b.task.date + (b.task.time || '99:99')).localeCompare(a.task.date + (a.task.time || '99:99'));
+    const completedLast = currentView === 'today' && currentPeriod === 'day' ? Number(a.completed) - Number(b.completed) : 0;
+    return completedLast || (a.task.date + (a.task.time || '99:99')).localeCompare(b.task.date + (b.task.time || '99:99')) || (priorityOrder[a.task.priority] ?? 1) - (priorityOrder[b.task.priority] ?? 1);
+  });
+  $('#taskList').innerHTML = rows.map(row => row.shared ? renderSharedTaskRow(row.task) : renderTaskRow(row.task)).join('');
+  $('#emptyState').hidden = rows.length > 0;
+  $('#emptyStateTitle').textContent = searchQuery ? tr('task.notFound') : tr('task.noTasksToday');
+  $('#emptyStateText').textContent = searchQuery ? tr('task.notFoundHint') : tr('task.noTasksHint');
+  $('#emptyAddButton').hidden = !!searchQuery;
+  $$('[data-check]').forEach(el => el.addEventListener('change', () => toggleTask(el.dataset.check)));
+  $$('[data-edit]').forEach(el => el.addEventListener('click', () => openDialog(el.dataset.edit)));
+  $$('[data-subtask]').forEach(el => el.addEventListener('click', () => toggleSubtask(el.dataset.subtask, Number(el.dataset.subIndex))));
+  $$('[data-shared-check]').forEach(el => el.addEventListener('change', () => setSharedTaskCompleted(el.dataset.sharedCheck, el.checked)));
+  $$('[data-shared-edit]').forEach(el => el.addEventListener('click', () => openDialog(el.dataset.sharedEdit, 'shared')));
+  // Нажатие на название задачи открывает её так же, как «•••» (раньше открывала только маленькая кнопка справа).
+  $$('#taskList .task-title').forEach(el => el.addEventListener('click', () => el.closest('.task')?.querySelector('[data-edit],[data-shared-edit]')?.click()));
+  $$('[data-shared-day-subtask]').forEach(el => el.addEventListener('click', () => toggleSharedSubtask(el.dataset.sharedDaySubtask, Number(el.dataset.subIndex))));
+  enableTaskGestures();
+}
+
+function renderStats() {
+  const day = tasks.filter(t => t.date === selectedDate); const done = day.filter(t => t.completed).length; const planned = day.length - done;
+  const percent = day.length ? Math.round(done / day.length * 100) : 0;
+  $('#doneCount').textContent = done; $('#plannedCount').textContent = planned; $('#progressPercent').textContent = `${percent}%`;
+  $('#progressRing').style.setProperty('--p', percent); $('#progressCaption').textContent = percent === 100 ? tr('stats.greatDay') : percent > 0 ? tr('stats.keepGoing') : tr('sidebar.startSmall');
+  renderFocusCard(day);
+  const periodList = [...visibleTasks(), ...visibleSharedTasks().map(t => ({ completed: t.status === 'completed' }))]; const periodDone = periodList.filter(t => t.completed).length;
+  $('#taskSummary').textContent = periodList.length ? `${periodDone} ${tr('stats.of')} ${periodList.length} ${tr('stats.done')}` : tr('stats.allFree');
+}
+
+function renderFocusCard(day) {
+  const urgent = day.filter(t => !t.completed && t.priority === 'high');
+  const ids = urgent.map(t => t.id).join(',');
+  const listChanged = ids !== focusTaskIds.join(',');
+  focusTaskIds = urgent.map(t => t.id);
+  if (listChanged) {
+    if (focusIndex >= urgent.length) focusIndex = 0;
+    clearInterval(focusRotateTimer);
+    if (urgent.length > 1) focusRotateTimer = setInterval(() => { focusIndex = (focusIndex + 1) % focusTaskIds.length; paintFocusCard(); }, 5000);
+  }
+  paintFocusCard(urgent, day);
+}
+function paintFocusCard(urgentParam, dayParam) {
+  const card = $('#focusCard');
+  const apply = () => {
+    const day = dayParam || tasks.filter(t => t.date === selectedDate);
+    const urgent = urgentParam || day.filter(t => !t.completed && t.priority === 'high');
+    if (urgent.length) {
+      if (focusIndex >= urgent.length) focusIndex = 0;
+      const focus = urgent[focusIndex];
+      $('#focusTitle').textContent = focus.title;
+      $('#focusMeta').textContent = focus.time ? `${tr('focus.at')} ${focus.time}` : focus.autoCarry ? tr('focus.carriesOver') : tr('focus.anytime');
+      $('#focusIllustration').textContent = urgent.length > 1 ? `${focusIndex + 1}/${urgent.length}` : '★';
+      card.dataset.focusTask = focus.id; card.classList.toggle('has-task', true);
+    } else {
+      const hasOpen = day.some(t => !t.completed);
+      $('#focusTitle').textContent = hasOpen ? tr('focus.noUrgent') : tr('focus.allDone');
+      $('#focusMeta').textContent = hasOpen ? tr('focus.noUrgentHint') : tr('focus.restHint');
+      $('#focusIllustration').textContent = hasOpen ? '—' : '✓';
+      delete card.dataset.focusTask; card.classList.toggle('has-task', false);
+    }
+  };
+  clearTimeout(paintFocusCard.timer);
+  card.classList.add('focus-fade');
+  paintFocusCard.timer = setTimeout(() => { try { apply(); } finally { card.classList.remove('focus-fade'); } }, 260);
+}
+
+function renderHeader() {
+  const d = fromKey(selectedDate); const [start, end] = periodBounds();
+  const periodLabel = currentPeriod === 'day' ? formatLong(selectedDate) : currentPeriod === 'week' ? `${fromKey(start).toLocaleDateString(LOCALE(), { day: 'numeric', month: 'short' })} — ${fromKey(end).toLocaleDateString(LOCALE(), { day: 'numeric', month: 'short' })}` : currentPeriod === 'month' ? d.toLocaleDateString(LOCALE(), { month: 'long', year: 'numeric' }) : String(d.getFullYear());
+  $('#weekOverviewLabel').textContent = formatWeekRange(selectedDate);
+  $('#weekOverviewButton').hidden = currentView !== 'today' || currentPeriod !== 'day';
+  $('#dateEyebrow').textContent = periodLabel;
+  if (searchQuery) { $('#pageTitle').textContent = tr('header.searchTitle'); $('#pageSubtitle').textContent = tr('header.searchSubtitle'); $('#listTitle').textContent = `${tr('header.searchResults')}: ${visibleTasks().length}`; }
+  else if (currentView === 'upcoming') { $('#pageTitle').textContent = tr('header.upcomingTitle'); $('#pageSubtitle').textContent = tr('header.upcomingSubtitle'); $('#listTitle').textContent = tr('header.upcomingList'); }
+  else if (currentView === 'completed') { $('#pageTitle').textContent = tr('nav.completed'); $('#pageSubtitle').textContent = tr('header.completedSubtitle'); $('#listTitle').textContent = tr('header.completedList'); }
+  else {
+    const titles = { day: tr('header.planDay'), week: tr('header.planWeek'), month: tr('header.planMonth'), year: tr('header.planYear') };
+    const name = profileDisplayName(); const openCount = tasks.filter(t => t.date === selectedDate && !t.completed).length;
+    $('#pageTitle').textContent = currentPeriod === 'day' ? `${greetingText()}${name ? `, ${name}` : ''}!` : titles[currentPeriod];
+    $('#pageSubtitle').textContent = currentPeriod === 'day' ? (appLang === 'en' ? `${formatHeaderDate(selectedDate)} · ${openCount} ${taskWord(openCount)} left` : `${formatHeaderDate(selectedDate)} · ${tr('header.remaining')} ${openCount} ${taskWord(openCount)}`) : tr('header.unfinishedNote');
+    $('#listTitle').textContent = currentPeriod === 'day' ? (selectedDate === todayKey ? tr('header.todayTasks') : `${tr('header.tasksFor')} ${d.toLocaleDateString(LOCALE(), { day: 'numeric', month: 'long' })}`) : `${tr('header.tasksColon')} ${periodLabel}`;
+  }
+}
+
+function renderProfile() {
+  const name = profileDisplayName(); const initial = (name || tr('profile.defaultInitial')).charAt(0).toLocaleUpperCase(appLang);
+  if (!$('#profileInitial')) $('#profileButton').innerHTML = '<span id="profileInitial">Я</span><img id="profileAvatarImage" alt="" hidden>';
+  $('#profileInitial').textContent = initial; const previewInitial = $('#profilePreviewInitial'); if (previewInitial) previewInitial.textContent = initial;
+  const avatar = $('#profileAvatarImage'); avatar.hidden = !profile.photo; if (profile.photo) avatar.src = profile.photo; else avatar.removeAttribute('src');
+  $('#profileInitial').hidden = !!profile.photo;
+  const preview = $('#profilePreviewImage'); if (preview) { preview.hidden = !pendingProfilePhoto; if (pendingProfilePhoto) preview.src = pendingProfilePhoto; else preview.removeAttribute('src'); }
+  if (previewInitial) previewInitial.hidden = !!pendingProfilePhoto; const remove = $('#removeProfilePhoto'); if (remove) remove.hidden = !pendingProfilePhoto;
+  $('#profileButton').title = name ? `${tr('profile.titlePrefix')}: ${name}` : tr('profile.setUpTitle');
+}
+function renderConnectionState() {
+  const avatar = $('#profileButton'); if (!avatar) return;
+  const online = navigator.onLine;
+  avatar.classList.toggle('connection-online', online);
+  avatar.classList.toggle('connection-offline', !online);
+  avatar.setAttribute('aria-label', `Открыть профиль — ${online ? 'в сети' : 'нет соединения'}`);
+}
+function openProfile() {
+  pendingProfilePhoto = profile.photo || ''; $('#profileName').value = profile.name || '';
+  renderProfile(); $('#profileDialog').showModal();
+}
+function prepareProfilePhoto(file) {
+  if (!file?.type?.startsWith('image/')) { toast('Выберите фотографию'); return; }
+  const image = new Image(); const url = URL.createObjectURL(file);
+  image.onload = () => {
+    const size = 512; const scale = Math.max(size / image.width, size / image.height); const width = size / scale; const height = size / scale;
+    const canvas = document.createElement('canvas'); canvas.width = size; canvas.height = size;
+    canvas.getContext('2d').drawImage(image, (image.width - width) / 2, (image.height - height) / 2, width, height, 0, 0, size, size);
+    pendingProfilePhoto = canvas.toDataURL('image/jpeg', .78); URL.revokeObjectURL(url); renderProfile();
+  };
+  image.onerror = () => { URL.revokeObjectURL(url); toast('Не удалось прочитать фотографию'); }; image.src = url;
+}
+function saveProfileForm(event) {
+  event.preventDefault(); profile = { name: $('#profileName').value.trim(), photo: pendingProfilePhoto };
+  if (!saveProfile()) return; renderProfile(); renderHeader(); $('#profileDialog').close(); toast('Профиль сохранён');
+}
+
+function render() { renderHeader(); renderPeriod(); renderTasks(); renderStats(); renderMiniTasks(); }
+function syncNav() { $$('[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === currentView)); }
+function nextRepeatDate(task) {
+  const date = fromKey(task.date);
+  if (task.repeat === 'daily') date.setDate(date.getDate() + 1);
+  else if (task.repeat === 'weekdays') { do { date.setDate(date.getDate() + 1); } while ([0, 6].includes(date.getDay())); }
+  else if (task.repeat === 'weekly') date.setDate(date.getDate() + 7);
+  else if (task.repeat === 'monthly') {
+    const day = date.getDate();
+    date.setDate(1);
+    date.setMonth(date.getMonth() + 1);
+    const lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+    date.setDate(Math.min(day, lastDay));
+  }
+  return toKey(date);
+}
+function createNextRepeat(task) {
+  if (!task.repeat || task.repeat === 'none') return null;
+  const nextDate = nextRepeatDate(task);
+  const source = task.recurrenceSource || task.id;
+  if (tasks.some(t => t.recurrenceSource === source && t.date === nextDate)) return null;
+  const clone = { ...task, id: crypto.randomUUID(), date: nextDate, completed: false, notified: false, carriedFrom: '', carryCount: 0, recurrenceSource: source, subtasks: (task.subtasks || []).map(s => ({ title: s.title, done: false })), photo: null, attachment: null, photoCapturedAt: '', proofNote: '', updatedAt: new Date().toISOString() };
+  if (task.reminder) { const old = new Date(task.reminder); const base = fromKey(task.date); const next = fromKey(nextDate); old.setDate(old.getDate() + Math.round((next - base) / 86400000)); clone.reminder = `${toKey(old)}T${pad(old.getHours())}:${pad(old.getMinutes())}`; }
+  tasks.push(clone);
+  return clone.id;
+}
+function toggleTask(id) {
+  const task = tasks.find(t => t.id === id); if (!task) return;
+  const wasCompleted = task.completed; task.completed = !task.completed; task.updatedAt = new Date().toISOString();
+  const createdRepeatId = task.completed ? createNextRepeat(task) : null;
+  save(); render();
+  toast(task.completed ? 'Задача выполнена' : 'Задача возвращена', task.completed ? 'Отменить' : '', () => { task.completed = wasCompleted; if (createdRepeatId) { tasks = tasks.filter(t => t.id !== createdRepeatId); markDeleted(deletedIds, deletedStorageKey(), createdRepeatId); } task.updatedAt = new Date().toISOString(); save(); render(); });
+}
+function toggleSubtask(id, index) {
+  const task = tasks.find(t => t.id === id); if (!task?.subtasks?.[index]) return;
+  task.subtasks[index].done = !task.subtasks[index].done; task.updatedAt = new Date().toISOString(); save(); render();
+}
+function enableTaskGestures() {
+  $$('.task').forEach(row => {
+    let startX = 0; let startY = 0;
+    row.addEventListener('touchstart', e => { startX = e.touches[0].clientX; startY = e.touches[0].clientY; }, { passive: true });
+    row.addEventListener('touchend', e => {
+      const dx = e.changedTouches[0].clientX - startX; const dy = e.changedTouches[0].clientY - startY;
+      if (Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 1.4) return;
+      if (row.dataset.sharedTaskId) { if (dx > 0) setSharedTaskCompleted(row.dataset.sharedTaskId, !row.classList.contains('completed')); else openDialog(row.dataset.sharedTaskId, 'shared'); return; }
+      if (dx > 0) toggleTask(row.dataset.taskId); else openDialog(row.dataset.taskId);
+    }, { passive: true });
+  });
+}
+
+function parseQuickTask(text) {
+  let title = text.trim(); let date = selectedDate < todayKey ? todayKey : selectedDate; let time = '';
+  const base = fromKey(todayKey);
+  if (/\bпослезавтра\b/i.test(title)) { base.setDate(base.getDate() + 2); date = toKey(base); title = title.replace(/\bпослезавтра\b/ig, ''); }
+  else if (/\bзавтра\b/i.test(title)) { base.setDate(base.getDate() + 1); date = toKey(base); title = title.replace(/\bзавтра\b/ig, ''); }
+  else if (/\bсегодня\b/i.test(title)) { date = todayKey; title = title.replace(/\bсегодня\b/ig, ''); }
+  const months = { января: 0, февраля: 1, марта: 2, апреля: 3, мая: 4, июня: 5, июля: 6, августа: 7, сентября: 8, октября: 9, ноября: 10, декабря: 11 };
+  const dateMatch = title.match(/(?:\bна|\bдо)?\s*(\d{1,2})\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)(?:\s+(\d{4}))?/i);
+  if (dateMatch) {
+    let year = Number(dateMatch[3]) || base.getFullYear(); const month = months[dateMatch[2].toLocaleLowerCase('ru')];
+    if (!dateMatch[3] && new Date(year, month, Number(dateMatch[1])) < fromKey(todayKey)) year += 1;
+    date = toKey(new Date(year, month, Number(dateMatch[1]))); title = title.replace(dateMatch[0], '');
+  }
+  const timeMatch = title.match(/(?:\bв\s*)?([01]?\d|2[0-3])(?::|\.)([0-5]\d)\b|\bв\s+([01]?\d|2[0-3])\s*(?:час(?:а|ов)?)?\b/i);
+  if (timeMatch) { time = `${pad(Number(timeMatch[1] || timeMatch[3]))}:${timeMatch[2] || '00'}`; title = title.replace(timeMatch[0], ''); }
+  return { title: title.replace(/\s{2,}/g, ' ').replace(/^[,.;\s]+|[,.;\s]+$/g, '') || text.trim(), date, time };
+}
+function addQuickTask(title) {
+  const lines = title.split(/\r?\n/).map(line => line.trim().replace(/^[-•\d.)\s]+/, '')).filter(Boolean); if (!lines.length) return;
+  lines.forEach(clean => { const parsed = parseQuickTask(clean); tasks.push({ id: crypto.randomUUID(), ...parsed, priority: 'normal', note: '', completed: false, autoCarry: true, reminder: '', notified: false, photo: null, attachment: null, photoCapturedAt: '', proofNote: '', repeat: 'none', subtasks: [], carryCount: 0, updatedAt: new Date().toISOString() }); });
+  save(); $('#quickInput').value = ''; render(); toast(lines.length > 1 ? `Добавлено дел: ${lines.length}` : 'Дело добавлено с автопереносом');
+}
+
+function setTaskType(type = 'personal', locked = false) {
+  const shared = type === 'shared';
+  $('#taskSource').value = shared ? 'shared' : 'personal';
+  $('#sharedTaskFields').hidden = !shared;
+  $('#personalOnlyFields').hidden = shared;
+  $$('[data-task-type]').forEach(button => { button.classList.toggle('active', button.dataset.taskType === type); button.disabled = locked; });
+}
+function openDialog(id = null, source = 'personal') {
+  const task = source === 'shared' ? sharedTasks.find(t => t.id === id) : tasks.find(t => t.id === id); $('#taskForm').reset(); pendingPhoto = task?.photo || null;
+  pendingAttachment = task?.attachment || (task?.photo ? { name: 'Фотоотчёт.jpg', type: 'image/jpeg', data: task.photo, size: 0 } : null);
+  $('#taskId').value = task?.id || ''; $('#dialogTitle').textContent = task ? tr('task.editTitle') : tr('task.newTitle');
+  setTaskType(source, !!task);
+  $('#taskDialog').dataset.mode = source === 'shared' && task ? 'view' : 'edit'; renderSharedView(source === 'shared' ? task : null);
+  sharedDialogBaseline = source === 'shared' && task ? JSON.parse(JSON.stringify(task)) : null;
+  $('#sharedEmails').value = source === 'shared' ? [...(task?.acceptedEmails || []), ...(task?.invitedEmails || [])].filter(email => email !== task?.ownerEmail).join('\n') : '';
+  $('#sharedTaskStatus').value = task?.status || 'new'; resetReportComposer(); renderSharedReports(source === 'shared' ? task : null);
+  const ownsSharedTask = source !== 'shared' || !task || task.ownerId === window.DaySync?.user()?.id;
+  $('#sharedEmails').disabled = !ownsSharedTask;
+  renderSharedTaskPresence(task);
+  $('#taskTitle').value = task?.title || ''; $('#taskDate').value = task?.date || selectedDate; $('#taskTime').value = task?.time || '';
+  $('#taskTimeMode').value = task?.time ? 'exact' : 'anytime'; updateTimeMode();
+  $('#taskPriority').value = task?.priority || 'normal'; $('#taskNote').value = task?.note || '';
+  $('#taskAutoCarry').checked = task?.autoCarry || false; $('#taskReminder').value = task?.reminder || ''; $('#taskRepeat').value = task?.repeat || 'none';
+  $('#taskSubtasks').value = (task?.subtasks || []).map(s => s.title).join('\n'); $('#taskProofNote').value = task?.proofNote || ''; $('#deleteTask').hidden = !task || (source === 'shared' && task.ownerId !== window.DaySync?.user()?.id);
+  renderPhotoPreview(); $('#taskDialog').showModal(); setTimeout(() => $('#taskTitle').focus(), 50);
+}
+function closeDialog() { $('#taskDialog').close(); }
+function updateTimeMode() {
+  const exact = $('#taskTimeMode').value === 'exact';
+  $('#taskTime').hidden = !exact; $('#taskTime').required = exact;
+  if (!exact) $('#taskTime').value = '';
+}
+async function handleSubmit(event) {
+  event.preventDefault(); const id = $('#taskId').value;
+  const source = $('#taskSource').value; const existing = source === 'shared' ? sharedTasks.find(t => t.id === id) : tasks.find(t => t.id === id); const previousSubtasks = existing?.subtasks || [];
+  const subtasks = $('#taskSubtasks').value.split(/\r?\n/).map(x => x.trim()).filter(Boolean).map(title => ({ title, done: previousSubtasks.find(s => s.title === title)?.done || false, doneBy: previousSubtasks.find(s => s.title === title)?.doneBy || '', doneAt: previousSubtasks.find(s => s.title === title)?.doneAt || '' }));
+  const attachmentChanged = pendingAttachment?.data !== existing?.attachment?.data && pendingAttachment?.data !== existing?.photo;
+  const reminder = $('#taskReminder').value;
+  const notified = reminder !== (existing?.reminder || '') ? false : (existing?.notified || false);
+  const data = { title: $('#taskTitle').value.trim(), date: $('#taskDate').value, time: $('#taskTimeMode').value === 'exact' ? $('#taskTime').value : '', priority: $('#taskPriority').value, note: $('#taskNote').value.trim(), autoCarry: $('#taskAutoCarry').checked, reminder, reminderUtc: reminder ? new Date(reminder).toISOString() : '', repeat: $('#taskRepeat').value, subtasks, proofNote: $('#taskProofNote').value.trim(), notified, photo: pendingPhoto, attachment: pendingAttachment, photoCapturedAt: pendingAttachment && attachmentChanged ? new Date().toISOString() : existing?.photoCapturedAt || '', updatedAt: new Date().toISOString() };
+  if (!data.title) return;
+  if (source === 'shared') {
+    const account = window.DaySync?.user();
+    if (!account) { closeDialog(); toast('Сначала войдите в аккаунт'); openSyncDialog(); return; }
+    if (existing && existing.ownerId !== account.id) { toast(L('Менять задачу может только организатор', 'Only the organizer can change the task')); return; }
+    const requestedEmails = parseSharedEmails($('#sharedEmails').value).filter(email => email !== account.email?.toLocaleLowerCase());
+    if (!existing && !requestedEmails.length) { toast('Укажите почту хотя бы одного участника'); return; }
+    const { autoCarry, priority, repeat, reminder: personalReminder, reminderUtc, notified: personalNotified, ...sharedData } = data;
+    try {
+      // Пока форма была открыта, другие участники могли что-то отметить. Берём свежую версию из облака
+      // и переносим в неё только то, что поменяли в форме, — чужие отметки и статус не затираются.
+      const baseline = existing ? (sharedDialogBaseline?.id === existing.id ? sharedDialogBaseline : existing) : null;
+      const fresh = existing ? await freshSharedTask(existing.id) : null;
+      if (existing && !fresh) { closeDialog(); await loadSharedTasks(false); renderSharedDialog(); render(); toast('Эта совместная задача удалена или вам закрыли к ней доступ'); return; }
+      const base = fresh || {};
+      const merged = {};
+      Object.entries(sharedData).forEach(([key, value]) => {
+        if (key === 'subtasks' || key === 'updatedAt') return;
+        merged[key] = baseline && JSON.stringify(value ?? '') === JSON.stringify(baseline[key] ?? '') && key in base ? base[key] : value;
+      });
+      const freshSubtasks = base.subtasks || [];
+      merged.subtasks = sharedData.subtasks.map(item => { const live = freshSubtasks.find(s => s.title === item.title); return live ? { title: item.title, done: !!live.done, doneBy: live.doneBy || '', doneAt: live.doneAt || '' } : item; });
+      const formStatus = $('#sharedTaskStatus').value;
+      const status = baseline && formStatus === (baseline.status || 'open') ? (base.status || 'open') : formStatus;
+      const isOwner = !existing || existing.ownerId === account.id;
+      const baselineEmails = [...(baseline?.acceptedEmails || []), ...(baseline?.invitedEmails || [])].filter(email => email !== baseline?.ownerEmail).sort().join(',');
+      const emailsUntouched = !!baseline && [...requestedEmails].sort().join(',') === baselineEmails;
+      let accepted = base.acceptedEmails || []; let invited = base.invitedEmails || [];
+      if (isOwner && !emailsUntouched) { accepted = accepted.filter(email => requestedEmails.includes(email)); invited = requestedEmails.filter(email => !accepted.includes(email)); }
+      const sharedTask = {
+        ...base,
+        id: existing?.id || crypto.randomUUID(),
+        ...merged,
+        updatedAt: data.updatedAt,
+        ownerId: base.ownerId || account.id,
+        ownerEmail: base.ownerEmail || account.email?.toLocaleLowerCase(),
+        invitedEmails: invited,
+        acceptedEmails: accepted,
+        status,
+        completed: status === 'completed',
+        activity: [...(base.activity || []), { type: existing ? 'updated' : 'created', email: account.email, at: data.updatedAt }].slice(-30)
+      };
+      await window.DaySync.saveSharedTask(sharedTask);
+      selectedDate = data.date; closeDialog(); await loadSharedTasks(false); renderSharedDialog(); render();
+      toast(existing ? 'Совместная задача обновлена' : 'Приглашения отправлены в ежедневник');
+    } catch (error) { toast(sharedErrorText(error)); }
+    return;
+  }
+  if (id) Object.assign(existing, data);
+  else tasks.push({ id: crypto.randomUUID(), ...data, completed: false, carryCount: 0 });
+  if (!save()) return; selectedDate = data.date; closeDialog(); render(); toast(id ? 'Изменения сохранены' : 'Задача добавлена');
+}
+async function deleteCurrent() {
+  const id = $('#taskId').value; if (!id) return;
+  if ($('#taskSource').value === 'shared') {
+    const task = sharedTasks.find(item => item.id === id);
+    if (task?.ownerId !== window.DaySync?.user()?.id) { toast('Удалить общую задачу может только организатор'); return; }
+    try { await window.DaySync.deleteSharedTask(id); closeDialog(); await loadSharedTasks(false); renderSharedDialog(); render(); toast('Совместная задача удалена'); } catch (error) { toast(sharedErrorText(error)); }
+    return;
+  }
+  tasks = tasks.filter(t => t.id !== id); markDeleted(deletedIds, deletedStorageKey(), id); save(); closeDialog(); render(); toast('Задача удалена');
+}
+
+async function prepareAttachment(file) {
+  if (!file) return;
+  if (file.size > 4 * 1024 * 1024) { toast('Файл слишком большой. Максимальный размер — 4 МБ'); return; }
+  if (file.type?.startsWith('image/')) {
+    const url = URL.createObjectURL(file); const image = new Image();
+    image.onload = () => {
+      const max = 1280; const scale = Math.min(1, max / Math.max(image.width, image.height));
+      const canvas = document.createElement('canvas'); canvas.width = Math.round(image.width * scale); canvas.height = Math.round(image.height * scale);
+      canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height); const data = canvas.toDataURL('image/jpeg', .76);
+      pendingPhoto = data; pendingAttachment = { name: file.name || 'Фото.jpg', type: 'image/jpeg', data, size: file.size };
+      URL.revokeObjectURL(url); renderPhotoPreview(); toast('Фотография прикреплена');
+    };
+    image.onerror = () => { URL.revokeObjectURL(url); toast('Не удалось прочитать фотографию'); };
+    image.src = url; return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => { pendingPhoto = null; pendingAttachment = { name: file.name || 'Документ', type: file.type || 'application/octet-stream', data: reader.result, size: file.size }; renderPhotoPreview(); toast('Документ прикреплён'); };
+  reader.onerror = () => toast('Не удалось прочитать документ'); reader.readAsDataURL(file);
+}
+function renderPhotoPreview() {
+  const attachment = pendingAttachment || (pendingPhoto ? { name: 'Фотоотчёт.jpg', type: 'image/jpeg', data: pendingPhoto, size: 0 } : null);
+  $('#photoPreview').hidden = !attachment;
+  const imagePreview = $('#photoPreviewImage'); const fileIcon = $('#attachmentFileIcon');
+  if (attachment) {
+    const isImage = attachment.type?.startsWith('image/'); imagePreview.hidden = !isImage; fileIcon.hidden = isImage;
+    if (isImage) imagePreview.src = attachment.data; else imagePreview.removeAttribute('src');
+    $('#attachmentName').textContent = attachment.name || (isImage ? 'Фотография' : 'Документ');
+    const task = tasks.find(t => t.id === $('#taskId').value); const size = attachment.size ? ` · ${Math.max(1, Math.round(attachment.size / 1024))} КБ` : '';
+    $('#photoMeta').textContent = (task?.photoCapturedAt ? `Добавлено ${new Date(task.photoCapturedAt).toLocaleString('ru-RU')}` : 'Новое вложение') + size;
+    $('#attachmentOpen').href = attachment.data; $('#attachmentOpen').download = attachment.name || 'Вложение';
+  } else {
+    imagePreview.hidden = true; fileIcon.hidden = true; imagePreview.removeAttribute('src'); $('#attachmentName').textContent = ''; $('#photoMeta').textContent = ''; $('#attachmentOpen').removeAttribute('href');
+  }
+}
+
+function resetVoiceButton() {
+  activeRecognition = null;
+  const button = activeVoiceButton || $('#voiceButton'); activeVoiceButton = null;
+  if (!button) return; button.classList.remove('listening'); button.textContent = '🎙'; button.title = 'Голосовой ввод';
+}
+function voiceFallback(targetId, message) {
+  const target = $('#' + targetId); target?.focus(); toast(message || 'Нажмите микрофон на клавиатуре и продиктуйте текст', '', null, 5000);
+  setTimeout(() => { target?.focus(); }, 120);
+}
+function applyVoiceText(targetId, text, parseTask) {
+  const target = $('#' + targetId); if (!target) return;
+  if (parseTask) {
+    const parsed = parseQuickTask(text); target.value = parsed.title; $('#taskDate').value = parsed.date;
+    $('#taskTimeMode').value = parsed.time ? 'exact' : 'anytime'; updateTimeMode(); if (parsed.time) $('#taskTime').value = parsed.time;
+  } else if (targetId === 'taskSubtasks') target.value = [target.value.trim(), text].filter(Boolean).join('\n');
+  else target.value = [target.value.trim(), text].filter(Boolean).join(target.value.trim() ? ' ' : '');
+  target.dispatchEvent(new Event('input', { bubbles: true }));
+  target.focus();
+}
+async function startVoiceForField(targetId, buttonId, options = {}) {
+  if (activeRecognition) return;
+  if (options.openTask) { openDialog(); $('#dialogTitle').textContent = tr('task.newByVoice'); $('#taskAutoCarry').checked = true; }
+  const target = $('#' + targetId); if (!target) { toast('Поле для голосового ввода не найдено'); return; } target.focus();
+  const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!Recognition) { voiceFallback(targetId, 'Нажмите микрофон на клавиатуре телефона и продиктуйте текст'); return; }
+  if (!isSecureContext) { toast('Микрофон работает только в установленном приложении или через HTTPS'); return; }
+  try {
+    const recognition = new Recognition(); activeRecognition = recognition; activeVoiceButton = $('#' + buttonId);
+    recognition.lang = LOCALE(); recognition.interimResults = false; recognition.continuous = false; recognition.maxAlternatives = 1;
+    activeVoiceButton?.classList.add('listening'); if (activeVoiceButton) { activeVoiceButton.textContent = '●'; activeVoiceButton.title = 'Слушаю…'; }
+    recognition.onstart = () => toast(options.prompt || 'Слушаю… Говорите');
+    recognition.onresult = e => {
+      const text = [...e.results].map(result => result[0].transcript).join(' ').trim();
+      if (text) { applyVoiceText(targetId, text, !!options.parseTask); toast(options.success || 'Текст добавлен'); }
+      else toast('Речь не распознана. Попробуйте ещё раз');
+    };
+    recognition.onerror = e => {
+      const messages = { 'not-allowed': 'Разрешите доступ к микрофону в настройках браузера', 'service-not-allowed': 'Браузер запретил службу распознавания речи', 'audio-capture': 'Микрофон не найден или занят другим приложением', 'no-speech': 'Речь не услышана. Нажмите микрофон и повторите', network: 'Нет связи со службой распознавания речи' };
+      toast(messages[e.error] || 'Не удалось распознать речь. Попробуйте ещё раз');
+    };
+    recognition.onend = () => { if (activeRecognition === recognition) resetVoiceButton(); }; recognition.start();
+  } catch (error) {
+    resetVoiceButton(); if (error?.name === 'NotAllowedError' || error?.name === 'SecurityError') toast('Разрешите приложению доступ к микрофону'); else toast('Не удалось включить микрофон');
+  }
+}
+function startVoiceInput() { return startVoiceForField('taskTitle', 'voiceButton', { openTask: true, parseTask: true, prompt: 'Слушаю… Назовите задачу, дату и время', success: 'Задача распознана. Проверьте и сохраните' }); }
+function stopVoiceInput() {
+  if (!activeRecognition) return;
+  try { activeRecognition.stop(); } catch {}
+}
+function bindHoldToTalk(buttonId, starter) {
+  const button = $('#' + buttonId); if (!button) return;
+  let holding = false;
+  const start = event => {
+    if (event.type === 'keydown' && ![' ', 'Enter'].includes(event.key)) return;
+    if (event.type === 'keydown' && event.repeat) return;
+    event.preventDefault(); holding = true;
+    if (event.pointerId != null) { try { button.setPointerCapture(event.pointerId); } catch {} }
+    starter();
+  };
+  const stop = event => {
+    if (!holding) return;
+    if (event.type === 'keyup' && ![' ', 'Enter'].includes(event.key)) return;
+    event.preventDefault(); holding = false; stopVoiceInput();
+  };
+  button.addEventListener('pointerdown', start);
+  button.addEventListener('pointerup', stop);
+  button.addEventListener('pointercancel', stop);
+  button.addEventListener('lostpointercapture', stop);
+  button.addEventListener('keydown', start);
+  button.addEventListener('keyup', stop);
+  button.addEventListener('contextmenu', event => event.preventDefault());
+  button.title = 'Удерживайте, пока говорите';
+}
+
+function renderMiniTasks() {
+  const today = tasks.filter(t => t.date === todayKey && !t.completed).sort((a, b) => (a.time || '99:99').localeCompare(b.time || '99:99'));
+  $('#miniTaskList').innerHTML = today.length ? today.map(t => `<label class="mini-task"><input class="check" type="checkbox" data-mini-check="${t.id}"><div><strong>${escapeHtml(t.title)}</strong><small>${t.time || 'В течение дня'}${t.reminder ? ' · 🔔 ' + new Date(t.reminder).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) : ''}</small></div></label>`).join('') : '<div class="empty-state"><div class="empty-icon">✓</div><h3>На сегодня всё</h3></div>';
+  $$('[data-mini-check]').forEach(el => el.addEventListener('change', () => toggleTask(el.dataset.miniCheck)));
+  $('#enableNotifications').hidden = !('Notification' in window) || Notification.permission === 'granted';
+}
+
+function periodKeyForPlanDate(view, dateKey) {
+  if (view === 'week') return weekBounds(dateKey)[0];
+  if (view === 'month') return dateKey.slice(0, 7);
+  return dateKey.slice(0, 4);
+}
+function planningPeriodKey(view = currentPlanningView, anchor = planningAnchorDate) { return periodKeyForPlanDate(view, anchor); }
+function planningPeriodLabel(view = currentPlanningView) {
+  const d = fromKey(planningAnchorDate);
+  if (view === 'week') return formatWeekRange(planningAnchorDate);
+  if (view === 'month') return d.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
+  return `${d.getFullYear()} год`;
+}
+function movePlanningPeriod(direction) {
+  const d = fromKey(planningAnchorDate);
+  if (currentPlanningView === 'week') d.setDate(d.getDate() + direction * 7);
+  else if (currentPlanningView === 'month') d.setMonth(d.getMonth() + direction);
+  else if (currentPlanningView === 'year') d.setFullYear(d.getFullYear() + direction);
+  planningAnchorDate = toKey(d); $('#planDate').value = ''; renderPlanningDialog();
+}
+function renderPlanningDialog() {
+  $$('.planning-tab').forEach(button => button.classList.toggle('active', button.dataset.planningView === currentPlanningView));
+  const today = currentPlanningView === 'today'; $('#todayPlanningPanel').hidden = !today; $('#longPlanningPanel').hidden = today;
+  if (today) { renderMiniTasks(); return; }
+  const names = { week: 'Планы на неделю', month: 'Планы на месяц', year: 'Планы на год' };
+  $('#planPeriodTitle').textContent = names[currentPlanningView]; $('#planPeriodLabel').textContent = planningPeriodLabel();
+  $('#planDate').removeAttribute('min'); $('#planDate').removeAttribute('max');
+  const key = planningPeriodKey();
+  const list = periodPlans.filter(plan => periodKeyForPlanDate(currentPlanningView, plan.plannedDate || plan.anchorDate || todayKey) === key).sort((a, b) => (a.plannedDate || a.anchorDate || '9999-12-31').localeCompare(b.plannedDate || b.anchorDate || '9999-12-31') || (a.createdAt || '').localeCompare(b.createdAt || ''));
+  $('#periodPlanList').innerHTML = list.length ? list.map(plan => `<article class="period-plan"><span>•</span><div class="period-plan-content"><p>${escapeHtml(plan.text)}</p>${plan.plannedDate ? `<time datetime="${plan.plannedDate}">До ${fromKey(plan.plannedDate).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}</time>` : '<time>Без точной даты · этот период</time>'}</div><button type="button" data-delete-plan="${plan.id}" aria-label="Удалить план">×</button></article>`).join('') : '<div class="plan-empty">На этот период планов пока нет. Добавьте первый пункт или перейдите стрелками к другому периоду.</div>';
+  $$('[data-delete-plan]').forEach(button => button.addEventListener('click', () => { periodPlans = periodPlans.filter(plan => plan.id !== button.dataset.deletePlan); savePeriodPlans(); renderPlanningDialog(); }));
+}
+function addPeriodPlans(event) {
+  event.preventDefault(); if (!event.currentTarget.reportValidity()) return; const items = $('#planInput').value.split(/\n+/).map(text => text.trim()).filter(Boolean); if (!items.length) return;
+  const plannedDate = $('#planDate').value || ''; const targetDate = plannedDate || planningAnchorDate; items.forEach(text => periodPlans.push({ id: crypto.randomUUID(), scope: 'all', anchorDate: targetDate, text, plannedDate, createdAt: new Date().toISOString() }));
+  if (!savePeriodPlans()) return; if (plannedDate) planningAnchorDate = plannedDate; $('#planInput').value = ''; $('#planDate').value = ''; renderPlanningDialog(); $('#planInput').focus(); toast(items.length === 1 ? 'План добавлен — можно записать следующий' : `Добавлено планов: ${items.length}`);
+}
+
+function urlBase64ToUint8Array(value = '') {
+  const padding = '='.repeat((4 - value.length % 4) % 4);
+  const base64 = (value + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64); return Uint8Array.from([...raw].map(char => char.charCodeAt(0)));
+}
+// Push-подписка принадлежит устройству, а не аккаунту: после выхода или смены аккаунта её нужно отвязать,
+// иначе это устройство продолжит получать напоминания прежнего аккаунта.
+const PUSH_OWNER_KEY = 'day-push-owner-v1';
+async function detachPushSubscription() {
+  try {
+    const registration = await navigator.serviceWorker?.ready; const subscription = await registration?.pushManager?.getSubscription();
+    if (subscription) {
+      try { await Promise.race([window.DaySync?.deletePushSubscription?.(subscription.endpoint), new Promise(resolve => setTimeout(resolve, 3000))]); } catch {}
+      await subscription.unsubscribe();
+    }
+  } catch {}
+  try { localStorage.removeItem(PUSH_OWNER_KEY); } catch {}
+  pushSubscriptionActive = false; pushSubscriptionRegisteredAt = 0;
+}
+async function ensurePushSubscription(forceSave = false) {
+  if (!window.DaySync?.user() || !window.DaySync?.savePushSubscription || !('serviceWorker' in navigator) || !('PushManager' in window) || Notification.permission !== 'granted') {
+    pushSubscriptionActive = false; return false;
+  }
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    let subscription = await registration.pushManager.getSubscription();
+    const accountId = window.DaySync.user().id; let owner = ''; try { owner = localStorage.getItem(PUSH_OWNER_KEY) || ''; } catch {}
+    if (subscription && owner !== accountId) { await subscription.unsubscribe(); subscription = null; }
+    // Ключ уведомлений сменился (новое облако) — старая подписка больше не принимает уведомления, оформляем заново.
+    const currentKey = subscription?.options?.applicationServerKey;
+    if (subscription && currentKey && window.SUPABASE_CONFIG?.vapidPublicKey) {
+      const expected = urlBase64ToUint8Array(window.SUPABASE_CONFIG.vapidPublicKey); const actual = new Uint8Array(currentKey);
+      if (expected.length !== actual.length || expected.some((byte, index) => byte !== actual[index])) { await subscription.unsubscribe(); subscription = null; }
+    }
+    if (!subscription) {
+      const publicKey = window.SUPABASE_CONFIG?.vapidPublicKey;
+      if (!publicKey) throw new Error('Push key is missing');
+      subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(publicKey) });
+      forceSave = true;
+    }
+    try { localStorage.setItem(PUSH_OWNER_KEY, accountId); } catch {}
+    if (forceSave || Date.now() - pushSubscriptionRegisteredAt > 10 * 60 * 1000) {
+      await window.DaySync.savePushSubscription(subscription, document.documentElement.lang || 'ru', notificationSettings);
+      pushSubscriptionRegisteredAt = Date.now();
+    }
+    pushSubscriptionActive = true; return true;
+  } catch {
+    pushSubscriptionActive = false; return false;
+  }
+}
+function showReminderAlert(taskId, title, text) {
+  pendingNotificationTaskId = taskId || '';
+  $('#reminderAlertTitle').textContent = title || 'Пора выполнить задачу';
+  $('#reminderAlertText').textContent = text || '';
+  $('#reminderAlert').hidden = false;
+}
+function hideReminderAlert() { $('#reminderAlert').hidden = true; pendingNotificationTaskId = ''; }
+function openNotificationTask(taskId = pendingNotificationTaskId) {
+  hideReminderAlert(); if (!taskId) return;
+  const personal = tasks.find(task => task.id === taskId);
+  const shared = sharedTasks.find(task => task.id === taskId);
+  if (personal) { selectedDate = personal.date; render(); openDialog(taskId, 'personal'); }
+  else if (shared) { selectedDate = shared.date; openDialog(taskId, 'shared'); }
+  else toast('Задача уже выполнена или удалена');
+}
+async function enableNotifications() {
+  if (!('Notification' in window)) { toast('Уведомления не поддерживаются'); return; }
+  const permission = await Notification.requestPermission(); renderMiniTasks(); renderNotificationSettings();
+  if (permission === 'granted') {
+    const pushReady = await ensurePushSubscription(true);
+    toast(pushReady ? 'Фоновые уведомления включены' : 'Уведомления включены. Для фоновых напоминаний войдите в аккаунт');
+    await showAppNotification('День — уведомления включены', { body: 'Напоминания будут приходить на это устройство.', tag: 'notification-enabled', requireInteraction: true });
+  }
+  else toast('Уведомления не разрешены. Разрешите их в настройках устройства.');
+}
+async function showAppNotification(title, options = {}) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return false;
+  const taskId = options.data?.taskId || '';
+  const payload = { icon: 'assets/icon-192.png', badge: 'assets/icon-192.png', requireInteraction: true, silent: false, vibrate: [220, 90, 220, 90, 320], data: { url: taskId ? `./?openTask=${encodeURIComponent(taskId)}` : './', ...(options.data || {}) }, ...options };
+  try { const registration = await navigator.serviceWorker?.ready; if (registration) await registration.showNotification(title, payload); else new Notification(title, payload); return true; } catch { return false; }
+}
+function notificationStampKey(type) { return `day-notification-${type}:${accountSuffix()}:${todayKey}`; }
+function updateAppBadge() {
+  const count = tasks.filter(task => !task.completed && task.date <= todayKey).length;
+  if (navigator.setAppBadge) { if (count) navigator.setAppBadge(count).catch(() => {}); else navigator.clearAppBadge?.().catch(() => {}); }
+}
+// Времена напоминаний за день (в минутах от полуночи) по настройке «Как часто напоминать».
+function notificationSlots(settings) {
+  const toMinutes = value => { const [h, m] = String(value || '').split(':').map(Number); return Number.isFinite(h) ? h * 60 + (m || 0) : null; };
+  const first = toMinutes(settings.dailyTime) ?? 540; const last = 21 * 60; const mode = settings.repeat || 'once';
+  if (mode === 'twice') return [...new Set([first, toMinutes(settings.dailyTime2) ?? 1080])].sort((a, b) => a - b);
+  if (mode === 'hourly' || mode === 'hourly2') { const step = mode === 'hourly' ? 60 : 120; const list = []; for (let t = first; t <= Math.max(last, first); t += step) list.push(t); return list; }
+  return [first];
+}
+async function checkReminders() {
+  // Приложение могло стоять открытым с вчера: «сегодня» обновляем, иначе напоминания и просрочка считаются по старой дате.
+  const nowKey = toKey(new Date());
+  if (nowKey !== todayKey) { const followToday = selectedDate === todayKey; todayKey = nowKey; if (followToday) selectedDate = nowKey; runAutoCarry(); save(); render(); renderFinance(); }
+  const now = new Date(); updateAppBadge();
+  const due = tasks.filter(t => !t.completed && t.reminder && !t.notified && new Date(t.reminder) <= now);
+  for (const task of due) {
+    task.notified = true;
+    task.updatedAt = new Date().toISOString();
+    if (notificationSettings.exact) {
+      showReminderAlert(task.id, 'Пора выполнить задачу', task.title);
+      await showAppNotification('День — пора выполнить задачу', { body: task.title, tag: `task-${task.id}`, data: { taskId: task.id } });
+    }
+  }
+  if (due.length) { save(); if (notificationSettings.exact && $('#reminderDialog').open === false) toast(`Напоминание: ${due[0].title}`); }
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  const minutesNow = now.getHours() * 60 + now.getMinutes();
+  const todayTasks = tasks.filter(task => !task.completed && task.date === todayKey).sort((a, b) => (a.time || '99:99').localeCompare(b.time || '99:99'));
+  // Расписание повторов: у каждого времени своя отметка «уже напомнили»; если приложение открыли поздно, напоминание одно (последнее), а не пачка.
+  const slots = notificationSlots(notificationSettings); const reached = slots.filter(slot => minutesNow >= slot);
+  const slotKey = slot => notificationStampKey(`daily-${slot}`);
+  const legacyDone = !!localStorage.getItem(notificationStampKey('daily')); // отметка прошлых версий: первое напоминание сегодня уже было
+  const stamped = slot => !!localStorage.getItem(slotKey(slot)) || (legacyDone && slot === slots[0]);
+  if (notificationSettings.daily && todayTasks.length && reached.some(slot => !stamped(slot))) {
+    reached.forEach(slot => localStorage.setItem(slotKey(slot), '1'));
+    { const first = reached.length === 1 && slots[0] === reached[0]; const preview = todayTasks.slice(0, 3).map(task => task.title).join(' · '); await showAppNotification(first ? `Сегодня дел: ${todayTasks.length}` : `Осталось дел на сегодня: ${todayTasks.length}`, { body: preview, tag: `daily-${todayKey}`, renotify: true }); }
+  }
+  const overdue = tasks.filter(task => !task.completed && task.date < todayKey);
+  if (notificationSettings.overdue && overdue.length && !localStorage.getItem(notificationStampKey('overdue'))) {
+    await showAppNotification(`Остались незавершённые дела: ${overdue.length}`, { body: overdue.slice(0, 3).map(task => task.title).join(' · '), tag: `overdue-${todayKey}` }); localStorage.setItem(notificationStampKey('overdue'), '1');
+  }
+}
+
+function renderNotificationSettings() {
+  notificationSettings = loadNotificationSettings(); $('#notifyExact').checked = notificationSettings.exact; $('#notifyDaily').checked = notificationSettings.daily; $('#notifyDailyTime').value = notificationSettings.dailyTime; $('#notifyRepeat').value = notificationSettings.repeat || 'once'; $('#notifyDailyTime2').value = notificationSettings.dailyTime2 || '18:00'; $('#notifyTime2Row').hidden = $('#notifyRepeat').value !== 'twice'; $('#notifyOverdue').checked = notificationSettings.overdue;
+  const state = $('#notificationPermissionState'); const supported = 'Notification' in window; const permission = supported ? Notification.permission : 'unsupported';
+  state.className = `permission-state ${permission === 'granted' ? 'allowed' : permission === 'denied' ? 'blocked' : ''}`;
+  state.textContent = permission === 'granted' ? (pushSubscriptionActive ? '✓ Фоновые push-уведомления подключены на этом устройстве.' : '✓ Системные уведомления разрешены. Войдите в аккаунт для работы при закрытом приложении.') : permission === 'denied' ? 'Уведомления заблокированы. Разрешите их в настройках браузера или телефона.' : supported ? 'Сначала разрешите приложению показывать уведомления.' : 'Это устройство или браузер не поддерживает системные уведомления.';
+}
+async function openNotificationDialog() { $('#updateDialog').close(); renderNotificationSettings(); $('#notificationDialog').showModal(); if ('Notification' in window && Notification.permission === 'default') await enableNotifications(); }
+async function saveNotificationSettings(event) { event.preventDefault(); notificationSettings = { exact: $('#notifyExact').checked, daily: $('#notifyDaily').checked, dailyTime: $('#notifyDailyTime').value || '09:00', repeat: $('#notifyRepeat').value || 'once', dailyTime2: $('#notifyDailyTime2').value || '18:00', overdue: $('#notifyOverdue').checked }; localStorage.setItem(notificationStorageKey(), JSON.stringify(notificationSettings)); await ensurePushSubscription(true); $('#notificationDialog').close(); checkReminders(); toast('Настройки уведомлений сохранены на этом устройстве'); }
+// Цветовая тема: хранится на устройстве; в разметке стоит data-theme (пусто = синяя).
+const THEME_COLORS = { blue: '#0e3764', green: '#0f5a43', crimson: '#8a1c2b', purple: '#4b2a8c', graphite: '#2a3140' };
+function applyTheme(name) {
+  const theme = Object.hasOwn(THEME_COLORS, name) ? name : 'blue';
+  if (theme === 'blue') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = theme;
+  try { localStorage.setItem('day-theme-v1', theme === 'blue' ? '' : theme); } catch {}
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', THEME_COLORS[theme]);
+  const names = { blue: L('Синий', 'Blue'), green: L('Зелёный', 'Green'), crimson: L('Бордовый', 'Crimson'), purple: L('Фиолетовый', 'Purple'), graphite: L('Графит', 'Graphite') };
+  $$('[data-theme-choice]').forEach(button => { button.setAttribute('aria-pressed', String(button.dataset.themeChoice === theme)); button.setAttribute('aria-label', names[button.dataset.themeChoice]); });
+}
+async function testNotification() { if (!('Notification' in window) || Notification.permission !== 'granted') { await enableNotifications(); return; } const shown = await showAppNotification('Проверка — День', { body: 'Уведомления работают правильно.', tag: 'notification-test' }); toast(shown ? 'Проверочное уведомление отправлено' : 'Не удалось показать уведомление'); }
+
+function resetFeedbackForm() { $('#feedbackForm').reset(); const accountEmail = window.DaySync?.user()?.email || ''; const replyInput = $('#feedbackReplyEmail'); replyInput.value = accountEmail; replyInput.readOnly = !!accountEmail; if (!accountEmail) replyInput.placeholder = L('Ваш email — сюда придёт ответ', 'Your email — the reply will go here'); feedbackPhoto = null; $('#feedbackFile').hidden = true; $('#feedbackFileName').textContent = ''; }
+async function chooseFeedbackPhoto(file) {
+  if (!file) return;
+  if (!file.type.startsWith('image/')) { toast('Выберите фотографию или изображение'); return; }
+  if (file.size > 10 * 1024 * 1024) { toast('Фото слишком большое. Максимум 10 МБ'); return; }
+  const url = URL.createObjectURL(file); const image = new Image();
+  try {
+    await new Promise((resolve, reject) => { image.onload = resolve; image.onerror = reject; image.src = url; });
+    const max = 1600; const scale = Math.min(1, max / Math.max(image.width, image.height));
+    const canvas = document.createElement('canvas'); canvas.width = Math.max(1, Math.round(image.width * scale)); canvas.height = Math.max(1, Math.round(image.height * scale));
+    canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', .78));
+    if (!blob) throw new Error('Не удалось подготовить фото');
+    const baseName = (file.name || 'Фото проблемы').replace(/\.[^.]+$/, '');
+    feedbackPhoto = new File([blob], `${baseName}.jpg`, { type: 'image/jpeg' });
+    $('#feedbackFileName').textContent = `${feedbackPhoto.name} · ${Math.max(1, Math.round(blob.size / 1024))} КБ`;
+    $('#feedbackFile').hidden = false; toast('Фото подготовлено к отправке');
+  } catch { toast('Не удалось прочитать фотографию'); }
+  finally { URL.revokeObjectURL(url); }
+}
+function feedbackMessage(text, replyEmail) { const accountEmail = window.DaySync?.user()?.email || 'не выполнен вход'; return `Обратная связь по приложению «День»\nВерсия: ${APP_VERSION}\nАккаунт: ${accountEmail}\nEmail для ответа: ${replyEmail}\nУстройство: ${navigator.userAgent}\n\n${text}`; }
+async function submitFeedback(event) {
+  event.preventDefault();
+  const accountEmail = window.DaySync?.user()?.email || '';
+  const replyEmail = accountEmail || $('#feedbackReplyEmail').value.trim(); // без входа в облако тоже можно написать — достаточно указать email
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(replyEmail)) { toast(L('Укажите email, на который прислать ответ', 'Enter the email for the reply')); $('#feedbackReplyEmail').focus(); return; }
+  const textValue = $('#feedbackText').value.trim();
+  if (!textValue) return;
+  const button = $('#feedbackSubmitButton');
+  button.disabled = true; button.textContent = 'Отправляем…';
+  try {
+    const data = new FormData();
+    data.append('email', replyEmail);
+    data.append('Отправитель', replyEmail);
+    data.append('Аккаунт', accountEmail || 'без входа в облако');
+    data.append('Версия приложения', APP_VERSION);
+    data.append('Текст обращения', textValue);
+    data.append('_subject', `Обратная связь — День, версия ${APP_VERSION}`);
+    data.append('_template', 'table');
+    data.append('_captcha', 'false');
+    if (feedbackPhoto) data.append('attachment', feedbackPhoto, feedbackPhoto.name || 'photo.jpg');
+    const response = await fetch('https://formsubmit.co/ajax/75397e76b5b257f37da54b02fc3f7c85', { method: 'POST', headers: { Accept: 'application/json' }, body: data });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || result.success === false) throw new Error(result.message || 'Ошибка отправки');
+    $('#feedbackDialog').close(); resetFeedbackForm(); toast(`Сообщение отправлено. Ответ придёт на ${replyEmail}`);
+  } catch {
+    toast('Не удалось отправить. Проверьте интернет и попробуйте ещё раз.');
+  } finally {
+    button.disabled = false; button.textContent = 'Отправить разработчику';
+  }
+}
+
+function movePeriod(direction) {
+  const d = fromKey(selectedDate);
+  if (currentPeriod === 'day') d.setDate(d.getDate() + direction);
+  else if (currentPeriod === 'week') d.setDate(d.getDate() + direction * 7);
+  else if (currentPeriod === 'month') d.setMonth(d.getMonth() + direction);
+  else d.setFullYear(d.getFullYear() + direction);
+  selectedDate = toKey(d); render();
+}
+function toast(message, actionLabel = '', action = null, duration = 0) {
+  const el = $('#toast'); const button = $('#toastAction'); $('#toastText').textContent = message;
+  button.hidden = !actionLabel; button.textContent = actionLabel; button.onclick = action ? () => { action(); el.classList.remove('show'); } : null;
+  el.classList.add('show'); clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.remove('show'), duration || (actionLabel ? 5000 : 2400));
+}
+
+function setSyncStatus(status, title, text) {
+  $('#syncStateTitle').textContent = title; $('#syncStateText').textContent = text;
+}
+function refreshSyncUi() {
+  const user = window.DaySync?.user();
+  $('#syncAuthForm').hidden = !!user; $('#syncConnected').hidden = !user; $('#syncRecoveryCodeForm').hidden = true; $('#syncResetForm').hidden = true;
+  $('#pinRemoveButton').hidden = !user || !localStorage.getItem(pinStorageKey());
+  const avatar = $('#profileButton');
+  if (user) {
+    setSyncStatus('connected', 'Личный аккаунт подключён', user.email || 'Облачная синхронизация активна');
+    $('#openAccountFromMenu').classList.add('connected'); $('#accountMenuTitle').textContent = 'Аккаунт ✓'; $('#accountMenuSubtitle').textContent = user.email || 'Личный аккаунт'; avatar.title = user.email || 'Личный аккаунт';
+  }
+  else {
+    setSyncStatus('', 'Не подключено', 'Каждый человек входит со своей почтой и видит только свои задачи.');
+    $('#openAccountFromMenu').classList.remove('connected'); $('#accountMenuTitle').textContent = 'Аккаунт'; $('#accountMenuSubtitle').textContent = 'Войти или зарегистрироваться'; avatar.title = 'Личный профиль';
+  }
+}
+function preparePinField(input) {
+  input.value = input.value.replace(/\D/g, '').slice(0, 4);
+}
+function openSyncDialog() {
+  if ($('#profileDialog').open) $('#profileDialog').close();
+  refreshSyncUi(); $('#pinSetupInput').value = ''; $('#syncDialog').showModal();
+  setTimeout(() => { if (!$('#syncConnected').hidden) $('#pinSetupInput').focus(); }, 50);
+}
+// Резервная копия: файл на устройстве — страховка на случай сбоя облака или ошибки при обновлении.
+function exportBackup() {
+  const data = { app: 'den-ezhednevnik', version: APP_VERSION, exportedAt: new Date().toISOString(), tasks, deletedIds, expenses, deletedExpenseIds, periodPlans, financeLimits, profile: { ...profile, photo: '' } };
+  const url = URL.createObjectURL(new Blob([JSON.stringify(data)], { type: 'application/json' }));
+  const link = document.createElement('a'); link.href = url; link.download = `den-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1500);
+  toast(L('Копия сохранена в файл', 'Backup saved to a file'));
+}
+async function importBackup(file) {
+  try {
+    const data = JSON.parse(await file.text());
+    if (data?.app !== 'den-ezhednevnik' || !Array.isArray(data.tasks)) throw new Error('format');
+    const newer = (a, b) => new Date(a || 0) > new Date(b || 0);
+    const mergeById = (list, incoming, tombs) => {
+      const map = new Map(list.map(item => [item.id, item])); const changed = new Set();
+      (Array.isArray(incoming) ? incoming : []).forEach(item => {
+        if (!item || typeof item.id !== 'string') return;
+        if (tombs[item.id] && !newer(item.updatedAt, tombs[item.id])) return;
+        const current = map.get(item.id);
+        if (!current || newer(item.updatedAt, current.updatedAt)) { map.set(item.id, item); changed.add(item.id); }
+      });
+      return { list: [...map.values()], added: changed.size };
+    };
+    const t = mergeById(tasks, (Array.isArray(data.tasks) ? data.tasks : []).filter(x => x && typeof x.id === 'string').map(normalizeTask), deletedIds); tasks = t.list;
+    const e = mergeById(expenses, (Array.isArray(data.expenses) ? data.expenses : []).filter(x => x && typeof x.id === 'string').map(normalizeExpense), deletedExpenseIds); expenses = e.list;
+    const known = new Set(periodPlans.map(plan => plan.id));
+    (Array.isArray(data.periodPlans) ? data.periodPlans : []).filter(x => x && typeof x.id === 'string').map(normalizePlan).forEach(plan => { if (plan && !known.has(plan.id)) periodPlans.push(plan); });
+    if (data.financeLimits && typeof data.financeLimits === 'object') { financeLimits = { ...data.financeLimits, ...financeLimits }; try { localStorage.setItem(financeLimitsStorageKey(), JSON.stringify(financeLimits)); } catch {} }
+    const saved = [save(), saveExpenses(), savePeriodPlans()].every(Boolean); render(); renderFinance();
+    if (saved) toast(L(`Восстановлено: задач ${t.added}, операций ${e.added}`, `Restored: ${t.added} tasks, ${e.added} transactions`));
+  } catch { toast(L('Это не файл копии «День» — ничего не изменено', 'This is not a Day backup file — nothing was changed')); }
+}
+function queueCloudSync() {
+  if (!window.DaySync?.user()) return;
+  clearTimeout(syncTimer); syncTimer = setTimeout(() => performSync(false), 900);
+}
+// Заметное предупреждение сверху экрана, если облако не отвечает: иначе непонятно, почему телефон и компьютер не совпадают.
+function showCloudBanner(error) {
+  const banner = $('#cloudBanner'); if (!banner) return;
+  if (!error || error.sessionExpired || !navigator.onLine) { banner.hidden = true; return; }
+  const quota = error.status === 402 || /\b402\b|quota|exceed/i.test(error.message || '');
+  $('#cloudBannerText').textContent = quota
+    ? tr('cloud.quota')
+    : `${tr('cloud.failed')} ${error.message || ''}`.trim();
+  banner.hidden = false;
+}
+async function performSync(showMessage = true) {
+  if (!window.DaySync?.user()) { if (showMessage) toast('Сначала войдите в облако'); return; }
+  if (syncInFlight) return;
+  syncInFlight = true;
+  setSyncStatus('syncing', 'Синхронизация…', 'Обмениваемся изменениями с облаком');
+  try {
+    const sentTombstones = { ...deletedIds };
+    const result = await window.DaySync.sync('planner_tasks', tasks, sentTombstones, { profile, periodPlans, financeLimits, updatedAt: appStateUpdatedAt });
+    showCloudBanner(null);
+    // Задачи, удалённые пока шёл обмен с облаком, не должны вернуться из ответа сервера.
+    const deletedDuringSync = Object.keys(deletedIds).filter(id => !(id in sentTombstones));
+    tasks = (result.tasks || []).map(normalizeTask).filter(t => t && !deletedDuringSync.includes(t.id));
+    deletedIds = { ...(result.tombstones || {}), ...Object.fromEntries(deletedDuringSync.map(id => [id, deletedIds[id]])) };
+    localStorage.setItem(deletedStorageKey(), JSON.stringify(deletedIds));
+    const remoteState = result.appState;
+    if (remoteState && new Date(remoteState.updatedAt || 0) > new Date(appStateUpdatedAt || 0)) {
+      profile = { name: '', photo: '', ...(remoteState.profile || {}) };
+      periodPlans = Array.isArray(remoteState.periodPlans) ? remoteState.periodPlans : [];
+      pendingProfilePhoto = profile.photo || '';
+      appStateUpdatedAt = remoteState.updatedAt;
+      localStorage.setItem(profileStorageKey(), JSON.stringify(profile));
+      localStorage.setItem(planStorageKey(), JSON.stringify(periodPlans));
+      if (remoteState.financeLimits && typeof remoteState.financeLimits === 'object') { financeLimits = remoteState.financeLimits; localStorage.setItem(financeLimitsStorageKey(), JSON.stringify(financeLimits)); }
+      localStorage.setItem(stateUpdatedStorageKey(), appStateUpdatedAt);
+    }
+    const expenseResult = await window.DaySync.syncExpenses(expenses, deletedExpenseIds);
+    expenses = (expenseResult.expenses || []).map(normalizeExpense).filter(Boolean); deletedExpenseIds = expenseResult.tombstones || {}; localStorage.setItem(deletedExpensesStorageKey(), JSON.stringify(deletedExpenseIds));
+    suppressSync = true; save(); saveExpenses(); suppressSync = false; render(); renderFinance(); renderProfile(); await loadSharedTasks(false); await refreshSharedPresence(); await ensurePushSubscription(false);
+    if ($('#sharedDialog')?.open) renderSharedDialog(); else refreshSharedView();
+    setSyncStatus('connected', 'Синхронизировано', `Задач в облаке: ${tasks.length}`);
+    if (showMessage) toast('Данные синхронизированы');
+  } catch (error) {
+    suppressSync = false;
+    if (error.sessionExpired) { switchAccountData(); toast(error.message); openSyncDialog(); setSyncStatus('error', 'Нужно войти снова', error.message); }
+    else { setSyncStatus('error', 'Ошибка синхронизации', error.message); if (showMessage) toast(error.message); }
+    showCloudBanner(error);
+  } finally { syncInFlight = false; }
+}
+async function handleSyncLogin(event) {
+  event.preventDefault(); const email = $('#syncEmail').value.trim(); const password = $('#syncPassword').value;
+  setSyncStatus('syncing', 'Выполняется вход…', email);
+  try {
+    await window.DaySync.signIn(email, password); markPinUnlocked(); $('#syncPassword').value = ''; switchAccountData(); await performSync();
+    if ($('#syncDialog').open) $('#syncDialog').close();
+    renderSharedInvitePrompt();
+  }
+  catch (error) { setSyncStatus('error', 'Не удалось войти', error.message); }
+}
+async function handleSyncSignUp() {
+  const form = $('#syncAuthForm'); if (!form.reportValidity()) return;
+  const button = $('#syncSignUp');
+  const waitSeconds = Math.ceil((signUpCooldownUntil - Date.now()) / 1000);
+  if (signUpBusy || waitSeconds > 0) {
+    setSyncStatus('', 'Запрос уже отправлен', `Подождите ${Math.max(1, waitSeconds)} сек. и проверьте письмо. Повторно нажимать регистрацию не нужно.`);
+    return;
+  }
+  const email = $('#syncEmail').value.trim(); const password = $('#syncPassword').value;
+  signUpBusy = true; button.disabled = true; button.textContent = 'Отправляем…';
+  setSyncStatus('syncing', 'Создаём аккаунт…', email);
+  try {
+    const result = await window.DaySync.signUp(email, password); $('#syncPassword').value = '';
+    signUpCooldownUntil = Date.now() + 35000;
+    if (result.access_token) {
+      markPinUnlocked(); switchAccountData(); await performSync();
+      if ($('#syncDialog').open) $('#syncDialog').close();
+      renderSharedInvitePrompt();
+    }
+    else setSyncStatus('connected', 'Регистрация создана', 'Проверьте почту и откройте самое новое письмо подтверждения. После подтверждения нажмите «Войти».');
+  } catch (error) {
+    const limited = error.status === 429 || /35 seconds|security purposes|rate limit/i.test(error.message);
+    const exists = /already registered|already exists|user_already_exists/i.test(error.message);
+    if (limited) {
+      signUpCooldownUntil = Date.now() + Math.max(35000, (error.retryAfter || 0) * 1000);
+      setSyncStatus('', 'Запрос уже отправлен', 'Сервер получил регистрацию. Подождите 35 секунд, проверьте почту и не нажимайте кнопку несколько раз подряд.');
+    } else if (exists) setSyncStatus('', 'Email уже зарегистрирован', 'Нажмите «Войти» или воспользуйтесь восстановлением пароля.');
+    else setSyncStatus('error', 'Не удалось зарегистрироваться', error.message);
+  } finally {
+    signUpBusy = false;
+    const restoreButton = () => {
+      const remaining = Math.ceil((signUpCooldownUntil - Date.now()) / 1000);
+      if (remaining > 0) {
+        button.disabled = true; button.textContent = `Подождите ${remaining} с`;
+        setTimeout(restoreButton, 1000);
+      } else { button.disabled = false; button.textContent = 'Регистрация'; }
+    };
+    restoreButton();
+  }
+}
+async function handleForgotPassword() {
+  const email = $('#syncEmail').value.trim();
+  if (!email || !$('#syncEmail').checkValidity()) { $('#syncEmail').reportValidity(); return; }
+  await sendRecoveryCode(email);
+}
+async function sendRecoveryCode(email) {
+  if (!email || !/^\S+@\S+\.\S+$/.test(email)) { setSyncStatus('error', 'Введите email', 'Укажите почту, на которую зарегистрирован ежедневник.'); return; }
+  setSyncStatus('syncing', 'Отправляем письмо…', email);
+  try {
+    await window.DaySync.resetPassword(email); localStorage.setItem('day-password-recovery-email', email);
+    $('#syncRecoveryEmail').value = email; $('#syncAuthForm').hidden = true; $('#syncConnected').hidden = true; $('#syncResetForm').hidden = true; $('#syncRecoveryCodeForm').hidden = false;
+    setSyncStatus('', 'Письмо отправлено', 'Откройте только самое новое письмо. Нажмите в нём Reset password; старые письма уже недействительны.');
+    toast('Новое письмо восстановления отправлено');
+  }
+  catch (error) { setSyncStatus('error', 'Не удалось отправить письмо', error.message); }
+}
+async function handleVerifyRecoveryCode(event) {
+  event.preventDefault(); const email = $('#syncRecoveryEmail').value.trim(); const token = $('#syncRecoveryCode').value.trim().replace(/\s/g, '');
+  setSyncStatus('syncing', 'Проверяем код…', email);
+  try {
+    await window.DaySync.verifyRecoveryCode(email, token); $('#syncRecoveryCode').value = ''; $('#syncRecoveryCodeForm').hidden = true; $('#syncResetForm').hidden = false;
+    setSyncStatus('connected', 'Код подтверждён', 'Теперь придумайте новый пароль. Старый пароль не нужен.'); setTimeout(() => $('#syncNewPassword').focus(), 50);
+  } catch (error) { setSyncStatus('error', 'Код не подошёл', 'Введите код из самого нового письма или отправьте новый код.'); }
+}
+function showLoginForm() {
+  $('#syncRecoveryCodeForm').hidden = true; $('#syncResetForm').hidden = true; $('#syncConnected').hidden = true; $('#syncAuthForm').hidden = false;
+  const email = $('#syncRecoveryEmail').value.trim(); if (email) $('#syncEmail').value = email;
+  setSyncStatus('', 'Вход в аккаунт', 'Введите email и пароль или запросите код восстановления.');
+}
+async function handleResetPassword(event) {
+  event.preventDefault(); const password = $('#syncNewPassword').value; const confirm = $('#syncNewPasswordConfirm').value;
+  if (password !== confirm) { setSyncStatus('error', 'Пароли не совпадают', 'Введите одинаковый пароль в двух полях.'); return; }
+  try {
+    await window.DaySync.updatePassword(password); markPinUnlocked(); history.replaceState(null, '', location.pathname);
+    $('#syncNewPassword').value = ''; $('#syncNewPasswordConfirm').value = ''; localStorage.removeItem('day-password-recovery-email'); switchAccountData(); await performSync(false); toast('Новый пароль сохранён');
+  } catch (error) { setSyncStatus('error', 'Не удалось сменить пароль', error.message); }
+}
+async function hashPin(pin) {
+  const bytes = new TextEncoder().encode(`${accountSuffix()}:${pin}`); const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return [...new Uint8Array(digest)].map(value => value.toString(16).padStart(2, '0')).join('');
+}
+function markPinUnlocked() { pinUnlocked = true; localStorage.setItem(pinUnlockedAtStorageKey(), String(Date.now())); }
+function pinUnlockStillValid() { const unlockedAt = Number(localStorage.getItem(pinUnlockedAtStorageKey()) || 0); return unlockedAt > 0 && Date.now() - unlockedAt < PIN_RELOCK_MS; }
+async function savePin() {
+  const pin = $('#pinSetupInput').value.trim(); if (!/^\d{4}$/.test(pin)) { toast('Введите ровно четыре цифры'); return; }
+  localStorage.setItem(pinStorageKey(), await hashPin(pin)); $('#pinSetupInput').value = ''; markPinUnlocked(); refreshSyncUi(); if ($('#syncDialog').open) { $('#syncDialog').close(); await new Promise(resolve => setTimeout(resolve, 80)); } toast('PIN установлен. Повторный запрос — не раньше чем через 30 минут.');
+}
+function removePin() { localStorage.removeItem(pinStorageKey()); localStorage.removeItem(pinUnlockedAtStorageKey()); $('#pinSetupInput').value = ''; pinUnlocked = true; refreshSyncUi(); toast('PIN удалён'); }
+async function maybeLockApp() {
+  if (!window.DaySync?.user() || !localStorage.getItem(pinStorageKey()) || $('#pinDialog').open) return;
+  if (pinUnlocked || pinUnlockStillValid()) { pinUnlocked = true; return; }
+  $('#pinUnlockInput').value = ''; $('#pinError').textContent = ''; $('#pinDialog').showModal(); setTimeout(() => $('#pinUnlockInput').focus(), 50);
+}
+async function unlockWithPin(event) {
+  event.preventDefault(); const entered = await hashPin($('#pinUnlockInput').value);
+  if (entered !== localStorage.getItem(pinStorageKey())) { $('#pinError').textContent = 'Неверный PIN. Попробуйте ещё раз.'; $('#pinUnlockInput').select(); return; }
+  markPinUnlocked(); $('#pinDialog').close(); performSync(false);
+}
+async function useAccountPassword() {
+  $('#pinDialog').close(); save(); await detachPushSubscription(); await window.DaySync.signOut(); pinUnlocked = false; switchAccountData(); $('#syncDialog').showModal();
+}
+async function handleSyncLogout() { save(); await detachPushSubscription(); await window.DaySync.signOut(); pinUnlocked = false; switchAccountData(); toast('Вы вышли. Личные задачи этого аккаунта скрыты.'); }
+
+function compareAppVersions(left, right) {
+  const a = String(left).split('.').map(Number); const b = String(right).split('.').map(Number);
+  for (let i = 0; i < Math.max(a.length, b.length); i += 1) { const difference = (a[i] || 0) - (b[i] || 0); if (difference) return difference; }
+  return 0;
+}
+function refreshUpdateIndicator() {
+  const available = compareAppVersions(latestAppVersion, APP_VERSION) > 0;
+  $('#updateBadge').hidden = !available;
+  $('#updateButton').setAttribute('aria-label', available ? 'Обновления — доступна новая версия' : 'Обновления');
+}
+function showUpdatePromptIfNeeded() {
+  const available = compareAppVersions(latestAppVersion, APP_VERSION) > 0;
+  if (!available) { $('#updatePrompt').hidden = true; return; }
+  $('#updatePromptTitle').textContent = 'Доступно обновление';
+  $('#updatePromptText').textContent = `Версия ${latestAppVersion} готова к установке`;
+  $('#promptApplyUpdate').hidden = false;
+  $('#updatePrompt').hidden = false;
+  clearTimeout(showUpdatePromptIfNeeded.timer);
+  showUpdatePromptIfNeeded.timer = setTimeout(() => { $('#updatePrompt').hidden = true; }, 10000);
+}
+function showUpdatedNoticeIfNeeded() {
+  const applied = localStorage.getItem(UPDATE_APPLIED_KEY);
+  if (applied !== APP_VERSION) return;
+  localStorage.removeItem(UPDATE_APPLIED_KEY);
+  $('#updatePromptTitle').textContent = 'Приложение обновлено';
+  $('#updatePromptText').textContent = `Установлена версия ${APP_VERSION}`;
+  $('#promptApplyUpdate').hidden = true;
+  $('#updatePrompt').hidden = false;
+  setTimeout(() => { if ($('#promptApplyUpdate').hidden) $('#updatePrompt').hidden = true; }, 3200);
+}
+function renderUpdateCenter() {
+  const available = compareAppVersions(latestAppVersion, APP_VERSION) > 0;
+  $('#latestVersionLabel').textContent = latestAppVersion;
+  $('#updateStatusTitle').textContent = available ? 'Доступно новое обновление' : 'Установлена последняя версия';
+  $('#updateStatusText').textContent = available ? `Версия ${latestAppVersion} готова к установке` : 'Новых обновлений нет';
+  const notes = appLang === 'en' && Array.isArray(window.DAY_APP_RELEASE?.notesEn) && String(window.DAY_APP_RELEASE.version) === String(latestAppVersion) ? window.DAY_APP_RELEASE.notesEn : appLang === 'en' ? ['Release notes for this version are available in Russian.'] : latestUpdateNotes;
+  $('#updateNotes').innerHTML = notes.map(note => `<li>${escapeHtml(note)}</li>`).join('');
+  $('#applyUpdateButton').hidden = !available;
+  $('#applyUpdateButton').disabled = !available;
+  $('#applyUpdateButton').textContent = 'Установить обновление';
+}
+let updateRetryTimer = 0;
+async function checkForAppUpdate(showFeedback = false, autoInstall = false) {
+  try {
+    await new Promise((resolve, reject) => {
+      $('#appVersionCheck')?.remove(); const script = document.createElement('script'); script.id = 'appVersionCheck'; script.src = `version.js?check=${Date.now()}`; script.onload = resolve; script.onerror = () => reject(new Error('Не удалось проверить версию')); document.head.append(script);
+    });
+    const release = window.DAY_APP_RELEASE || {}; latestAppVersion = String(release.version || APP_VERSION); latestUpdateNotes = Array.isArray(release.notes) && release.notes.length ? release.notes : latestUpdateNotes;
+    refreshUpdateIndicator(); renderUpdateCenter();
+    const available = compareAppVersions(latestAppVersion, APP_VERSION) > 0;
+    if (autoInstall && available) {
+      // Не перезагружаем страницу, пока открыто окно или набирается текст: пользователь не должен потерять ввод. Повтор через полминуты.
+      const typing = document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName) && document.activeElement.value;
+      if (document.querySelector('dialog[open]') || typing) { clearTimeout(updateRetryTimer); updateRetryTimer = setTimeout(() => checkForAppUpdate(false, true), 30000); return; }
+      await applyAppUpdate(true); return;
+    }
+    if (showFeedback) toast(compareAppVersions(latestAppVersion, APP_VERSION) > 0 ? `Доступна версия ${latestAppVersion}` : 'Установлена последняя версия');
+  } catch { if (showFeedback) toast('Не удалось проверить обновление. Проверьте интернет.'); }
+}
+async function applyAppUpdate(automatic = false) {
+  if (updateInProgress) return;
+  updateInProgress = true;
+  const button = $('#applyUpdateButton'); button.disabled = true; button.textContent = automatic ? 'Обновляем автоматически…' : 'Обновляем…';
+  localStorage.setItem(UPDATE_SEEN_KEY, latestAppVersion); refreshUpdateIndicator();
+  try {
+    localStorage.setItem(UPDATE_APPLIED_KEY, latestAppVersion);
+    const registration = await navigator.serviceWorker?.getRegistration(); if (registration) await registration.update();
+    const url = new URL('./', location.href); url.searchParams.set('v', latestAppVersion); url.searchParams.set('updated', Date.now()); location.replace(url.href);
+  } catch {
+    updateInProgress = false; localStorage.removeItem(UPDATE_APPLIED_KEY); button.disabled = false; button.textContent = 'Повторить обновление';
+    showUpdatePromptIfNeeded(); toast('Автообновление не завершилось. Нажмите «Обновить» в меню.');
+  }
+}
+async function applyPromptedUpdate() {
+  $('#updatePrompt').hidden = true;
+  const available = compareAppVersions(latestAppVersion, APP_VERSION) > 0;
+  localStorage.setItem(UPDATE_SEEN_KEY, latestAppVersion);
+  refreshUpdateIndicator();
+  if (available) { await applyAppUpdate(); return; }
+  toast('Приложение обновлено');
+}
+
+function parseSharedEmails(value = '') {
+  return [...new Set(value.split(/[\s,;]+/).map(email => email.trim().toLocaleLowerCase()).filter(email => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)))];
+}
+function sharedErrorText(error) {
+  const message = error?.message || '';
+  if (/shared_tasks|answer_shared_invite|404|schema cache/i.test(message)) return 'Раздел совместных задач ещё настраивается. Обновите приложение через минуту';
+  if (/row-level|policy|403/i.test(message)) return 'Нет доступа к этой совместной задаче';
+  return message || 'Не удалось синхронизировать совместные задачи';
+}
+function currentAccountEmail() { return (window.DaySync?.user()?.email || '').toLocaleLowerCase(); }
+function sharedInvites() {
+  const email = currentAccountEmail();
+  return sharedTasks.filter(task => (task.invitedEmails || []).includes(email) && !(task.acceptedEmails || []).includes(email));
+}
+function acceptedSharedTasks() {
+  const account = window.DaySync?.user(); const email = currentAccountEmail();
+  return sharedTasks.filter(task => task.ownerId === account?.id || (task.acceptedEmails || []).includes(email));
+}
+function sharedMembers(task) {
+  const entries = [
+    { email: task.ownerEmail, role: 'Организатор', state: 'accepted' },
+    ...(task.acceptedEmails || []).map(email => ({ email, role: 'Участник', state: 'accepted' })),
+    ...(task.invitedEmails || []).map(email => ({ email, role: 'Приглашён', state: 'invited' }))
+  ];
+  return [...new Map(entries.filter(item => item.email).map(item => [item.email, item])).values()];
+}
+function isMemberOnline(email = '') {
+  const normalizedEmail = email.toLocaleLowerCase();
+  if (normalizedEmail && normalizedEmail === currentAccountEmail() && navigator.onLine && document.visibilityState === 'visible') return true;
+  const lastSeen = sharedPresence.get(normalizedEmail);
+  return !!lastSeen && Date.now() - new Date(lastSeen).getTime() < 90 * 1000;
+}
+function renderSharedTaskPresence(task) {
+  const container = $('#sharedTaskPresence'); if (!container) return;
+  if (!task) { container.hidden = true; container.innerHTML = ''; return; }
+  const members = sharedMembers(task);
+  container.innerHTML = members.map(member => {
+    const online = isMemberOnline(member.email);
+    return `<span class="presence-person ${online ? 'online' : 'offline'}"><i class="presence-dot"></i>${escapeHtml(member.email === currentAccountEmail() ? (appLang === 'en' ? 'You' : 'Вы') : member.email.split('@')[0])} · ${appLang === 'en' ? (online ? 'online' : 'offline') : (online ? 'в сети' : 'не в сети')}</span>`;
+  }).join('');
+  container.hidden = !members.length;
+}
+async function refreshSharedPresence() {
+  if (sharedPresenceBusy) return;
+  if (!window.DaySync?.user() || !window.DaySync?.touchPresence || !window.DaySync?.loadSharedPresence) {
+    sharedPresence = new Map(); return;
+  }
+  sharedPresenceBusy = true;
+  try {
+    await window.DaySync.touchPresence(document.documentElement.lang || 'ru');
+    const rows = await window.DaySync.loadSharedPresence();
+    sharedPresence = new Map((rows || []).map(row => [String(row.email || '').toLocaleLowerCase(), row.last_seen]));
+    sharedPresence.set(currentAccountEmail(), new Date().toISOString());
+    if ($('#sharedDialog')?.open) renderSharedDialog(); else refreshSharedView();
+    const openedSharedTaskId = $('#taskSource')?.value === 'shared' ? $('#taskId')?.value : '';
+    if ($('#taskDialog')?.open && openedSharedTaskId) renderSharedTaskPresence(sharedTasks.find(task => task.id === openedSharedTaskId));
+  } catch {
+    if (currentAccountEmail() && navigator.onLine && document.visibilityState === 'visible') sharedPresence.set(currentAccountEmail(), new Date().toISOString());
+  } finally {
+    sharedPresenceBusy = false;
+  }
+}
+function memberInitial(email = '') { return (email.split('@')[0] || '?').charAt(0).toLocaleUpperCase('ru'); }
+function sharedProgress(task) {
+  const subtasks = task.subtasks || [];
+  if (subtasks.length) return Math.round(subtasks.filter(item => item.done).length / subtasks.length * 100);
+  return task.status === 'completed' ? 100 : task.status === 'review' ? 75 : task.status === 'open' || task.status === 'question' ? 40 : task.status === 'accepted' ? 10 : 0;
+}
+function renderSharedBadges() {
+  const count = sharedInvites().length;
+  ['#desktopSharedBadge', '#mobileSharedBadge'].forEach(selector => { const badge = $(selector); if (!badge) return; badge.hidden = !count; badge.textContent = count > 9 ? '9+' : count; });
+  const inviteCount = $('#sharedInviteCount'); if (inviteCount) { inviteCount.hidden = !count; inviteCount.textContent = count; }
+}
+function sharedInviteShortDescription(task) {
+  const note = String(task.note || task.proofNote || '').trim();
+  if (note) return note.length > 120 ? `${note.slice(0, 117)}…` : note;
+  const subtasks = (task.subtasks || []).map(item => item.title).filter(Boolean);
+  if (subtasks.length) return `Подзадачи: ${subtasks.slice(0, 2).join(', ')}${subtasks.length > 2 ? ` и ещё ${subtasks.length - 2}` : ''}`;
+  return `${formatShortDate(task.date)} · ${task.time || 'без точного времени'}`;
+}
+// Окно по центру экрана: новая задача от организатора или его напоминание. Отказаться нельзя — только «Принять» или «Позже».
+const nudgeSeenKey = () => `day-shared-nudge-seen-v1:${window.DaySync?.user()?.id || 'guest'}`;
+function loadNudgeSeen() { try { return JSON.parse(localStorage.getItem(nudgeSeenKey()) || '{}'); } catch { return {}; } }
+function markNudgeSeen(task) { const seen = loadNudgeSeen(); seen[task.id] = task.nudgeAt || ''; try { localStorage.setItem(nudgeSeenKey(), JSON.stringify(seen)); } catch {} }
+function pendingNudges() {
+  const account = window.DaySync?.user(); const email = currentAccountEmail(); const seen = loadNudgeSeen();
+  return sharedTasks.filter(task => task.nudgeAt && task.ownerId !== account?.id && (task.acceptedEmails || []).includes(email) && task.status !== 'completed' && seen[task.id] !== task.nudgeAt);
+}
+function promptKey(task) { return `${task.id}:${task.nudgeAt || task.inviteReminderAt || ''}`; }
+function sharedPromptItem() {
+  const invite = sharedInvites().find(task => !sharedPromptSnoozed.has(promptKey(task)));
+  if (invite) return { task: invite, kind: 'invite' };
+  const nudge = pendingNudges().find(task => !sharedPromptSnoozed.has(promptKey(task)));
+  return nudge ? { task: nudge, kind: 'nudge' } : null;
+}
+function renderSharedInvitePrompt() {
+  const prompt = $('#sharedInvitePrompt');
+  if (!prompt) return;
+  const item = window.DaySync?.user() ? sharedPromptItem() : null;
+  if (!item) { prompt.hidden = true; activeSharedInviteId = ''; return; }
+  const { task, kind } = item; const owner = task.ownerEmail || L('организатор', 'organizer');
+  activeSharedInviteId = task.id; prompt.dataset.kind = kind;
+  $('#sharedInvitePromptTitle').textContent = task.title || L('Новая совместная задача', 'New shared task');
+  $('#sharedInvitePromptDescription').textContent = sharedInviteShortDescription(task);
+  $('#sharedInvitePromptOwner').textContent = kind === 'invite' ? `${L('Новая задача от', 'New task from')} ${owner}` : `🔔 ${L('Напоминание от', 'Reminder from')} ${owner} · ${sharedStatusText(task.status)}`;
+  $('#sharedInvitePromptAccept').textContent = kind === 'invite' ? L('Принять задачу', 'Accept task') : L('Открыть задачу', 'Open task');
+  $('#sharedInvitePromptAccept').disabled = false; $('#sharedInvitePromptDecline').disabled = false;
+  prompt.hidden = false;
+}
+async function acceptSharedInvite(id) {
+  await window.DaySync.answerSharedInvite(id, true);
+  const fresh = await freshSharedTask(id);
+  if (fresh && (!fresh.status || fresh.status === 'new')) {
+    fresh.status = 'accepted'; fresh.statusBy = currentAccountEmail(); fresh.statusAt = new Date().toISOString(); fresh.updatedAt = fresh.statusAt;
+    fresh.activity = [...(fresh.activity || []), { type: 'accepted', email: currentAccountEmail(), at: fresh.statusAt }].slice(-30);
+    await window.DaySync.saveSharedTask(fresh);
+  }
+  await loadSharedTasks(false);
+}
+async function answerSharedInvitePrompt(accepted) {
+  if (!activeSharedInviteId) return;
+  const task = sharedTasks.find(item => item.id === activeSharedInviteId); const kind = $('#sharedInvitePrompt').dataset.kind;
+  if (!task) { renderSharedInvitePrompt(); return; }
+  if (!accepted) { sharedPromptSnoozed.add(promptKey(task)); if (kind === 'nudge') markNudgeSeen(task); renderSharedInvitePrompt(); return; }
+  if (kind === 'nudge') { markNudgeSeen(task); renderSharedInvitePrompt(); openDialog(task.id, 'shared'); return; }
+  const acceptButton = $('#sharedInvitePromptAccept'); const laterButton = $('#sharedInvitePromptDecline');
+  acceptButton.disabled = true; laterButton.disabled = true;
+  try {
+    await acceptSharedInvite(task.id); markNudgeSeen(task);
+    if ($('#sharedDialog')?.open) renderSharedDialog(); else refreshSharedView();
+    toast(L('Задача принята. Отмечайте статус и присылайте отчёт прямо в задаче', 'Task accepted. Update the status and send reports right in the task'));
+  } catch (error) { acceptButton.disabled = false; laterButton.disabled = false; toast(sharedErrorText(error)); }
+}
+async function loadSharedTasks(showErrors = false) {
+  if (!window.DaySync?.user() || !window.DaySync?.loadSharedTasks || sharedLoading) { renderSharedBadges(); return sharedTasks; }
+  sharedLoading = true;
+  try {
+    const previousInvites = new Map(sharedInvites().map(task => [task.id, task.inviteReminderAt || '']));
+    const firstLoad = !sharedTasks.length; const previousReports = new Map(sharedTasks.map(task => [task.id, (task.reports || []).map(report => report.id)]));
+    sharedTasks = await window.DaySync.loadSharedTasks();
+    const newInvites = sharedInvites().filter(task => !previousInvites.has(task.id) || previousInvites.get(task.id) !== (task.inviteReminderAt || ''));
+    if (!firstLoad) {
+      const fresh = sharedTasks.flatMap(task => (task.reports || []).filter(report => report.by !== currentAccountEmail() && previousReports.has(task.id) && !previousReports.get(task.id).includes(report.id)).map(report => ({ task, report })));
+      if (fresh.length) {
+        const { task, report } = fresh[fresh.length - 1]; const text = `${report.by.split('@')[0]}: ${task.title}`;
+        toast(`💬 ${L('Новый отчёт', 'New report')} — ${text}`);
+        if (Notification.permission === 'granted') showAppNotification(L('Новый отчёт по совместной задаче', 'New shared task report'), { body: text, tag: `report-${report.id}` });
+      }
+    }
+    renderSharedBadges();
+    renderSharedInvitePrompt();
+    renderTasks(); renderStats();
+    if (newInvites.length && Notification.permission === 'granted') showAppNotification('Новое приглашение', { body: newInvites[0].title, tag: `shared-${newInvites[0].id}` });
+  } catch (error) { if (showErrors) toast(sharedErrorText(error)); }
+  finally { sharedLoading = false; }
+  return sharedTasks;
+}
+function renderSharedSummary() {
+  const active = acceptedSharedTasks(); const done = active.filter(task => task.status === 'completed').length;
+  const percent = active.length ? Math.round(done / active.length * 100) : 0;
+  $('#sharedSummary').innerHTML = `<div class="shared-overall-ring" style="--p:${percent}"><span>${percent}%</span></div><div><strong>${done} из ${active.length} совместных задач завершено</strong><small>${sharedInvites().length ? `Ожидают ответа приглашения: ${sharedInvites().length}` : 'Все новые приглашения обработаны'} · изменения видны участникам автоматически</small></div>`;
+}
+function sharedStatusText(status) { const item = SHARED_STATUSES[status || 'open'] || SHARED_STATUSES.open; return `${item[2]} ${L(item[0], item[1])}`; }
+function sharedStatusLabel(task) {
+  const who = task.statusBy && task.statusBy !== currentAccountEmail() ? ` · ${escapeHtml(task.statusBy.split('@')[0])}` : '';
+  const cls = task.status === 'completed' ? 'done' : task.status === 'review' ? 'review' : task.status === 'question' ? 'question' : '';
+  return `<span class="${cls}">${sharedStatusText(task.status)}${who}</span>`;
+}
+function sharedStatusButtons(task) {
+  const isOwner = task.ownerId === window.DaySync?.user()?.id;
+  const choices = isOwner ? ['open', 'completed'] : ['accepted', 'open', 'question', 'review'];
+  return `<div class="shared-status-buttons">${choices.map(status => `<button type="button" class="${task.status === status ? 'active' : ''}" data-shared-status="${task.id}" data-status="${status}">${sharedStatusText(status)}</button>`).join('')}</div>`;
+}
+function renderSharedTaskCard(task) {
+  const members = sharedMembers(task); const progress = sharedProgress(task);
+  const canNudge = task.ownerId === window.DaySync?.user()?.id && task.status !== 'completed' && [...(task.invitedEmails || []), ...(task.acceptedEmails || [])].some(email => email !== task.ownerEmail);
+  const reports = (task.reports || []).length;
+  return `<article class="shared-task-card">
+    <button type="button" class="shared-card-open" data-open-shared="${task.id}"><div><h3>${escapeHtml(task.title)}</h3><p>${formatShortDate(task.date)} · ${task.time || 'В течение дня'} · прогресс ${progress}%</p>
+    <div class="shared-card-tags">${sharedStatusLabel(task)}<span>☑ ${(task.subtasks || []).filter(item => item.done).length}/${(task.subtasks || []).length}</span>${reports ? `<span>💬 ${L('Отчётов', 'Reports')}: ${reports}</span>` : ''}${task.ownerId === window.DaySync?.user()?.id ? '<span>Вы организатор</span>' : `<span>${appLang === 'en' ? 'Organizer' : 'Организатор'}: ${escapeHtml(task.ownerEmail || '')}</span>`}</div></div>
+    <div class="shared-avatar-stack">${members.slice(0, 4).map(member => { const online = isMemberOnline(member.email); return `<span class="shared-avatar ${online ? 'online' : 'offline'}" title="${escapeHtml(member.email)} — ${online ? 'в сети' : 'не в сети'}">${memberInitial(member.email)}</span>`; }).join('')}</div></button>
+    ${(task.subtasks || []).length ? `<div class="shared-subtasks">${task.subtasks.map((item, index) => `<button type="button" class="${item.done ? 'done' : ''}" data-shared-subtask="${task.id}" data-shared-index="${index}"><i>${item.done ? '✓' : ''}</i><span>${escapeHtml(item.title)}</span>${item.doneBy ? `<small>${escapeHtml(item.doneBy.split('@')[0])}</small>` : ''}</button>`).join('')}</div>` : ''}
+    ${sharedStatusButtons(task)}
+    ${canNudge ? `<button type="button" class="repeat-shared-invite" data-nudge-shared="${task.id}">🔔 ${L('Напомнить исполнителю', 'Remind assignee')}</button>` : ''}
+  </article>`;
+}
+function renderSharedPeople() {
+  const accountTasks = acceptedSharedTasks(); const people = new Map();
+  accountTasks.forEach(task => sharedMembers(task).filter(member => member.state === 'accepted').forEach(member => {
+    const item = people.get(member.email) || { email: member.email, roles: new Set(), tasks: 0, completed: 0, contributions: 0 };
+    item.roles.add(member.role); item.tasks += 1; if (task.status === 'completed') item.completed += 1;
+    item.contributions += (task.subtasks || []).filter(subtask => subtask.doneBy === member.email).length; people.set(member.email, item);
+  }));
+  if (!people.size) return '<div class="shared-empty"><strong>Участников пока нет</strong>Создайте совместную задачу и пригласите человека по почте.</div>';
+  return [...people.values()].map(person => {
+    const percent = person.tasks ? Math.round(person.completed / person.tasks * 100) : 0;
+    const online = isMemberOnline(person.email);
+    return `<article class="member-card"><div class="member-ring" style="--p:${percent}"><span>${percent}%</span></div><div><strong>${escapeHtml(person.email === currentAccountEmail() ? 'Вы' : person.email.split('@')[0])}</strong><small><span class="presence-person ${online ? 'online' : 'offline'}"><i class="presence-dot"></i>${online ? 'В сети' : 'Не в сети'}</span>${person.tasks} задач · выполнено ${person.completed} · отмечено подзадач ${person.contributions}</small></div><span class="member-role">${person.roles.has('Организатор') ? 'Организатор' : 'Участник'}</span></article>`;
+  }).join('');
+}
+function renderSharedInvites() {
+  const invites = sharedInvites();
+  if (!invites.length) return '<div class="shared-empty"><strong>Новых приглашений нет</strong>Когда вас пригласят по почте аккаунта, задача появится здесь.</div>';
+  return invites.map(task => `<article class="invite-card"><strong>${escapeHtml(task.title)}</strong><small>${escapeHtml(task.ownerEmail)} · ${formatShortDate(task.date)} · ${task.time || 'без времени'}</small><div class="invite-actions single"><button type="button" class="invite-accept" data-answer-invite="${task.id}" data-accept="1">${L('Принять задачу', 'Accept task')}</button></div></article>`).join('');
+}
+function bindSharedContentActions(root = $('#sharedContent')) {
+  if (!root) return; const $$ = selector => [...root.querySelectorAll(selector)];
+  $$('[data-open-shared]').forEach(button => button.addEventListener('click', () => { $('#sharedDialog').close(); openDialog(button.dataset.openShared, 'shared'); }));
+  $$('[data-shared-subtask]').forEach(button => button.addEventListener('click', () => toggleSharedSubtask(button.dataset.sharedSubtask, Number(button.dataset.sharedIndex))));
+  $$('[data-answer-invite]').forEach(button => button.addEventListener('click', async () => {
+    button.disabled = true;
+    try { await acceptSharedInvite(button.dataset.answerInvite); renderSharedDialog(); renderSharedInvitePrompt(); toast(L('Задача принята', 'Task accepted')); }
+    catch (error) { button.disabled = false; toast(sharedErrorText(error)); }
+  }));
+  $$('[data-nudge-shared]').forEach(button => button.addEventListener('click', async () => {
+    button.disabled = true;
+    try {
+      await nudgeSharedTask(button.dataset.nudgeShared);
+      button.textContent = L('✓ Напоминание отправлено', '✓ Reminder sent');
+      setTimeout(() => { if (button.isConnected) { button.disabled = false; button.textContent = `🔔 ${L('Напомнить исполнителю', 'Remind assignee')}`; } }, 1800);
+    } catch (error) { button.disabled = false; toast(sharedErrorText(error)); }
+  }));
+  $$('[data-shared-status]').forEach(button => button.addEventListener('click', () => setSharedStatus(button.dataset.sharedStatus, button.dataset.status)));
+}
+// Окно совместной задачи в режиме «просмотр»: задача только для чтения, внизу — «мой ответ» (статус, подзадачи, отчёты).
+// Менять саму задачу может только организатор — кнопкой «Редактировать» (открывается обычная форма).
+function isSharedOwner(task) { return !!task && task.ownerId === window.DaySync?.user()?.id; }
+function renderSharedView(task) {
+  const box = $('#sharedView'); const actions = $('#sharedViewActions'); if (!box || !actions) return;
+  const dialog = $('#taskDialog'); const view = dialog.dataset.mode === 'view' && !!task;
+  box.hidden = !view; actions.hidden = !view;
+  $('#svClose').textContent = L('Закрыть', 'Close'); $('#svEdit').textContent = `✎ ${L('Редактировать', 'Edit')}`; $('#svDelete').textContent = L('Удалить', 'Delete');
+  if (!view) { box.innerHTML = ''; return; }
+  const owner = isSharedOwner(task);
+  $('#svEdit').hidden = !owner; $('#svDelete').hidden = !owner;
+  $('#dialogTitle').textContent = L('Совместная задача', 'Shared task');
+  const att = task.attachment; const subs = task.subtasks || []; const safeUrl = /^(data:|blob:|https:)/i.test(String(att?.data || '').trim());
+  const canNudge = owner && task.status !== 'completed' && [...(task.invitedEmails || []), ...(task.acceptedEmails || [])].some(email => email !== task.ownerEmail);
+  box.innerHTML = `<h3 class="sv-title">${escapeHtml(task.title)}</h3>
+    <p class="sv-meta">${formatShortDate(task.date)} · ${task.time || tr('task.anytime')} · ${owner ? tr('task.youOrganize') : `${tr('task.organizer')}: ${escapeHtml((task.ownerEmail || '').split('@')[0])}`}</p>
+    ${task.note ? `<p class="sv-note">${escapeHtml(task.note)}</p>` : ''}
+    ${safeUrl ? `<div class="sv-attachment">${String(att.type || '').startsWith('image/') ? `<img src="${escapeHtml(att.data)}" alt="${escapeHtml(att.name || '')}">` : `<a href="${escapeHtml(att.data)}" download="${escapeHtml(att.name || 'file')}">📎 ${escapeHtml(att.name || L('Файл', 'File'))}</a>`}${task.proofNote ? `<small>${escapeHtml(task.proofNote)}</small>` : ''}</div>` : ''}
+    ${subs.length ? `<div class="shared-subtasks">${subs.map((item, index) => `<button type="button" class="${item.done ? 'done' : ''}" data-shared-subtask="${task.id}" data-shared-index="${index}"><i>${item.done ? '✓' : ''}</i><span>${escapeHtml(item.title)}</span>${item.doneBy ? `<small>${escapeHtml(item.doneBy.split('@')[0])}</small>` : ''}</button>`).join('')}</div>` : ''}
+    <h4 class="sv-section">${owner ? L('Статус задачи', 'Task status') : L('Мой ответ', 'My reply')}</h4>
+    <div class="sv-status">${sharedStatusLabel(task)}</div>
+    ${sharedStatusButtons(task)}
+    ${canNudge ? `<button type="button" class="repeat-shared-invite" data-nudge-shared="${task.id}">🔔 ${L('Напомнить исполнителю', 'Remind assignee')}</button>` : ''}`;
+  bindSharedContentActions(box);
+}
+function refreshSharedView() {
+  const dialog = $('#taskDialog'); if (!dialog?.open || dialog.dataset.mode !== 'view') return;
+  const task = sharedTasks.find(item => item.id === $('#taskId').value);
+  if (!task) { closeDialog(); toast(L('Эта совместная задача удалена или вам закрыли к ней доступ', 'This shared task was deleted or you no longer have access')); return; }
+  renderSharedView(task); renderSharedReports(task); renderSharedTaskPresence(task);
+}
+function renderSharedDialog() {
+  if (!$('#sharedDialog')) return;
+  refreshSharedView();
+  renderSharedBadges(); renderSharedSummary();
+  $$('[data-shared-tab]').forEach(button => button.classList.toggle('active', button.dataset.sharedTab === currentSharedTab));
+  if (currentSharedTab === 'people') $('#sharedContent').innerHTML = renderSharedPeople();
+  else if (currentSharedTab === 'invites') $('#sharedContent').innerHTML = renderSharedInvites();
+  else {
+    const list = acceptedSharedTasks();
+    $('#sharedContent').innerHTML = list.length ? list.sort((a, b) => (a.date + (a.time || '99:99')).localeCompare(b.date + (b.time || '99:99'))).map(renderSharedTaskCard).join('') : '<div class="shared-empty"><strong>Совместных задач пока нет</strong>Добавьте первую задачу и пригласите участника.</div>';
+  }
+  bindSharedContentActions();
+}
+async function openSharedDialog() {
+  if (!window.DaySync?.user()) { toast('Сначала войдите в аккаунт'); openSyncDialog(); return; }
+  currentSharedTab = sharedInvites().length ? 'invites' : 'tasks'; renderSharedDialog(); $('#sharedDialog').showModal();
+  await loadSharedTasks(true); renderSharedDialog();
+}
+async function freshSharedTask(id) {
+  const fresh = await window.DaySync.loadSharedTask(id);
+  const index = sharedTasks.findIndex(task => task.id === id);
+  if (fresh) { if (index >= 0) sharedTasks[index] = fresh; else sharedTasks.push(fresh); }
+  else if (index >= 0) sharedTasks.splice(index, 1);
+  return fresh;
+}
+// Отметка подзадачи меняет только эту подзадачу в свежей версии задачи, а не всю задачу целиком.
+async function toggleSharedSubtask(taskId, index) {
+  const task = sharedTasks.find(item => item.id === taskId); const seen = task?.subtasks?.[index]; if (!seen) return;
+  const done = !seen.done;
+  try {
+    const fresh = await freshSharedTask(taskId);
+    if (!fresh) { toast('Эта совместная задача удалена или вам закрыли к ней доступ'); renderSharedDialog(); render(); return; }
+    const item = (fresh.subtasks || []).find(s => s.title === seen.title); if (!item) { renderSharedDialog(); render(); return; }
+    item.done = done; item.doneBy = done ? currentAccountEmail() : ''; item.doneAt = done ? new Date().toISOString() : '';
+    fresh.updatedAt = new Date().toISOString();
+    await window.DaySync.saveSharedTask(fresh);
+  } catch (error) { toast(sharedErrorText(error)); }
+  renderSharedDialog(); render();
+}
+async function setSharedTaskCompleted(taskId, completed) {
+  try {
+    const fresh = await freshSharedTask(taskId);
+    if (!fresh) { toast('Эта совместная задача удалена или вам закрыли к ней доступ'); render(); return; }
+    fresh.status = completed ? 'completed' : 'open'; fresh.completed = completed; fresh.updatedAt = new Date().toISOString();
+    fresh.activity = [...(fresh.activity || []), { type: completed ? 'completed' : 'reopened', email: currentAccountEmail(), at: fresh.updatedAt }].slice(-30);
+    await window.DaySync.saveSharedTask(fresh);
+    toast(completed ? 'Совместная задача выполнена' : 'Совместная задача возвращена в работу');
+  } catch (error) { toast(sharedErrorText(error)); }
+  renderSharedDialog(); render();
+}
+async function setSharedStatus(taskId, status) {
+  try {
+    const fresh = await freshSharedTask(taskId);
+    if (!fresh) { toast(L('Эта совместная задача удалена или вам закрыли к ней доступ', 'This shared task was deleted or you no longer have access')); renderSharedDialog(); render(); return; }
+    if (status === 'completed' && fresh.ownerId !== window.DaySync?.user()?.id) { toast(L('Завершить задачу может организатор', 'Only the organizer can complete the task')); return; }
+    fresh.status = status; fresh.completed = status === 'completed'; fresh.statusBy = currentAccountEmail(); fresh.statusAt = new Date().toISOString(); fresh.updatedAt = fresh.statusAt;
+    fresh.activity = [...(fresh.activity || []), { type: 'status', status, email: currentAccountEmail(), at: fresh.statusAt }].slice(-30);
+    await window.DaySync.saveSharedTask(fresh);
+    toast(`${L('Статус', 'Status')}: ${sharedStatusText(status)}`);
+    if ($('#taskDialog').open && $('#taskId').value === taskId) $('#sharedTaskStatus').value = status;
+  } catch (error) { toast(sharedErrorText(error)); }
+  renderSharedDialog(); render();
+}
+// Организатор может напоминать исполнителю сколько угодно раз: у того по центру экрана всплывает окно,
+// а если приложение закрыто — приходит push-уведомление.
+async function nudgeSharedTask(taskId) {
+  const task = await freshSharedTask(taskId);
+  if (!task || task.ownerId !== window.DaySync?.user()?.id) throw new Error(L('Напомнить может только организатор', 'Only the organizer can send reminders'));
+  task.nudgeAt = new Date().toISOString(); task.nudgeNumber = Number(task.nudgeNumber || 0) + 1;
+  if ((task.invitedEmails || []).length) { task.inviteReminderAt = task.nudgeAt; task.inviteReminderNumber = Number(task.inviteReminderNumber || 0) + 1; }
+  task.updatedAt = task.nudgeAt;
+  await window.DaySync.saveSharedTask(task);
+  toast(L('Напоминание отправлено. Исполнитель увидит его по центру экрана', 'Reminder sent. The assignee will see it in the middle of the screen'));
+}
+// ——— Отчёты: текст, фото и голосовое сообщение ———
+function resetReportComposer() {
+  if (reportRecorder) { try { reportRecorder.onstop = null; reportRecorder.stop(); } catch {} reportRecorder = null; }
+  pendingReport = { photo: null, voice: null, voiceSec: 0 };
+  if ($('#reportText')) { $('#reportText').value = ''; renderPendingReport(); }
+}
+function renderPendingReport() {
+  const box = $('#reportPending'); if (!box) return;
+  const parts = [];
+  if (pendingReport.photo) parts.push(`<span class="report-chip">📷 ${L('Фото', 'Photo')} · ${Math.round(pendingReport.photo.size / 1024)} КБ <button type="button" data-remove-pending="photo" aria-label="×">×</button></span>`);
+  if (pendingReport.voice) parts.push(`<span class="report-chip">🎤 ${L('Голосовое', 'Voice')} · ${formatSeconds(pendingReport.voiceSec)} <button type="button" data-remove-pending="voice" aria-label="×">×</button></span>`);
+  box.innerHTML = parts.join(''); box.hidden = !parts.length;
+  box.querySelectorAll('[data-remove-pending]').forEach(button => button.addEventListener('click', () => { pendingReport[button.dataset.removePending] = null; renderPendingReport(); }));
+  $('#reportVoiceButton').textContent = reportRecorder ? `■ ${L('Остановить', 'Stop')}` : `🎤 ${L('Голос', 'Voice')}`;
+  $('#reportVoiceButton').classList.toggle('recording', !!reportRecorder);
+}
+function formatSeconds(total = 0) { const sec = Math.max(0, Math.round(total)); return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`; }
+function compressReportPhoto(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file); const image = new Image();
+    image.onload = () => {
+      const max = 1280; const scale = Math.min(1, max / Math.max(image.width, image.height));
+      const canvas = document.createElement('canvas'); canvas.width = Math.round(image.width * scale); canvas.height = Math.round(image.height * scale);
+      canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height); URL.revokeObjectURL(url);
+      canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('photo')), 'image/jpeg', .7);
+    };
+    image.onerror = () => { URL.revokeObjectURL(url); reject(new Error('photo')); };
+    image.src = url;
+  });
+}
+async function toggleReportVoice() {
+  if (reportRecorder) { reportRecorder.stop(); return; }
+  if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') { toast(L('Запись голоса не поддерживается этим браузером', 'Voice recording is not supported in this browser')); return; }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const type = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/webm', 'audio/ogg;codecs=opus'].find(item => MediaRecorder.isTypeSupported?.(item)) || '';
+    const recorder = new MediaRecorder(stream, { ...(type ? { mimeType: type } : {}), audioBitsPerSecond: 24000 });
+    const chunks = []; const started = Date.now();
+    recorder.ondataavailable = event => { if (event.data?.size) chunks.push(event.data); };
+    recorder.onstop = () => {
+      stream.getTracks().forEach(track => track.stop()); clearTimeout(recorder.limitTimer); reportRecorder = null;
+      const blob = new Blob(chunks, { type: (recorder.mimeType || type || 'audio/webm').split(';')[0] });
+      if (blob.size) { pendingReport.voice = blob; pendingReport.voiceSec = (Date.now() - started) / 1000; }
+      renderPendingReport();
+    };
+    recorder.limitTimer = setTimeout(() => { if (recorder.state === 'recording') recorder.stop(); }, 120000);
+    reportRecorder = recorder; recorder.start(); renderPendingReport();
+    toast(L('Идёт запись… Нажмите «Остановить», когда закончите (до 2 минут)', 'Recording… Tap “Stop” when finished (up to 2 minutes)'));
+  } catch { toast(L('Нет доступа к микрофону. Разрешите его в настройках браузера', 'No microphone access. Allow it in the browser settings')); }
+}
+const AUDIO_EXT = { 'audio/webm': 'webm', 'audio/mp4': 'm4a', 'audio/ogg': 'ogg', 'audio/mpeg': 'mp3', 'audio/aac': 'aac', 'audio/x-m4a': 'm4a' };
+async function sendSharedReport() {
+  const taskId = $('#taskId').value; const text = $('#reportText').value.trim();
+  if (!taskId) return;
+  if (reportRecorder) { toast(L('Сначала остановите запись голоса', 'Stop the voice recording first')); return; }
+  if (!text && !pendingReport.photo && !pendingReport.voice) { toast(L('Напишите отчёт, добавьте фото или голосовое', 'Write a report, add a photo or a voice message')); return; }
+  const button = $('#reportSend'); button.disabled = true;
+  try {
+    const report = { id: crypto.randomUUID(), by: currentAccountEmail(), at: new Date().toISOString(), text };
+    if (pendingReport.photo) report.photo = await window.DaySync.uploadSharedMedia(taskId, pendingReport.photo, 'jpg');
+    if (pendingReport.voice) { report.voice = await window.DaySync.uploadSharedMedia(taskId, pendingReport.voice, AUDIO_EXT[pendingReport.voice.type] || 'webm'); report.voiceSec = Math.round(pendingReport.voiceSec); }
+    const fresh = await freshSharedTask(taskId);
+    if (!fresh) throw new Error(L('Эта совместная задача удалена или вам закрыли к ней доступ', 'This shared task was deleted or you no longer have access'));
+    fresh.reports = [...(fresh.reports || []), report].slice(-50); fresh.updatedAt = report.at;
+    fresh.activity = [...(fresh.activity || []), { type: 'report', email: report.by, at: report.at }].slice(-30);
+    await window.DaySync.saveSharedTask(fresh);
+    resetReportComposer(); renderSharedReports(fresh); renderSharedDialog(); render();
+    toast(L('Отчёт отправлен', 'Report sent'));
+  } catch (error) { toast(sharedErrorText(error)); }
+  finally { button.disabled = false; }
+}
+async function deleteSharedReport(taskId, reportId) {
+  try {
+    const fresh = await freshSharedTask(taskId); if (!fresh) return;
+    const report = (fresh.reports || []).find(item => item.id === reportId);
+    if (!report || (report.by !== currentAccountEmail() && fresh.ownerId !== window.DaySync?.user()?.id)) return;
+    fresh.reports = fresh.reports.filter(item => item.id !== reportId); fresh.updatedAt = new Date().toISOString();
+    await window.DaySync.saveSharedTask(fresh); renderSharedReports(fresh); renderSharedDialog(); render();
+  } catch (error) { toast(sharedErrorText(error)); }
+}
+function renderSharedReports(task) {
+  const section = $('#sharedReports'); if (!section) return;
+  section.hidden = !task?.id;
+  if (!task?.id) return;
+  const me = currentAccountEmail(); const owner = task.ownerId === window.DaySync?.user()?.id;
+  const reports = [...(task.reports || [])].reverse();
+  $('#sharedReportList').innerHTML = reports.length ? reports.map(report => `<article class="report-item">
+      <header><strong>${escapeHtml(report.by === me ? L('Вы', 'You') : report.by.split('@')[0])}</strong><small>${new Date(report.at).toLocaleString(LOCALE(), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</small>${report.by === me || owner ? `<button type="button" class="report-delete" data-delete-report="${report.id}" aria-label="${L('Удалить отчёт', 'Delete report')}">×</button>` : ''}</header>
+      ${report.text ? `<p>${escapeHtml(report.text)}</p>` : ''}
+      <div class="report-media">${report.photo ? `<button type="button" class="report-media-button" data-report-photo="${escapeHtml(report.photo)}">📷 ${L('Показать фото', 'Show photo')}</button>` : ''}${report.voice ? `<button type="button" class="report-media-button" data-report-voice="${escapeHtml(report.voice)}">▶ ${L('Голосовое', 'Voice')} ${formatSeconds(report.voiceSec)}</button>` : ''}</div>
+    </article>`).join('') : `<p class="report-empty">${L('Отчётов пока нет. Напишите, что сделано, приложите фото или запишите голосовое.', 'No reports yet. Write what was done, attach a photo or record a voice message.')}</p>`;
+  $$('[data-delete-report]').forEach(button => button.addEventListener('click', () => deleteSharedReport(task.id, button.dataset.deleteReport)));
+  $$('[data-report-photo], [data-report-voice]').forEach(button => button.addEventListener('click', async () => {
+    const path = button.dataset.reportPhoto || button.dataset.reportVoice; button.disabled = true; button.textContent = L('Загрузка…', 'Loading…');
+    try {
+      const url = URL.createObjectURL(await window.DaySync.loadSharedMedia(path));
+      const media = document.createElement(button.dataset.reportPhoto ? 'img' : 'audio');
+      media.src = url; if (media.tagName === 'AUDIO') { media.controls = true; media.autoplay = true; } else { media.alt = L('Фото отчёта', 'Report photo'); media.className = 'report-photo'; media.addEventListener('click', () => window.open(url, '_blank')); }
+      button.replaceWith(media);
+    } catch (error) { button.disabled = false; button.textContent = L('Не удалось загрузить — повторить', 'Failed to load — retry'); }
+  }));
+}
+
+$('#quickForm').addEventListener('submit', e => { e.preventDefault(); addQuickTask($('#quickInput').value); });
+$('#quickInput').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addQuickTask(e.currentTarget.value); } });
+$('#taskSearch').addEventListener('input', e => { searchQuery = e.currentTarget.value.trim().toLocaleLowerCase('ru'); renderHeader(); renderTasks(); renderStats(); });
+$('#weekOverviewButton').addEventListener('click', () => { currentView = 'today'; currentPeriod = 'week'; syncNav(); render(); });
+bindHoldToTalk('voiceButton', startVoiceInput);
+bindHoldToTalk('voiceTitleButton', () => startVoiceForField('taskTitle', 'voiceTitleButton', { parseTask: true, prompt: 'Слушаю название, дату и время', success: 'Название задачи добавлено' }));
+bindHoldToTalk('voiceSubtasksButton', () => startVoiceForField('taskSubtasks', 'voiceSubtasksButton', { prompt: 'Продиктуйте одну подзадачу', success: 'Подзадача добавлена новой строкой' }));
+bindHoldToTalk('voiceNoteButton', () => startVoiceForField('taskNote', 'voiceNoteButton', { prompt: 'Продиктуйте заметку', success: 'Заметка добавлена' }));
+$('#addButton').addEventListener('click', () => activeTab === 'finance' ? focusFinanceEntry('expense') : openDialog()); $('#mobileAddButton').addEventListener('click', () => activeTab === 'finance' ? focusFinanceEntry('expense') : openDialog());
+$$('[data-finance-nav]').forEach(b => b.addEventListener('click', () => goFinanceSection(b.dataset.financeNav))); $('#mobileNewTaskButton').addEventListener('click', () => openDialog()); $('#emptyAddButton').addEventListener('click', () => openDialog());
+$$('[data-task-type]').forEach(button => button.addEventListener('click', () => setTaskType(button.dataset.taskType)));
+$('#closeDialog').addEventListener('click', closeDialog); $('#svClose').addEventListener('click', closeDialog); $('#svDelete').addEventListener('click', deleteCurrent); $('#svEdit').addEventListener('click', () => { const task = sharedTasks.find(item => item.id === $('#taskId').value); if (!isSharedOwner(task)) return; $('#taskDialog').dataset.mode = 'edit'; renderSharedView(null); $('#dialogTitle').textContent = tr('task.editTitle'); $('#taskTitle').focus(); }); $('#cancelDialog').addEventListener('click', closeDialog); $('#taskForm').addEventListener('submit', handleSubmit); $('#deleteTask').addEventListener('click', deleteCurrent);
+$('#taskCameraButton').addEventListener('click', () => $('#taskCameraInput').click()); $('#taskGalleryButton').addEventListener('click', () => $('#taskGalleryInput').click()); $('#taskDocumentButton').addEventListener('click', () => $('#taskDocumentInput').click());
+['taskCameraInput', 'taskGalleryInput', 'taskDocumentInput'].forEach(id => $('#' + id).addEventListener('change', e => { prepareAttachment(e.target.files[0]); e.target.value = ''; }));
+$('#removePhoto').addEventListener('click', () => { pendingPhoto = null; pendingAttachment = null; renderPhotoPreview(); });
+$('#taskTimeMode').addEventListener('change', updateTimeMode);
+$('#updateButton').addEventListener('click', async () => { renderUpdateCenter(); $('#updateDialog').showModal(); await checkForAppUpdate(false); }); $('#closeUpdate').addEventListener('click', () => $('#updateDialog').close()); $('#applyUpdateButton').addEventListener('click', () => applyAppUpdate(false));
+$('#promptApplyUpdate').addEventListener('click', applyPromptedUpdate);
+$('#focusCard').addEventListener('click', () => { const id = $('#focusCard').dataset.focusTask; if (id) openDialog(id); });
+$('#notifyRepeat').addEventListener('change', () => { $('#notifyTime2Row').hidden = $('#notifyRepeat').value !== 'twice'; });
+$$('[data-theme-choice]').forEach(button => button.addEventListener('click', () => applyTheme(button.dataset.themeChoice)));
+$('#openNotificationSettings').addEventListener('click', openNotificationDialog); $('#closeNotificationSettings').addEventListener('click', () => $('#notificationDialog').close()); $('#notificationForm').addEventListener('submit', saveNotificationSettings); $('#testNotification').addEventListener('click', testNotification);
+$('#reminderAlertDismiss').addEventListener('click', hideReminderAlert); $('#reminderAlertOpen').addEventListener('click', () => openNotificationTask());
+$('#exportBackup').addEventListener('click', () => { $('#updateDialog').close(); exportBackup(); }); $('#importBackup').addEventListener('click', () => $('#importBackupInput').click()); $('#importBackupInput').addEventListener('change', async event => { const file = event.target.files[0]; event.target.value = ''; if (file) { $('#updateDialog').close(); await importBackup(file); } });
+$('#openFeedback').addEventListener('click', () => { $('#updateDialog').close(); resetFeedbackForm(); $('#feedbackDialog').showModal(); }); $('#closeFeedback').addEventListener('click', () => $('#feedbackDialog').close()); bindHoldToTalk('feedbackVoiceButton', () => startVoiceForField('feedbackText', 'feedbackVoiceButton', { prompt: 'Слушаю описание проблемы', success: 'Текст обратной связи добавлен' })); $('#chooseFeedbackPhoto').addEventListener('click', () => $('#feedbackPhotoInput').click()); $('#feedbackPhotoInput').addEventListener('change', event => { chooseFeedbackPhoto(event.target.files[0]); event.target.value = ''; }); $('#removeFeedbackPhoto').addEventListener('click', () => { feedbackPhoto = null; $('#feedbackFile').hidden = true; $('#feedbackFileName').textContent = ''; }); $('#feedbackForm').addEventListener('submit', submitFeedback);
+$('#closeReminders').addEventListener('click', () => $('#reminderDialog').close()); $('#enableNotifications').addEventListener('click', enableNotifications);
+function openPlansDialog() { currentPlanningView = 'week'; planningAnchorDate = selectedDate; renderPlanningDialog(); $('#reminderDialog').showModal(); }
+$('#mobilePlansButton').addEventListener('click', openPlansDialog);
+$('#desktopPlansButton').addEventListener('click', openPlansDialog);
+$$('.lang-button').forEach(button => button.addEventListener('click', () => setLang(button.dataset.lang)));
+$('#tabPlanner').addEventListener('click', () => setActiveTab('planner'));
+$('#tabFinance').addEventListener('click', () => setActiveTab('finance'));
+$('#financeQuickForm').addEventListener('submit', addFinanceEntry);
+$('#financeQuickInput').addEventListener('input', e => { if (!/\r?\n/.test(e.currentTarget.value)) { selectedFinanceCategory = detectFinanceCategory(e.currentTarget.value, financeKind); renderFinanceCategoryGrid(); } });
+$('#financeCategoryGrid').addEventListener('click', e => { const button = e.target.closest('[data-category]'); if (!button) return; selectedFinanceCategory = button.dataset.category; if (!$('#financeQuickInput').value.trim()) openFinanceAdd(financeKind, button.dataset.category); renderFinanceCategoryGrid(); });
+bindHoldToTalk('financeVoiceButton', () => startVoiceForField('financeQuickInput', 'financeVoiceButton', { prompt: 'Слушаю… Назовите покупку и сумму', success: 'Текст добавлен' }));
+if (!HAS_SPEECH_RECOGNITION) $('#financeVoiceHint').textContent = tr('finance.voiceHintFallback');
+$('#financeBreakdown').addEventListener('click', e => { const add = e.target.closest('[data-quick-add]'); if (add) { openFinanceAdd(financeKind, add.dataset.quickAdd); return; } const button = e.target.closest('[data-edit-limit]'); if (button) editFinanceLimit(button.dataset.editLimit); });
+$('#closeFinanceHistory').addEventListener('click', () => $('#financeHistoryDialog').close());
+['fhFrom', 'fhTo'].forEach(id => $('#' + id).addEventListener('change', () => { $$('[data-fh-range]').forEach(b => b.classList.remove('active')); renderFinanceHistory(); }));
+$$('[data-fh-range]').forEach(b => b.addEventListener('click', () => { setHistoryRange(b.dataset.fhRange); renderFinanceHistory(); }));
+$('#fhKind').addEventListener('change', () => { renderHistoryCategoryOptions(); renderFinanceHistory(); });
+$('#fhCategory').addEventListener('change', renderFinanceHistory); $('#fhSearch').addEventListener('input', renderFinanceHistory);
+$('#financeAddForm').addEventListener('submit', submitFinanceAdd); $('#closeFinanceAdd').addEventListener('click', () => $('#financeAddDialog').close());
+$('#financeLimitAddSelect').addEventListener('change', e => { const category = e.target.value; e.target.value = ''; if (category) editFinanceLimit(category); });
+$('#financeList').addEventListener('click', e => { const button = e.target.closest('[data-delete-expense]'); if (button) deleteExpense(button.dataset.deleteExpense); });
+$$('.finance-kind-button').forEach(button => button.addEventListener('click', () => {
+  financeKind = button.dataset.kind;
+  selectedFinanceCategory = financeKind === 'income' ? 'salary' : 'groceries';
+  $$('.finance-kind-button').forEach(b => b.classList.toggle('active', b === button));
+  renderFinanceCategoryGrid(); renderFinanceBreakdown();
+}));
+$$('[data-finance-period]').forEach(button => button.addEventListener('click', () => { financePeriod = button.dataset.financePeriod; renderFinance(); }));
+$('#financePeriodPrev').addEventListener('click', () => moveFinancePeriod(-1));
+$('#financePeriodNext').addEventListener('click', () => moveFinancePeriod(1));
+$('#financePeriodToday').addEventListener('click', () => { financeSelectedDate = todayKey; renderFinance(); });
+$('#financeCameraButton').addEventListener('click', () => $('#financeCameraInput').click());
+$('#financeGalleryButton').addEventListener('click', () => $('#financeGalleryInput').click());
+['financeCameraInput', 'financeGalleryInput'].forEach(id => $('#' + id).addEventListener('change', e => { prepareExpensePhoto(e.target.files[0]); e.target.value = ''; }));
+$('#removeExpensePhoto').addEventListener('click', () => { pendingExpensePhoto = null; renderExpensePhotoPreview(); });
+$('#mobileSharedButton').addEventListener('click', openSharedDialog); $('#desktopSharedButton').addEventListener('click', openSharedDialog); $('#closeShared').addEventListener('click', () => $('#sharedDialog').close()); $('#sharedAddButton').addEventListener('click', () => { $('#sharedDialog').close(); openDialog(null, 'shared'); });
+$('#reportPhotoButton').addEventListener('click', () => $('#reportPhotoInput').click());
+$('#reportPhotoInput').addEventListener('change', async e => { const file = e.target.files[0]; e.target.value = ''; if (!file) return; try { pendingReport.photo = await compressReportPhoto(file); renderPendingReport(); } catch { toast(L('Не удалось прочитать фотографию', 'Could not read the photo')); } });
+$('#reportVoiceButton').addEventListener('click', toggleReportVoice); $('#reportSend').addEventListener('click', sendSharedReport);
+$('#taskDialog').addEventListener('close', resetReportComposer);
+$('#sharedInvitePromptAccept').addEventListener('click', () => answerSharedInvitePrompt(true)); $('#sharedInvitePromptDecline').addEventListener('click', () => answerSharedInvitePrompt(false));
+$$('[data-shared-tab]').forEach(button => button.addEventListener('click', () => { currentSharedTab = button.dataset.sharedTab; renderSharedDialog(); }));
+$$('[data-planning-view]').forEach(button => button.addEventListener('click', () => { currentPlanningView = button.dataset.planningView; renderPlanningDialog(); })); $('#planForm').addEventListener('submit', addPeriodPlans);
+$('#planPeriodPrev').addEventListener('click', () => movePlanningPeriod(-1)); $('#planPeriodNext').addEventListener('click', () => movePlanningPeriod(1));
+$('#closeSync').addEventListener('click', () => $('#syncDialog').close());
+$('#openAccountFromMenu').addEventListener('click', () => { $('#updateDialog').close(); openSyncDialog(); });
+$('#profileButton').addEventListener('click', openProfile); $('#closeProfile').addEventListener('click', () => $('#profileDialog').close()); $('#profileForm').addEventListener('submit', saveProfileForm);
+$('#chooseProfilePhoto').addEventListener('click', () => $('#profilePhotoInput').click()); $('#profileGalleryButton').addEventListener('click', () => $('#profilePhotoInput').click()); $('#profileCameraButton').addEventListener('click', () => $('#profileCameraInput').click());
+$('#profilePhotoInput').addEventListener('change', e => { prepareProfilePhoto(e.target.files[0]); e.target.value = ''; }); $('#profileCameraInput').addEventListener('change', e => { prepareProfilePhoto(e.target.files[0]); e.target.value = ''; });
+$('#removeProfilePhoto').addEventListener('click', () => { pendingProfilePhoto = ''; $('#profilePhotoInput').value = ''; $('#profileCameraInput').value = ''; renderProfile(); });
+$('#syncAuthForm').addEventListener('submit', handleSyncLogin); $('#syncSignUp').addEventListener('click', handleSyncSignUp); $('#syncForgotPassword').addEventListener('click', handleForgotPassword); $('#syncRecoveryCodeForm').addEventListener('submit', handleVerifyRecoveryCode); $('#syncResendRecoveryCode').addEventListener('click', () => sendRecoveryCode($('#syncRecoveryEmail').value.trim())); $('#syncBackToLogin').addEventListener('click', showLoginForm); $('#syncResetForm').addEventListener('submit', handleResetPassword);
+$('#syncNow').addEventListener('click', () => performSync()); $('#syncLogout').addEventListener('click', handleSyncLogout); $('#pinSaveButton').addEventListener('click', savePin); $('#pinRemoveButton').addEventListener('click', removePin);
+$('#pinUnlockForm').addEventListener('submit', unlockWithPin); $('#pinUsePassword').addEventListener('click', useAccountPassword);
+$('#pinSetupInput').addEventListener('input', event => preparePinField(event.target)); $('#pinUnlockInput').addEventListener('input', event => preparePinField(event.target));
+$$('[data-period]').forEach(b => b.addEventListener('click', () => { currentPeriod = b.dataset.period; currentView = 'today'; syncNav(); render(); }));
+$('#periodPrev').addEventListener('click', () => movePeriod(-1)); $('#periodNext').addEventListener('click', () => movePeriod(1)); $('#periodToday').addEventListener('click', () => { selectedDate = todayKey; render(); });
+$$('[data-view]').forEach(b => b.addEventListener('click', () => { if (b.dataset.view === 'settings') { toast('Все данные, фото и планы хранятся только на этом устройстве'); return; } currentView = b.dataset.view; if (currentView === 'today') selectedDate = todayKey; syncNav(); render(); }));
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; $('#installButton').hidden = false; });
+$('#installButton').addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('#installButton').hidden = true; });
+showUpdatedNoticeIfNeeded();
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=97'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
+  navigator.serviceWorker.addEventListener('message', event => {
+    if (event.data?.type !== 'DAY_PUSH') return;
+    showReminderAlert(event.data.taskId || '', event.data.title || 'Новое уведомление', event.data.body || '');
+  });
+}
+
+function handleOpenTaskFromUrl() {
+  const params = new URLSearchParams(location.search); const taskId = params.get('openTask');
+  if (!taskId) return;
+  history.replaceState(null, '', location.pathname);
+  openNotificationTask(taskId);
+}
+
+async function initializeAccount() {
+  if (new URLSearchParams(location.search).get('recovery') === 'code') {
+    refreshSyncUi(); const email = localStorage.getItem('day-password-recovery-email') || ''; $('#syncEmail').value = email; $('#syncRecoveryEmail').value = email; $('#syncAuthForm').hidden = true; $('#syncConnected').hidden = true; $('#syncRecoveryCodeForm').hidden = false; $('#syncDialog').showModal();
+    setSyncStatus('', 'Восстановление пароля', 'Введите email, получите новый код и укажите его здесь.'); return;
+  }
+  try {
+    const recovery = await window.DaySync?.consumeRecoveryFromUrl?.();
+    if (recovery === 'signup') {
+      markPinUnlocked(); switchAccountData(); refreshSyncUi(); await performSync(false); toast('Почта подтверждена. Аккаунт подключён'); return;
+    }
+    if (recovery === 'recovery') {
+      markPinUnlocked(); refreshSyncUi(); $('#syncAuthForm').hidden = true; $('#syncConnected').hidden = true; $('#syncResetForm').hidden = false; $('#syncDialog').showModal();
+      setSyncStatus('connected', 'Ссылка подтверждена', 'Теперь задайте новый пароль.'); return;
+    }
+  } catch (error) {
+    if (!window.DaySync?.user()) { await window.DaySync?.signOut?.(); }
+    refreshSyncUi(); const email = localStorage.getItem('day-password-recovery-email') || ''; $('#syncEmail').value = email; $('#syncRecoveryEmail').value = email; $('#syncAuthForm').hidden = true; $('#syncRecoveryCodeForm').hidden = false; $('#syncDialog').showModal();
+    setSyncStatus('error', 'Старая ссылка недействительна', 'Вернитесь ко входу и запросите новое письмо. Открывайте только самое новое письмо.'); return;
+  }
+  refreshSyncUi();
+  if (window.DaySync?.user()) { await maybeLockApp(); await performSync(false); }
+  else if (localStorage.getItem('day-cloud-moved')) {
+    // Облако переехало на новый адрес: один раз просим войти тем же email и паролем.
+    const email = localStorage.getItem('day-cloud-moved'); localStorage.removeItem('day-cloud-moved');
+    if (email.includes('@')) $('#syncEmail').value = email;
+    openSyncDialog(); setSyncStatus('', tr('cloud.movedTitle'), tr('cloud.movedText'));
+  }
+  handleOpenTaskFromUrl();
+}
+window.addEventListener('online', () => { renderConnectionState(); performSync(false); });
+window.addEventListener('offline', renderConnectionState);
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { appHiddenAt = Date.now(); return; }
+  if (appHiddenAt && Date.now() - appHiddenAt >= PIN_RELOCK_MS) { pinUnlocked = false; maybeLockApp(); }
+  refreshSharedPresence();
+  performSync(false);
+});
+// Фоновый опрос облака раз в 2 минуты (раньше — каждые 15 с, что расходовало лимит трафика Supabase).
+// Свои правки отправляются сразу после сохранения, а при возврате в приложение синхронизация идёт немедленно.
+setInterval(() => { if (document.visibilityState === 'visible' && navigator.onLine) performSync(false); }, 120000);
+setInterval(() => { if (document.visibilityState === 'visible' && navigator.onLine) refreshSharedPresence(); }, 120000);
+
+document.documentElement.lang = appLang; $$('.lang-button').forEach(b => b.classList.toggle('active', b.dataset.lang === appLang)); applyStaticTranslations();
+runAutoCarry(); save(); render(); renderProfile(); renderConnectionState(); refreshUpdateIndicator(); initializeAccount(); checkReminders(); setInterval(checkReminders, 30000);
+try { applyTheme(localStorage.getItem('day-theme-v1') || 'blue'); } catch { applyTheme('blue'); }
