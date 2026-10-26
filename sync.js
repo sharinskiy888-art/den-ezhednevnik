@@ -46,6 +46,8 @@
     if (!response.ok) {
       if (useAuth && response.status === 401 && session?.access_token) {
         if (!retried && session.refresh_token) {
+          // Пока шёл запрос, вошёл другой человек: старым входом его сессию не затираем и запрос с чужими данными не повторяем.
+          if (getSession()?.user?.id !== session.user?.id) { const error = new Error('Аккаунт сменился'); error.userChanged = true; throw error; }
           try { await refresh(session.refresh_token); } catch (error) { if (error.status === 400 || error.status === 401) expireSession(); throw sessionExpiredError(error); }
           return request(path, options, useAuth, true);
         }
@@ -198,6 +200,8 @@
     result.forEach(item => { if (known[item.id] !== stamp(item.updatedAt)) rows.push({ user_id: sessionUser.id, id: item.id, payload: item, updated_at: stamp(item.updatedAt) }); });
     tombstones.forEach((deletedAt, id) => { if (known[id] !== deletedAt) rows.push({ user_id: sessionUser.id, id, payload: { id, __deleted: true, updatedAt: deletedAt }, updated_at: deletedAt }); });
     if (appState && known[STATE_ID] !== stamp(appState.updatedAt)) rows.push({ user_id: sessionUser.id, id: STATE_ID, payload: appState, updated_at: stamp(appState.updatedAt) });
+    // Пока скачивали изменения, на устройстве вошёл другой человек — его аккаунт данными прежнего не заполняем.
+    if (user()?.id !== sessionUser.id) { const error = new Error('Аккаунт сменился'); error.userChanged = true; throw error; }
     if (rows.length) {
       await request(`/rest/v1/${table}?on_conflict=user_id,id`, { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify(rows) });
       rows.forEach(row => { known[row.id] = row.updated_at; });
