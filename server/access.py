@@ -207,6 +207,8 @@ SAFE_ID = re.compile(r'^[A-Za-z0-9_-]{1,100}$')  # id задачи — это и
 FILE_TYPES = {'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png', 'webp': 'image/webp', 'webm': 'audio/webm',
               'ogg': 'audio/ogg', 'm4a': 'audio/mp4', 'aac': 'audio/aac', 'mp4': 'video/mp4', 'mp3': 'audio/mpeg', 'wav': 'audio/wav'}
 FILE_NAME = r'[A-Za-z0-9-]{1,100}\.(' + '|'.join(FILE_TYPES) + ')'
+EMAIL = re.compile(r'^[^@\s<>"\']+@[^@\s<>"\']+$')
+REPORT_ID = re.compile(r'^[A-Za-z0-9_-]{1,100}$')
 MEDIA_PATH = re.compile(r'^shared/[A-Za-z0-9_-]{1,100}/' + FILE_NAME + '$')
 SHARED_COLUMNS = {'owner_id', 'owner_email', 'invited_emails', 'accepted_emails', 'leave_requests', 'payload', 'updated_at'}
 WORKER_FIELDS = {'status', 'statusBy', 'statusAt', 'completed', 'subtasks', 'reports', 'activity', 'updatedAt'}
@@ -250,7 +252,7 @@ def forbidden(message):
 
 
 def email_list(value, name):
-    if not isinstance(value, list) or len(value) > 200 or not all(isinstance(e, str) and 0 < len(e.strip()) <= 300 for e in value):
+    if not isinstance(value, list) or len(value) > 200 or not all(isinstance(e, str) and 0 < len(e.strip()) <= 300 and EMAIL.match(e.strip()) for e in value):
         raise bad(f'Неверное поле «{name}»', 'bad_field')
     return list(dict.fromkeys(e.strip().lower() for e in value))
 
@@ -262,7 +264,7 @@ def check_owner_patch(row, body):
         if name in body and str(body[name] or '').lower() != str(row[name]).lower():
             raise forbidden('Организатора задачи сменить нельзя')
     if 'invited_emails' in body:
-        changes['invited_emails'] = email_list(body['invited_emails'], 'invited_emails')
+        changes['invited_emails'] = [e for e in email_list(body['invited_emails'], 'invited_emails') if e != str(row['owner_email']).lower()]
     for name in ('accepted_emails', 'leave_requests'):
         if name in body:
             value = email_list(body[name], name)
@@ -350,7 +352,7 @@ def check_reports(old, new, me, task_id):
     if len({r.get('id') for r in fresh}) != len(fresh):
         raise bad('Повторяется id отчёта', 'bad_field')
     for r in fresh:
-        if r.get('by') != me or not isinstance(r.get('id'), str):
+        if r.get('by') != me or not isinstance(r.get('id'), str) or not REPORT_ID.match(r['id']):
             raise forbidden('Отчёт можно добавить только от своего имени')
         for media in ('photo', 'voice'):
             if media in r and not (isinstance(r[media], str) and MEDIA_PATH.match(r[media]) and r[media].split('/')[1] == task_id):

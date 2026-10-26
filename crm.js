@@ -62,18 +62,21 @@
   const dict = () => ({ ...DEFAULT_DICT, ...(get('dict', 'dict') || {}) });
   const objectLabel = o => o ? (o.address || L('Объект без адреса', 'Object without address')) : L('Объект удалён', 'Object deleted');
   const clientOf = o => o && get('clients', o.clientId);
+  // Телефон ищется по цифрам: «+7 900 123-45-67», «89001234567» и «900 123 45 67» — один номер.
+  function phoneKey(value) { const digits = String(value || '').replace(/\D/g, ''); return digits.length === 11 && /^[78]/.test(digits) ? digits.slice(1) : digits; }
   function searchText(kind, item) {
     const o = kind === 'orders' || kind === 'contracts' ? get('objects', item.objectId) : kind === 'objects' ? item : null;
     const c = kind === 'clients' ? item : clientOf(o);
     return [item.name, item.inn, item.phone, item.email, item.contact, item.note, item.type, item.equipment, ...(item.systems || []), ...(item.assignees || []),
-      o?.address, c?.name, c?.inn, c?.phone, kind === 'orders' ? STAGES[item.stage || 'new']?.[0] : ''].filter(Boolean).join(' ').toLocaleLowerCase();
+      o?.address, c?.name, c?.inn, c?.phone, phoneKey(item.phone), phoneKey(c?.phone), kind === 'orders' ? STAGES[item.stage || 'new']?.[0] : ''].filter(Boolean).join(' ').toLocaleLowerCase();
   }
   function index(kind) {
     if (!state.index[kind]) state.index[kind] = [...state.data[kind].values()].map(item => [searchText(kind, item), item]);
     return state.index[kind];
   }
   function search(kind, query) {
-    const words = String(query || '').toLocaleLowerCase().split(/\s+/).filter(Boolean);
+    const asPhone = String(query || '').replace(/[\s()+-]/g, '');
+    const words = /^\d{4,}$/.test(asPhone) ? [phoneKey(asPhone)] : String(query || '').toLocaleLowerCase().split(/\s+/).filter(Boolean);
     const rows = index(kind);
     return words.length ? rows.filter(([text]) => words.every(word => text.includes(word))).map(([, item]) => item) : rows.map(([, item]) => item);
   }
@@ -83,7 +86,7 @@
   // браузер очистил базу), версии забываются, чтобы всё скачалось заново, а не только изменённое.
   function forgetVersions(kind) { try { localStorage.removeItem(`day-sync-meta-v1:crm:${kind}:${state.userId}`); } catch {} }
   async function sync() {
-    const me = window.DaySync?.user(); if (!me) return;
+    const me = window.DaySync?.user(); if (!me) { state.role = ''; refreshTab(); return; } // вышли из аккаунта — раздела «Клиенты» не видно
     if (state.syncing) { state.again = true; return; } // правка во время обмена — ещё один круг после него
     state.syncing = true; state.again = false;
     const failed = [];

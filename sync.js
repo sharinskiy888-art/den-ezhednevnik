@@ -60,6 +60,8 @@
         if (!retried && session.refresh_token) {
           // Пока шёл этот запрос, другой уже обновил вход — просто повторяем с новым, старый токен не предъявляем.
           const current = getSession();
+          // Пока шёл запрос, вошёл другой человек: запрос с чужими данными не повторяем и его вход не трогаем.
+          if (current?.user?.id !== session.user?.id) { const error = new Error('Аккаунт сменился'); error.userChanged = true; throw error; }
           if (current?.access_token && current.access_token !== session.access_token) return request(path, options, useAuth, true);
           try { await refreshOnce(session.refresh_token); } catch (error) { if (error.status === 400 || error.status === 401) expireSession(); throw sessionExpiredError(error); }
           return request(path, options, useAuth, true);
@@ -171,6 +173,8 @@
     result.forEach(item => { if (known[item.id] !== stamp(item.updatedAt)) rows.push({ user_id: sessionUser.id, id: item.id, payload: item, updated_at: stamp(item.updatedAt) }); });
     tombstones.forEach((deletedAt, id) => { if (known[id] !== deletedAt) rows.push({ user_id: sessionUser.id, id, payload: { id, __deleted: true, updatedAt: deletedAt }, updated_at: deletedAt }); });
     if (appState && known[STATE_ID] !== stamp(appState.updatedAt)) rows.push({ user_id: sessionUser.id, id: STATE_ID, payload: appState, updated_at: stamp(appState.updatedAt) });
+    // Пока скачивали изменения, на устройстве вошёл другой человек — его аккаунт данными прежнего не заполняем.
+    if (user()?.id !== sessionUser.id) { const error = new Error('Аккаунт сменился'); error.userChanged = true; throw error; }
     if (rows.length) {
       // Частями: тысячи карточек CRM или задач за раз не упираются в предел размера запроса.
       let part = []; let size = 0;
@@ -200,6 +204,7 @@
       acceptedEmails: (row.accepted_emails || []).map(email => String(email).trim().toLocaleLowerCase()),
       leaveRequests: (row.leave_requests || []).map(email => String(email).trim().toLocaleLowerCase()),
       updatedAt: row.payload?.updatedAt || row.updated_at,
+      __rev: row.rev || '',
       __remote: true
     };
   }
@@ -234,12 +239,13 @@
     const ownerEmail = (task.ownerEmail || sessionUser.email || '').toLocaleLowerCase();
     const invitedEmails = [...new Set((task.invitedEmails || []).map(email => String(email).trim().toLocaleLowerCase()).filter(Boolean))];
     const acceptedEmails = [...new Set((task.acceptedEmails || []).map(email => String(email).trim().toLocaleLowerCase()).filter(Boolean))];
-    const { id, ownerId: _ownerId, ownerEmail: _ownerEmail, invitedEmails: _invited, acceptedEmails: _accepted, leaveRequests, __remote, ...payload } = task;
+    const { id, ownerId: _ownerId, ownerEmail: _ownerEmail, invitedEmails: _invited, acceptedEmails: _accepted, leaveRequests, __remote, __rev, ...payload } = task;
     const row = { id, owner_id: ownerId, owner_email: ownerEmail, invited_emails: invitedEmails, accepted_emails: acceptedEmails, payload, updated_at: task.updatedAt || new Date().toISOString() };
     sharedCache.rows.delete(id);
     if (__remote) {
       // Организатор присылает строку целиком, исполнитель — только содержимое; что кому можно, решает сервер.
       const { id: _id, ...patch } = ownerId === sessionUser.id ? row : { payload, updated_at: row.updated_at };
+      if (__rev) patch.base_rev = __rev; // сервер ответит 409, если строку успели изменить после нашего чтения
       await request(`/shared/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(patch) });
     } else await post('/shared', row);
     return { ...task, ownerId, ownerEmail, invitedEmails, acceptedEmails, __remote: true };
