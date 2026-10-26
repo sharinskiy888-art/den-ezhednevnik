@@ -11,7 +11,7 @@ const NOTIFICATION_KEY = 'day-planner-notifications-v1';
 const EXPENSES_KEY = 'day-planner-expenses-v1';
 const FINANCE_LIMITS_KEY = 'day-planner-finance-limits-v1';
 const DELETED_EXPENSES_KEY = 'day-planner-deleted-expenses-v1';
-const APP_VERSION = '102';
+const APP_VERSION = '103';
 const UPDATE_SEEN_KEY = 'day-planner-update-seen-v1';
 const UPDATE_APPLIED_KEY = 'day-planner-update-applied-v1';
 const LANG_KEY = 'day-planner-lang-v1';
@@ -1665,9 +1665,12 @@ async function performSync(showMessage = true) {
     if (showMessage) toast('Данные синхронизированы');
   } catch (error) {
     suppressSync = false;
-    if (userChanged()) return;
+    if (userChanged() && !error.sessionExpired) return; // истёкший вход сам обнуляет пользователя — это не смена аккаунта
     if (error.sessionExpired) { switchAccountData(); toast(error.message); openSyncDialog(); setSyncStatus('error', 'Нужно войти снова', error.message); }
-    else { setSyncStatus('error', 'Ошибка синхронизации', error.message); if (showMessage) toast(error.message); }
+    else {
+      const message = error instanceof TypeError || /failed to fetch|networkerror|load failed/i.test(error.message || '') ? L('Нет связи с сервером. Данные сохранены на устройстве и отправятся, когда связь появится', 'No connection to the server. Data is kept on this device and will be sent when the connection is back') : error.message;
+      setSyncStatus('error', 'Ошибка синхронизации', message); if (showMessage) toast(message);
+    }
     showCloudBanner(error);
   } finally {
     syncInFlight = false;
@@ -2495,7 +2498,7 @@ window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); instal
 $('#installButton').addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('#installButton').hidden = true; });
 showUpdatedNoticeIfNeeded();
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=102'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
+  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=103'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
   navigator.serviceWorker.addEventListener('message', event => {
     if (event.data?.type !== 'DAY_PUSH') return;
     showReminderAlert(event.data.taskId || '', event.data.title || 'Новое уведомление', event.data.body || '');

@@ -251,8 +251,10 @@ def forbidden(message):
     return ApiError(403, message, 'forbidden')
 
 
-def email_list(value, name):
-    if not isinstance(value, list) or len(value) > 200 or not all(isinstance(e, str) and 0 < len(e.strip()) <= 300 and EMAIL.match(e.strip()) for e in value):
+def email_list(value, name, keep=(), strict=True):
+    """Новые адреса — только похожие на почту; уже записанные раньше (keep) принимаются как есть, чтобы старые данные не блокировали правки."""
+    ok = lambda e: not strict or EMAIL.match(e.strip()) or e.strip().lower() in keep
+    if not isinstance(value, list) or len(value) > 200 or not all(isinstance(e, str) and 0 < len(e.strip()) <= 300 and ok(e) for e in value):
         raise bad(f'Неверное поле «{name}»', 'bad_field')
     return list(dict.fromkeys(e.strip().lower() for e in value))
 
@@ -264,10 +266,10 @@ def check_owner_patch(row, body):
         if name in body and str(body[name] or '').lower() != str(row[name]).lower():
             raise forbidden('Организатора задачи сменить нельзя')
     if 'invited_emails' in body:
-        changes['invited_emails'] = [e for e in email_list(body['invited_emails'], 'invited_emails') if e != str(row['owner_email']).lower()]
+        changes['invited_emails'] = [e for e in email_list(body['invited_emails'], 'invited_emails', {*row['invited_emails'], *row['accepted_emails']}) if e != str(row['owner_email']).lower()]
     for name in ('accepted_emails', 'leave_requests'):
         if name in body:
-            value = email_list(body[name], name)
+            value = email_list(body[name], name, set(row[name]))
             if set(value) - set(row[name]):
                 raise forbidden('Принимает задачу только сам приглашённый' if name == 'accepted_emails' else 'Просьбу о выходе пишет только сам исполнитель')
             changes[name] = value
@@ -280,7 +282,7 @@ def check_worker_patch(row, body, user: User, task_id):
     """Исполнитель: столбцы участников и владельца прежние, в payload — только разрешённые правки."""
     for name in SHARED_COLUMNS - {'payload', 'updated_at'}:
         if name in body:
-            same = set(email_list(body[name], name)) == set(row[name]) if isinstance(row[name], list) \
+            same = set(email_list(body[name], name, set(row[name]))) == set(row[name]) if isinstance(row[name], list) \
                 else str(body[name] or '').lower() == str(row[name]).lower()
             if not same:
                 raise forbidden('Участников и организатора меняет только организатор')
@@ -439,8 +441,8 @@ def check_import(body):
     if not isinstance(body, dict) or set(body) - {'id', 'invited_emails', 'accepted_emails', 'payload', 'updated_at'}:
         raise bad('Неверная строка поручения', 'bad_row')
     check_new_shared_id(field(body, 'id', max_len=100))
-    invited = email_list(body.get('invited_emails') or [], 'invited_emails')
-    accepted = email_list(body.get('accepted_emails') or [], 'accepted_emails')
+    invited = email_list(body.get('invited_emails') or [], 'invited_emails', strict=False)  # перенос старых данных — как есть
+    accepted = email_list(body.get('accepted_emails') or [], 'accepted_emails', strict=False)
     payload = body.get('payload')
     if not isinstance(payload, dict):
         raise bad('payload должен быть объектом', 'bad_field')
