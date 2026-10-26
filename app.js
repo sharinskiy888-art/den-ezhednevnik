@@ -1673,9 +1673,12 @@ async function performSync(showMessage = true) {
     if (showMessage) toast('Данные синхронизированы');
   } catch (error) {
     suppressSync = false;
-    if (userChanged()) return;
+    if (userChanged() && !error.sessionExpired) return; // истёкший вход сам обнуляет пользователя — это не смена аккаунта
     if (error.sessionExpired) { switchAccountData(); toast(error.message); openSyncDialog(); setSyncStatus('error', 'Нужно войти снова', error.message); }
-    else { setSyncStatus('error', 'Ошибка синхронизации', error.message); if (showMessage) toast(error.message); }
+    else {
+      const message = error instanceof TypeError || /failed to fetch|networkerror|load failed/i.test(error.message || '') ? L('Нет связи с сервером. Данные сохранены на устройстве и отправятся, когда связь появится', 'No connection to the server. Data is kept on this device and will be sent when the connection is back') : error.message;
+      setSyncStatus('error', 'Ошибка синхронизации', message); if (showMessage) toast(message);
+    }
     showCloudBanner(error);
   } finally {
     syncInFlight = false;
