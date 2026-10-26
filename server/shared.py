@@ -1,4 +1,5 @@
 """Поручения (совместные задачи) и «кто сейчас в сети». Что кому можно — решает access.py, здесь только чтение и запись."""
+import hashlib
 import json
 
 from fastapi import APIRouter, Request
@@ -18,6 +19,7 @@ def load(con, task_id):
     if not row:
         return None
     out = dict(row)
+    out['rev'] = rev_of(out)
     for name in LIST_COLUMNS:
         out[name] = json.loads(out[name])
     out['payload_text'] = out['payload']
@@ -25,9 +27,16 @@ def load(con, task_id):
     return out
 
 
+def rev_of(r):
+    """Версия строки как она лежит в базе: меняется при любой правке, в том числе «Принять» и просьбе выйти."""
+    text = '\x00'.join(str(r[k]) for k in (*LIST_COLUMNS, 'payload', 'updated_at'))
+    return hashlib.sha1(text.encode()).hexdigest()[:16]
+
+
 def row_json(r):
     # payload уходит готовым текстом из базы, без повторного разбора и сборки.
     head = {k: r[k] for k in ('id', 'owner_id', 'owner_email', 'updated_at')}
+    head['rev'] = r['rev'] if 'rev' in r.keys() else rev_of(r)
     head.update({k: r[k] if isinstance(r[k], list) else json.loads(r[k]) for k in LIST_COLUMNS})
     return json.dumps(head, ensure_ascii=False)[:-1] + ',"payload":' + r['payload'] + '}'
 
@@ -105,11 +114,12 @@ def updated_at(body, required=True):
 async def create(request: Request):
     user = current_user(request)
     body = await read_json(request)
-    if not isinstance(body, dict) or set(body) - SHARED_COLUMNS - {'id'}:
+    if not isinstance(body, dict) or set(body) - SHARED_COLUMNS - {'id', 'rev'}:
         raise bad('Неверная строка поручения', 'bad_row')
     task_id = field(body, 'id', max_len=100)
     check_new_shared_id(task_id)
-    new = {'invited_emails': email_list(body.get('invited_emails') or [], 'invited_emails'),
+    me = user.email.lower()  # организатор не приглашает сам себя
+    new = {'invited_emails': [e for e in email_list(body.get('invited_emails') or [], 'invited_emails') if e != me],
            'payload': body.get('payload'), 'updated_at': updated_at(body)}
     text = payload_text(new['payload'])
     con = request.app.state.con
@@ -136,22 +146,28 @@ async def create(request: Request):
 async def patch(task_id: str, request: Request):
     user = current_user(request)
     body = await read_json(request)
-    if not isinstance(body, dict) or set(body) - SHARED_COLUMNS - {'id'} or body.get('id', task_id) != task_id:
+    if not isinstance(body, dict) or set(body) - SHARED_COLUMNS - {'id', 'rev', 'base_rev'} or body.get('id', task_id) != task_id:
         raise bad('Неверная правка поручения', 'bad_row')
+    body.pop('rev', None)  # строка, присланная целиком, как её отдал сервер: своя версия ничего не решает
+    base_rev = body.pop('base_rev', None)
     con = request.app.state.con
     with db.tx(con):
         row = load(con, task_id)
         role = require_shared(row, user, 'owner', 'worker')
+        if base_rev is not None and base_rev != row['rev']:
+            raise ApiError(409, 'Задачу только что изменил другой участник — обновите и повторите', 'conflict')
         if role == 'owner':
             row.update(check_owner_patch(row, body))
         else:
             check_worker_patch(row, body, user, task_id)
+        old_payload = row['payload']
         if 'payload' in body:
             payload_text(body['payload'])  # не объект — 400 до записи
             row['payload'] = body['payload']
         if 'updated_at' in body:
             row['updated_at'] = updated_at(body)
         save(con, task_id, row)
+    files.remove_report_files(task_id, old_payload, row['payload'])
     return Response(status_code=204)
 
 

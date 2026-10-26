@@ -27,6 +27,18 @@ def remove_task_files(task_ids):
             shutil.rmtree(db.FILES_DIR / 'shared' / task_id, ignore_errors=True)
 
 
+def remove_report_files(task_id, old_payload, new_payload):
+    """Удалили отчёт — удаляем и его фото/голос, чтобы файл не оставался доступен и не занимал диск."""
+    def media(payload):
+        reports = payload.get('reports') if isinstance(payload, dict) else None
+        return {r[k] for r in (reports if isinstance(reports, list) else []) if isinstance(r, dict)
+                for k in ('photo', 'voice') if isinstance(r.get(k), str)}
+    for path in media(old_payload) - media(new_payload):
+        parts = path.split('/')
+        if len(parts) == 3 and parts[0] == 'shared' and parts[1] == task_id and NAME_RE.match(parts[2]):
+            (task_dir(task_id) / parts[2]).unlink(missing_ok=True)
+
+
 def task_row(request, task_id):
     from .shared import load  # shared.py импортирует этот файл: берём load при вызове
     return load(request.app.state.con, task_id)
@@ -79,7 +91,7 @@ async def download(task_id: str, name: str, request: Request):
     path = task_dir(task_id) / name
     if not path.is_file():
         raise ApiError(404, 'Файл не найден', 'not_found')
-    return FileResponse(path, media_type=TYPES[match.group(1)], headers={'Cache-Control': 'no-store'})
+    return FileResponse(path, media_type=TYPES[match.group(1)], headers={'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff'})
 
 
 # --- Фото объектов CRM: загружает руководитель, видят все, кому виден объект ---
@@ -112,4 +124,4 @@ async def download_object_photo(object_id: str, name: str, request: Request):
     path = task_dir(object_id, 'crm') / name
     if not path.is_file():
         raise ApiError(404, 'Файл не найден', 'not_found')
-    return FileResponse(path, media_type=TYPES[match.group(1)], headers={'Cache-Control': 'no-store'})
+    return FileResponse(path, media_type=TYPES[match.group(1)], headers={'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff'})

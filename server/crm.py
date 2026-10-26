@@ -163,7 +163,7 @@ def link_task(con, order_id, p, assignees, author):
                'payload': {'status': 'new', 'completed': False, 'subtasks': [], 'reports': [], 'time': '',
                            'activity': [{'type': 'created', 'email': author.email, 'at': now}]}}
     accepted = [e for e in row['accepted_emails'] if e in assignees]
-    invited = [e for e in assignees if e not in accepted]
+    invited = [e for e in assignees if e not in accepted and e != str(row['owner_email']).lower()]  # организатор сам себя не приглашает
     changed = any(row['payload'].get(k) != v for k, v in fields.items()) or accepted != row['accepted_emails'] or invited != row['invited_emails']
     if not changed:
         return
