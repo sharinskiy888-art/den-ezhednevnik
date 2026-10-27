@@ -17,7 +17,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import auth, backup, crm, db, files, migration, shared, sync
-from .access import MAX_BODY, ApiError, RateLimiter, bad, client_ip, field, read_json, require_admin, user_from_token
+from .access import MAX_BODY, ApiError, RateLimiter, bad, client_ip, current_user, field, read_json, require_admin, user_from_token
 
 STATIC_FILES = {'index.html', 'app.js', 'crm.js', 'sync.js', 'sync-config.js', 'i18n-en.js', 'styles.css', 'sw.js', 'version.js',
                 'version.json', 'manifest.webmanifest', 'install.html', 'qr-iphone.svg'}
@@ -27,7 +27,8 @@ feedback_limiter = RateLimiter(db.FEEDBACK_LIMIT, 60)
 db.lock_data_dir()
 con = db.connect()
 db.migrate(con)
-auth.ensure_first_admin(con)
+if not db.AK:
+    auth.ensure_first_admin(con)
 
 
 @asynccontextmanager
@@ -38,6 +39,10 @@ async def lifespan(app):
     yield
     stop.set()
     task.cancel()
+    try:
+        con.execute('pragma wal_checkpoint(truncate)')  # остановка по команде ядра: всё записано в основной файл базы
+    except Exception:
+        traceback.print_exc()
 
 
 async def maintenance_loop():
@@ -96,13 +101,24 @@ app.add_middleware(CORSMiddleware, allow_origins=db.ALLOWED_ORIGINS, allow_crede
                    allow_methods=['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
                    allow_headers=['Authorization', 'Content-Type', 'apikey'], expose_headers=['Retry-After'], max_age=600)
 
-app.include_router(auth.router)
+if db.AK:  # модуль АК: вход, пароли и приглашения — у ядра; свои адреса /api/auth/* и /api/admin/users выключены
+    from . import ak
+    app.include_router(ak.router)
+else:
+    app.include_router(auth.router)
 app.include_router(sync.router)
 app.include_router(shared.router)
 app.include_router(files.router)
 app.include_router(crm.router)
 app.include_router(migration.router)
 app.include_router(backup.router)
+
+
+if not db.AK:
+    @app.get('/api/ak/me')
+    async def not_ak_module():
+        """Приложение при запуске спрашивает, не модуль ли это АК-Сервера: здесь — нет, вход свой."""
+        return {'ak': False}
 
 
 @app.get('/api/health')
@@ -132,7 +148,7 @@ async def feedback(request: Request):
         except binascii.Error:
             raise bad('Фото повреждено', 'bad_photo')
     header = request.headers.get('authorization', '')
-    user = user_from_token(con, header[7:].strip()) if header[:7].lower() == 'bearer ' else None
+    user = current_user(request) if db.AK else user_from_token(con, header[7:].strip()) if header[:7].lower() == 'bearer ' else None
     feedback_limiter.hit(ip)
     with db.tx(con):
         con.execute('insert into feedback (text, email, photo, created_at) values (?,?,?,?)',
@@ -163,3 +179,7 @@ async def screens(path: str):
         raise ApiError(404, 'Не найдено', 'not_found')
     headers = {'Cache-Control': 'no-cache'}
     return FileResponse(target, headers=headers, media_type='application/manifest+json' if path.endswith('.webmanifest') else None)
+
+
+if db.AK:  # добавлен последним — работает снаружи всех: без подписи ядра дальше не пройти
+    app.add_middleware(ak.Gate)

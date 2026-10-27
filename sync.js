@@ -1,7 +1,8 @@
 (function () {
   // Свой сервер «День» (FastAPI). Пустой url — сервер на том же адресе, что и приложение.
   const config = window.DAY_SERVER || {};
-  const API = `${String(config.url || '').replace(/\/+$/, '')}/api`;
+  // Без url адрес относительный: работает и от корня сайта, и внутри АК-Сервера (/m/crm/api/…).
+  const API = config.url ? `${String(config.url).replace(/\/+$/, '')}/api` : 'api';
   const SESSION_KEY = 'day-sync-session-v1';
   const STATE_ID = '00000000-0000-4000-8000-000000000001';
   const OLD_KEY = 'day-cloud-old-v1';
@@ -53,6 +54,9 @@
     }
     const headers = { ...(options.body && typeof options.body === 'string' ? { 'Content-Type': 'application/json' } : {}), ...(options.headers || {}) };
     if (useAuth && session?.access_token) headers.Authorization = `Bearer ${session.access_token}`;
+    // В АК-Сервере в том же браузере мог войти другой сотрудник: сервер сверит, чьи это данные (иначе 409 user_changed).
+    // Сверяется тот, чьи данные открыты в этой вкладке (bound), а не общий для вкладок вход в localStorage.
+    if (session?.ak) headers['X-Den-User'] = bound || session.user.id;
     const { raw, ...fetchOptions } = options;
     const response = await fetch(`${API}${path}`, { ...fetchOptions, headers, cache: 'no-store' });
     if (!response.ok) {
@@ -73,6 +77,10 @@
       try { const body = await response.json(); message = body.message || message; code = body.code || ''; } catch {}
       const error = new Error(message);
       error.status = response.status; error.code = code;
+      if (code === 'user_changed' && session?.ak) {
+        error.userChanged = true;
+        await detectAk(); window.dispatchEvent(new Event('day-ak-user-changed'));
+      }
       error.retryAfter = Number(response.headers.get('retry-after') || 0);
       throw error;
     }
@@ -103,6 +111,27 @@
     setSession(null);
   }
   function user() { return getSession()?.user || null; }
+  // Модуль АК-Сервера: входят в ядро, оно сообщает серверу, кто это. Своего пароля и токенов нет.
+  // Возвращает true, если человек на устройстве сменился (или вошёл впервые) — приложение переключает данные.
+  let akSeen = false; let bound = null;
+  const isAk = () => akSeen || !!getSession()?.ak;
+  const bindUser = id => { bound = id || null; };
+  async function detectAk() {
+    let response;
+    try { response = await fetch(`${API}/ak/me`, { cache: 'no-store' }); } catch { return false; } // нет сети — остаётся прежний вход
+    const before = getSession();
+    if (response.status === 404 || response.status === 405) { if (before?.ak) { setSession(null); return true; } return false; } // не модуль
+    let code = ''; try { code = (await response.clone().json())?.code || ''; } catch {}
+    if (['no_user', 'bad_sign', 'replay', 'core_unavailable'].includes(code)) akSeen = true; // модуль, но вход в ядро не пришёл: своего входа всё равно нет
+    if (!response.ok) return false;
+    let body = null; try { body = await response.json(); } catch { return false; }
+    if (body?.ak === false) { if (before?.ak) { setSession(null); return true; } return false; } // свой сервер, не модуль
+    if (!body?.ak || !body.user?.id) return false;
+    akSeen = true; setSession({ ak: true, user: { id: body.user.id, email: body.user.email, name: body.user.name || '' } });
+    return before?.user?.id !== body.user.id;
+  }
+  // Сотрудники ядра — подсказки при выборе исполнителей (ключ — email из ядра или «<uuid>@ak»).
+  async function akEmployees() { return isAk() ? (await request('/ak/employees', { method: 'GET' })) || [] : []; }
   // Удалённые записи не стираются физически, а хранятся как «надгробия» { __deleted: true, updatedAt }.
   // Надгробие проходит через ту же логику «новее побеждает», что и обычная правка, поэтому
   // устройство со старой копией задачи не может вернуть её обратно на сервер.
@@ -417,5 +446,5 @@
   async function reportCounts(counts, supabase, device, label) {
     return post('/migration/report', { device, label, counts, ...(supabase ? { supabase } : {}) });
   }
-  window.DaySync = { oldCloud, oldCloudMine, markOldCloud, loadOldPersonal, importOldShared, toKop, reportCounts, uploadSharedMedia, loadSharedMedia, getSession, user, signUp, signIn, signOut, updatePassword, sync, syncExpenses, loadSharedTasks, loadSharedTask, saveSharedTask, deleteSharedTask, answerSharedInvite, requestLeaveShared, crmRole, mirrorCrm, uploadCrmPhoto, touchPresence, loadSharedPresence, savePushSubscription, deletePushSubscription, sendFeedback };
+  window.DaySync = { isAk, detectAk, akEmployees, bindUser, oldCloud, oldCloudMine, markOldCloud, loadOldPersonal, importOldShared, toKop, reportCounts, uploadSharedMedia, loadSharedMedia, getSession, user, signUp, signIn, signOut, updatePassword, sync, syncExpenses, loadSharedTasks, loadSharedTask, saveSharedTask, deleteSharedTask, answerSharedInvite, requestLeaveShared, crmRole, mirrorCrm, uploadCrmPhoto, touchPresence, loadSharedPresence, savePushSubscription, deletePushSubscription, sendFeedback };
 })();

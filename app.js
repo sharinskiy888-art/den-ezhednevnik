@@ -11,7 +11,7 @@ const NOTIFICATION_KEY = 'day-planner-notifications-v1';
 const EXPENSES_KEY = 'day-planner-expenses-v1';
 const FINANCE_LIMITS_KEY = 'day-planner-finance-limits-v1';
 const DELETED_EXPENSES_KEY = 'day-planner-deleted-expenses-v1';
-const APP_VERSION = '103';
+const APP_VERSION = '104';
 const UPDATE_SEEN_KEY = 'day-planner-update-seen-v1';
 const UPDATE_APPLIED_KEY = 'day-planner-update-applied-v1';
 const LANG_KEY = 'day-planner-lang-v1';
@@ -332,7 +332,7 @@ function saveProfile() {
   catch { toast('Не удалось сохранить фотографию. Выберите снимок меньшего размера'); return false; }
 }
 function profileDisplayName() {
-  const emailName = window.DaySync?.user()?.email?.split('@')[0] || '';
+  const emailName = window.DaySync?.user()?.name || window.DaySync?.user()?.email?.split('@')[0] || '';
   const value = (profile.name || emailName).trim(); return value ? value.charAt(0).toLocaleUpperCase(appLang) + value.slice(1) : '';
 }
 function greetingText() {
@@ -345,6 +345,7 @@ function taskWord(count) {
 }
 
 function switchAccountData() {
+  accountLoadedFor = window.DaySync?.user()?.id; window.DaySync?.bindUser?.(accountLoadedFor); // эта вкладка теперь держит данные этого человека
   adoptOldDeviceData();
   tasks = loadTasks(); deletedIds = loadDeletedIds(); profile = loadProfile(); pendingProfilePhoto = profile.photo || ''; periodPlans = loadPeriodPlans(); appStateUpdatedAt = localStorage.getItem(stateUpdatedStorageKey()) || new Date(0).toISOString(); sharedTasks = []; expenses = loadExpenses(); financeLimits = loadFinanceLimits(); deletedExpenseIds = loadDeletedExpenseIds(); runAutoCarry(); render(); renderFinance(); refreshSyncUi(); renderProfile(); loadSharedTasks(false);
   if (!window.DaySync?.user()) window.DayCrm?.sync(); // вышли — прячем «Клиенты» прежнего пользователя
@@ -844,7 +845,7 @@ function renderTaskRow(t) {
 }
 function renderSharedTaskRow(t) {
   const done = t.status === 'completed'; const subDone = (t.subtasks || []).filter(s => s.done).length;
-  const owner = t.ownerId === window.DaySync?.user()?.id ? tr('task.youOrganize') : `${tr('task.organizer')}: ${escapeHtml((t.ownerEmail || '').split('@')[0])}`;
+  const owner = t.ownerId === window.DaySync?.user()?.id ? tr('task.youOrganize') : `${tr('task.organizer')}: ${escapeHtml(personLabel(t.ownerEmail))}`;
   return `<article class="task shared-day-task ${done ? 'completed' : ''}" data-shared-task-id="${escapeHtml(t.id)}">
     <input class="check" type="checkbox" data-shared-check="${escapeHtml(t.id)}" ${done ? 'checked' : ''} aria-label="${tr('task.markDoneAria')} ${escapeHtml(t.title)}">
     <div class="task-main"><div class="task-title">${escapeHtml(t.title)}</div><div class="task-meta">
@@ -852,7 +853,7 @@ function renderSharedTaskRow(t) {
       ${isSharedOverdue(t) ? `<span class="tag overdue-tag">⏰ ${L('Просрочена', 'Overdue')}</span>` : ''}<span class="tag shared-tag">◎ ${tr('task.shared')}</span><span class="tag">${owner}</span>
       ${t.status === 'review' ? `<span class="tag">${tr('task.statusReview')}</span>` : ''}
       ${(t.subtasks || []).length ? `<span class="tag checklist">☑ ${subDone}/${t.subtasks.length}</span>` : ''}
-    </div>${(t.subtasks || []).length ? `<div class="subtask-list">${t.subtasks.map((s, i) => `<button type="button" class="subtask ${s.done ? 'done' : ''}" data-shared-day-subtask="${escapeHtml(t.id)}" data-sub-index="${i}"><i>${s.done ? '✓' : ''}</i>${escapeHtml(s.title)}${s.done && s.doneBy ? ` <small>${escapeHtml(s.doneBy.split('@')[0])}</small>` : ''}</button>`).join('')}</div>` : ''}</div><button class="more-button" data-shared-edit="${escapeHtml(t.id)}" aria-label="${tr('task.editAria')} ${escapeHtml(t.title)}">•••</button></article>`;
+    </div>${(t.subtasks || []).length ? `<div class="subtask-list">${t.subtasks.map((s, i) => `<button type="button" class="subtask ${s.done ? 'done' : ''}" data-shared-day-subtask="${escapeHtml(t.id)}" data-sub-index="${i}"><i>${s.done ? '✓' : ''}</i>${escapeHtml(s.title)}${s.done && s.doneBy ? ` <small>${escapeHtml(personLabel(s.doneBy))}</small>` : ''}</button>`).join('')}</div>` : ''}</div><button class="more-button" data-shared-edit="${escapeHtml(t.id)}" aria-label="${tr('task.editAria')} ${escapeHtml(t.title)}">•••</button></article>`;
 }
 function renderTasks() {
   const list = visibleTasks(); const sharedList = visibleSharedTasks();
@@ -1071,7 +1072,7 @@ function openDialog(id = null, source = 'personal') {
   $('#sharedEmails').value = source === 'shared' ? [...(task?.acceptedEmails || []), ...(task?.invitedEmails || [])].filter(email => email !== task?.ownerEmail).join('\n') : '';
   $('#sharedTaskStatus').value = task?.status || 'new'; resetReportComposer(); renderSharedReports(source === 'shared' ? task : null);
   const ownsSharedTask = source !== 'shared' || !task || task.ownerId === window.DaySync?.user()?.id;
-  $('#sharedEmails').disabled = !ownsSharedTask;
+  $('#sharedEmails').disabled = !ownsSharedTask; employeePicker($('#sharedEmails'));
   renderSharedTaskPresence(task);
   $('#taskTitle').value = task?.title || ''; $('#taskDate').value = task?.date || selectedDate; $('#taskTime').value = task?.time || '';
   $('#taskTimeMode').value = task?.time ? 'exact' : 'anytime'; updateTimeMode();
@@ -1537,10 +1538,21 @@ function setSyncStatus(status, title, text) {
 }
 function refreshSyncUi() {
   const user = window.DaySync?.user();
+  const ak = !!window.DaySync?.isAk?.(); document.documentElement.classList.toggle('ak-mode', ak);
+  // В АК-Сервере вход и пароль — у ядра: «Сменить пользователя» и смена пароля здесь не нужны.
+  $('#syncLogout').hidden = ak; $('#syncPasswordForm').hidden = ak;
   $('#syncAuthForm').hidden = !!user; $('#syncConnected').hidden = !user;
   $('#pinRemoveButton').hidden = !user || !localStorage.getItem(pinStorageKey());
   const avatar = $('#profileButton');
-  if (user) {
+  if (ak && !user) {
+    setSyncStatus('error', L('Откройте «День» через АК-Сервер', 'Open Day from AK Server'), L('Вход — в АК-Сервере, своего пароля у модуля нет.', 'Sign in to AK Server; the module has no password of its own.'));
+    $('#syncAuthForm').hidden = true;
+  }
+  else if (user && ak) {
+    setSyncStatus('connected', L('Вход через АК-Сервер', 'Signed in via AK Server'), user.name || user.email || '');
+    $('#openAccountFromMenu').classList.add('connected'); $('#accountMenuTitle').textContent = 'Аккаунт ✓'; $('#accountMenuSubtitle').textContent = user.name || user.email || 'АК-Сервер'; avatar.title = user.name || user.email || '';
+  }
+  else if (user) {
     setSyncStatus('connected', 'Личный аккаунт подключён', user.email || 'Облачная синхронизация активна');
     $('#openAccountFromMenu').classList.add('connected'); $('#accountMenuTitle').textContent = 'Аккаунт ✓'; $('#accountMenuSubtitle').textContent = user.email || 'Личный аккаунт'; avatar.title = user.email || 'Личный аккаунт';
   }
@@ -1908,7 +1920,7 @@ async function applyPromptedUpdate() {
 }
 
 function parseSharedEmails(value = '') {
-  return [...new Set(value.split(/[\s,;]+/).map(email => email.trim().toLocaleLowerCase()).filter(email => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)))];
+  return [...new Set(value.split(/[\s,;]+/).map(email => email.trim().toLocaleLowerCase()).filter(email => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || /^[0-9a-f-]{36}@ak$/.test(email)))]; // <uuid>@ak — сотрудник АК-Сервера
 }
 function sharedErrorText(error) {
   const message = error?.message || '';
@@ -1950,7 +1962,7 @@ function renderSharedTaskPresence(task) {
   const members = sharedMembers(task);
   container.innerHTML = members.map(member => {
     const online = isMemberOnline(member.email);
-    return `<span class="presence-person ${online ? 'online' : 'offline'}"><i class="presence-dot"></i>${escapeHtml(member.email === currentAccountEmail() ? (appLang === 'en' ? 'You' : 'Вы') : member.email.split('@')[0])} · ${appLang === 'en' ? (online ? 'online' : 'offline') : (online ? 'в сети' : 'не в сети')}</span>`;
+    return `<span class="presence-person ${online ? 'online' : 'offline'}"><i class="presence-dot"></i>${escapeHtml(member.email === currentAccountEmail() ? (appLang === 'en' ? 'You' : 'Вы') : personLabel(member.email))} · ${appLang === 'en' ? (online ? 'online' : 'offline') : (online ? 'в сети' : 'не в сети')}</span>`;
   }).join('');
   container.hidden = !members.length;
 }
@@ -1974,7 +1986,7 @@ async function refreshSharedPresence() {
     sharedPresenceBusy = false;
   }
 }
-function memberInitial(email = '') { return (email.split('@')[0] || '?').charAt(0).toLocaleUpperCase('ru'); }
+function memberInitial(email = '') { return (personLabel(email) || '?').charAt(0).toLocaleUpperCase('ru'); }
 function sharedProgress(task) {
   const subtasks = task.subtasks || [];
   if (subtasks.length) return Math.round(subtasks.filter(item => item.done).length / subtasks.length * 100);
@@ -2058,7 +2070,7 @@ async function loadSharedTasks(showErrors = false) {
     if (!firstLoad) {
       const fresh = sharedTasks.flatMap(task => (task.reports || []).filter(report => report.by !== currentAccountEmail() && previousReports.has(task.id) && !previousReports.get(task.id).includes(report.id)).map(report => ({ task, report })));
       if (fresh.length) {
-        const { task, report } = fresh[fresh.length - 1]; const text = `${report.by.split('@')[0]}: ${task.title}`;
+        const { task, report } = fresh[fresh.length - 1]; const text = `${personLabel(report.by)}: ${task.title}`;
         toast(`💬 ${L('Новый отчёт', 'New report')} — ${text}`);
         if (Notification.permission === 'granted') showAppNotification(L('Новый отчёт по совместной задаче', 'New shared task report'), { body: text, tag: `report-${report.id}` });
       }
@@ -2078,7 +2090,7 @@ function renderSharedSummary() {
 }
 function sharedStatusText(status) { const item = SHARED_STATUSES[status || 'open'] || SHARED_STATUSES.open; return `${item[2]} ${L(item[0], item[1])}`; }
 function sharedStatusLabel(task) {
-  const who = task.statusBy && task.statusBy !== currentAccountEmail() ? ` · ${escapeHtml(task.statusBy.split('@')[0])}` : '';
+  const who = task.statusBy && task.statusBy !== currentAccountEmail() ? ` · ${escapeHtml(personLabel(task.statusBy))}` : '';
   const cls = task.status === 'completed' ? 'done' : task.status === 'review' ? 'review' : task.status === 'question' ? 'question' : '';
   return `<span class="${cls}">${sharedStatusText(task.status)}${who}</span>`;
 }
@@ -2095,7 +2107,7 @@ function renderSharedTaskCard(task) {
     <button type="button" class="shared-card-open" data-open-shared="${escapeHtml(task.id)}"><div><h3>${escapeHtml(task.title)}</h3><p>${formatShortDate(task.date)} · ${escapeHtml(task.time) || 'В течение дня'} · прогресс ${progress}%</p>
     <div class="shared-card-tags">${sharedStatusLabel(task)}<span>☑ ${(task.subtasks || []).filter(item => item.done).length}/${(task.subtasks || []).length}</span>${reports ? `<span>💬 ${L('Отчётов', 'Reports')}: ${reports}</span>` : ''}${task.ownerId === window.DaySync?.user()?.id ? '<span>Вы организатор</span>' : `<span>${appLang === 'en' ? 'Organizer' : 'Организатор'}: ${escapeHtml(task.ownerEmail || '')}</span>`}</div></div>
     <div class="shared-avatar-stack">${members.slice(0, 4).map(member => { const online = isMemberOnline(member.email); return `<span class="shared-avatar ${online ? 'online' : 'offline'}" title="${escapeHtml(member.email)} — ${online ? 'в сети' : 'не в сети'}">${memberInitial(member.email)}</span>`; }).join('')}</div></button>
-    ${(task.subtasks || []).length ? `<div class="shared-subtasks">${task.subtasks.map((item, index) => `<button type="button" class="${item.done ? 'done' : ''}" data-shared-subtask="${escapeHtml(task.id)}" data-shared-index="${index}"><i>${item.done ? '✓' : ''}</i><span>${escapeHtml(item.title)}</span>${item.doneBy ? `<small>${escapeHtml(item.doneBy.split('@')[0])}</small>` : ''}</button>`).join('')}</div>` : ''}
+    ${(task.subtasks || []).length ? `<div class="shared-subtasks">${task.subtasks.map((item, index) => `<button type="button" class="${item.done ? 'done' : ''}" data-shared-subtask="${escapeHtml(task.id)}" data-shared-index="${index}"><i>${item.done ? '✓' : ''}</i><span>${escapeHtml(item.title)}</span>${item.doneBy ? `<small>${escapeHtml(personLabel(item.doneBy))}</small>` : ''}</button>`).join('')}</div>` : ''}
     ${sharedStatusButtons(task)}
     ${canNudge ? `<button type="button" class="repeat-shared-invite" data-nudge-shared="${escapeHtml(task.id)}">🔔 ${L('Напомнить исполнителю', 'Remind assignee')}</button>` : ''}
   </article>`;
@@ -2111,13 +2123,13 @@ function renderSharedPeople() {
   return [...people.values()].map(person => {
     const percent = person.tasks ? Math.round(person.completed / person.tasks * 100) : 0;
     const online = isMemberOnline(person.email);
-    return `<article class="member-card"><div class="member-ring" style="--p:${percent}"><span>${percent}%</span></div><div><strong>${escapeHtml(person.email === currentAccountEmail() ? 'Вы' : person.email.split('@')[0])}</strong><small><span class="presence-person ${online ? 'online' : 'offline'}"><i class="presence-dot"></i>${online ? 'В сети' : 'Не в сети'}</span>${person.tasks} задач · выполнено ${person.completed} · отмечено подзадач ${person.contributions}</small></div><span class="member-role">${person.roles.has('Организатор') ? 'Организатор' : 'Участник'}</span></article>`;
+    return `<article class="member-card"><div class="member-ring" style="--p:${percent}"><span>${percent}%</span></div><div><strong>${escapeHtml(person.email === currentAccountEmail() ? 'Вы' : personLabel(person.email))}</strong><small><span class="presence-person ${online ? 'online' : 'offline'}"><i class="presence-dot"></i>${online ? 'В сети' : 'Не в сети'}</span>${person.tasks} задач · выполнено ${person.completed} · отмечено подзадач ${person.contributions}</small></div><span class="member-role">${person.roles.has('Организатор') ? 'Организатор' : 'Участник'}</span></article>`;
   }).join('');
 }
 function renderSharedInvites() {
   const invites = sharedInvites();
   if (!invites.length) return '<div class="shared-empty"><strong>Новых приглашений нет</strong>Когда вас пригласят по почте аккаунта, задача появится здесь.</div>';
-  return invites.map(task => `<article class="invite-card"><strong>${escapeHtml(task.title)}</strong><small>${escapeHtml(task.ownerEmail)} · ${formatShortDate(task.date)} · ${escapeHtml(task.time) || 'без времени'}</small><div class="invite-actions single"><button type="button" class="invite-accept" data-answer-invite="${escapeHtml(task.id)}" data-accept="1">${L('Принять задачу', 'Accept task')}</button></div></article>`).join('');
+  return invites.map(task => `<article class="invite-card"><strong>${escapeHtml(task.title)}</strong><small>${escapeHtml(personLabel(task.ownerEmail, true))} · ${formatShortDate(task.date)} · ${escapeHtml(task.time) || 'без времени'}</small><div class="invite-actions single"><button type="button" class="invite-accept" data-answer-invite="${escapeHtml(task.id)}" data-accept="1">${L('Принять задачу', 'Accept task')}</button></div></article>`).join('');
 }
 function bindSharedContentActions(root = $('#sharedContent')) {
   if (!root) return; const $$ = selector => [...root.querySelectorAll(selector)];
@@ -2159,10 +2171,10 @@ function renderSharedView(task) {
   const att = task.attachment; const subs = task.subtasks || []; const safeUrl = /^(data:|blob:|https:)/i.test(String(att?.data || '').trim());
   const canNudge = owner && task.status !== 'completed' && [...(task.invitedEmails || []), ...(task.acceptedEmails || [])].some(email => email !== task.ownerEmail);
   box.innerHTML = `<h3 class="sv-title">${escapeHtml(task.title)}</h3>
-    <p class="sv-meta">${formatShortDate(task.date)} · ${escapeHtml(task.time) || tr('task.anytime')} · ${owner ? tr('task.youOrganize') : `${tr('task.organizer')}: ${escapeHtml((task.ownerEmail || '').split('@')[0])}`}</p>
+    <p class="sv-meta">${formatShortDate(task.date)} · ${escapeHtml(task.time) || tr('task.anytime')} · ${owner ? tr('task.youOrganize') : `${tr('task.organizer')}: ${escapeHtml(personLabel(task.ownerEmail))}`}</p>
     ${task.note ? `<p class="sv-note">${escapeHtml(task.note)}</p>` : ''}
     ${safeUrl ? `<div class="sv-attachment">${String(att.type || '').startsWith('image/') ? `<img src="${escapeHtml(att.data)}" alt="${escapeHtml(att.name || '')}">` : `<a href="${escapeHtml(att.data)}" download="${escapeHtml(att.name || 'file')}">📎 ${escapeHtml(att.name || L('Файл', 'File'))}</a>`}${task.proofNote ? `<small>${escapeHtml(task.proofNote)}</small>` : ''}</div>` : ''}
-    ${subs.length ? `<div class="shared-subtasks">${subs.map((item, index) => `<button type="button" class="${item.done ? 'done' : ''}" data-shared-subtask="${escapeHtml(task.id)}" data-shared-index="${index}"><i>${item.done ? '✓' : ''}</i><span>${escapeHtml(item.title)}</span>${item.doneBy ? `<small>${escapeHtml(item.doneBy.split('@')[0])}</small>` : ''}</button>`).join('')}</div>` : ''}
+    ${subs.length ? `<div class="shared-subtasks">${subs.map((item, index) => `<button type="button" class="${item.done ? 'done' : ''}" data-shared-subtask="${escapeHtml(task.id)}" data-shared-index="${index}"><i>${item.done ? '✓' : ''}</i><span>${escapeHtml(item.title)}</span>${item.doneBy ? `<small>${escapeHtml(personLabel(item.doneBy))}</small>` : ''}</button>`).join('')}</div>` : ''}
     <h4 class="sv-section">${owner ? L('Статус задачи', 'Task status') : L('Мой ответ', 'My reply')}</h4>
     <div class="sv-status">${sharedStatusLabel(task)}</div>
     ${sharedStatusButtons(task)}
@@ -2173,7 +2185,7 @@ function renderSharedView(task) {
 // Выйти из поручения исполнитель может только с согласия организатора: он просит, организатор отпускает.
 function sharedLeaveBlock(task, owner) {
   const me = currentAccountEmail(); const asks = task.leaveRequests || [];
-  if (owner) return asks.map(email => `<p class="sv-leave">${escapeHtml(email)} ${L('просит выйти из задачи', 'asks to leave the task')} <button type="button" class="secondary-button" data-release-shared="${escapeHtml(task.id)}" data-email="${escapeHtml(email)}">${L('Отпустить', 'Let go')}</button></p>`).join('');
+  if (owner) return asks.map(email => `<p class="sv-leave">${escapeHtml(personLabel(email, true))} ${L('просит выйти из задачи', 'asks to leave the task')} <button type="button" class="secondary-button" data-release-shared="${escapeHtml(task.id)}" data-email="${escapeHtml(email)}">${L('Отпустить', 'Let go')}</button></p>`).join('');
   if (!(task.acceptedEmails || []).includes(me)) return '';
   return asks.includes(me) ? `<p class="sv-leave">${L('Вы попросили выйти из задачи — решение за организатором', 'You asked to leave — the organizer decides')}</p>`
     : `<button type="button" class="repeat-shared-invite" data-leave-shared="${escapeHtml(task.id)}">${L('Попросить выйти из задачи', 'Ask to leave the task')}</button>`;
@@ -2393,7 +2405,7 @@ function renderSharedReports(task) {
   const me = currentAccountEmail(); const owner = task.ownerId === window.DaySync?.user()?.id;
   const reports = [...(task.reports || [])].reverse();
   $('#sharedReportList').innerHTML = reports.length ? reports.map(report => `<article class="report-item">
-      <header><strong>${escapeHtml(report.by === me ? L('Вы', 'You') : report.by.split('@')[0])}</strong><small>${new Date(report.at).toLocaleString(LOCALE(), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</small>${report.by === me || owner ? `<button type="button" class="report-delete" data-delete-report="${escapeHtml(report.id)}" aria-label="${L('Удалить отчёт', 'Delete report')}">×</button>` : ''}</header>
+      <header><strong>${escapeHtml(report.by === me ? L('Вы', 'You') : personLabel(report.by))}</strong><small>${new Date(report.at).toLocaleString(LOCALE(), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</small>${report.by === me || owner ? `<button type="button" class="report-delete" data-delete-report="${escapeHtml(report.id)}" aria-label="${L('Удалить отчёт', 'Delete report')}">×</button>` : ''}</header>
       ${report.text ? `<p>${escapeHtml(report.text)}</p>` : ''}
       <div class="report-media">${report.photo ? `<button type="button" class="report-media-button" data-report-photo="${escapeHtml(report.photo)}">📷 ${L('Показать фото', 'Show photo')}</button>` : ''}${report.voice ? `<button type="button" class="report-media-button" data-report-voice="${escapeHtml(report.voice)}">▶ ${L('Голосовое', 'Voice')} ${formatSeconds(report.voiceSec)}</button>` : ''}</div>
     </article>`).join('') : `<p class="report-empty">${L('Отчётов пока нет. Напишите, что сделано, приложите фото или запишите голосовое.', 'No reports yet. Write what was done, attach a photo or record a voice message.')}</p>`;
@@ -2498,7 +2510,7 @@ window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); instal
 $('#installButton').addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('#installButton').hidden = true; });
 showUpdatedNoticeIfNeeded();
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=103'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
+  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=104'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
   navigator.serviceWorker.addEventListener('message', event => {
     if (event.data?.type !== 'DAY_PUSH') return;
     showReminderAlert(event.data.taskId || '', event.data.title || 'Новое уведомление', event.data.body || '');
@@ -2512,7 +2524,36 @@ function handleOpenTaskFromUrl() {
   openNotificationTask(taskId);
 }
 
+// Модуль АК-Сервера: выбор исполнителей из сотрудников ядра (кнопка с именем дописывает его ключ в поле).
+var akEmployeesCache = null, accountLoadedFor; // var: читаются и до этой строки (первая отрисовка)
+// Имя человека на экране: в АК-Сервере ключ — «<uuid>@ak», показываем имя сотрудника из ядра.
+function personLabel(email = '', full = false) {
+  const found = (akEmployeesCache || []).find(person => person.key === email);
+  return found?.name || (full ? String(email || '') : String(email || '').split('@')[0]);
+}
+async function employeePicker(textarea) {
+  textarea?.parentElement?.querySelector('.ak-pick')?.remove();
+  if (!textarea || textarea.disabled || textarea.readOnly || !window.DaySync?.isAk?.()) return;
+  try { akEmployeesCache = akEmployeesCache || await window.DaySync.akEmployees(); } catch { return; }
+  const me = window.DaySync.user()?.id; const people = (akEmployeesCache || []).filter(person => person.id !== me);
+  if (!people.length || !textarea.isConnected) return;
+  const box = document.createElement('div'); box.className = 'ak-pick';
+  box.innerHTML = people.map(person => `<button type="button" class="secondary-button" data-key="${escapeHtml(person.key)}">+ ${escapeHtml(person.name || person.key)}</button>`).join('');
+  box.querySelectorAll('button').forEach(button => button.addEventListener('click', () => {
+    const lines = textarea.value.split(/\n/).map(line => line.trim()).filter(Boolean);
+    if (!lines.includes(button.dataset.key)) textarea.value = [...lines, button.dataset.key].join('\n');
+  }));
+  textarea.insertAdjacentElement('afterend', box);
+}
+window.DayAk = { employeePicker };
+window.addEventListener('day-ak-user-changed', () => { switchAccountData(); performSync(false); });
+// Вход сменился в другой вкладке: эта вкладка не должна дальше отправлять данные прежнего человека.
+window.addEventListener('storage', event => { if (event.key === 'day-sync-session-v1' && window.DaySync?.user()?.id !== accountLoadedFor) switchAccountData(); });
+
 async function initializeAccount() {
+  accountLoadedFor = window.DaySync?.user()?.id; window.DaySync?.bindUser?.(accountLoadedFor);
+  if (await window.DaySync?.detectAk?.()) switchAccountData(); // АК-Сервер: человек сменился или вошёл впервые на этом устройстве
+  if (window.DaySync?.isAk?.() && window.DaySync.user()) { try { akEmployeesCache = await window.DaySync.akEmployees(); render(); } catch {} }
   refreshSyncUi();
   if (window.DaySync?.user()) { await maybeLockApp(); await performSync(false); }
   else if (localStorage.getItem('day-cloud-moved')) {

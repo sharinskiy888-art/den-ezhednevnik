@@ -26,7 +26,10 @@ def _load_env_file():
                 os.environ[key.strip()] = value.strip().strip('"').strip("'")
 
 
-_load_env_file()
+# Режим модуля АК-Сервера: ядро запускает программу и передаёт всё через окружение (AK_*), den.env не читается.
+AK = bool(os.environ.get('AK_MODULE_SECRET'))
+if not AK:
+    _load_env_file()
 
 
 def _int(name, default):
@@ -36,16 +39,31 @@ def _int(name, default):
         raise RuntimeError(f'{name} должно быть числом')
 
 
-SECRET = os.environ.get('DEN_SECRET') or ''
-if len(SECRET) < 32:
-    raise RuntimeError('DEN_SECRET не задан или короче 32 символов: впишите длинный случайный секрет в den.env')
+if AK:
+    import hashlib
+    import hmac
+    try:
+        AK_SECRET = bytes.fromhex(os.environ['AK_MODULE_SECRET'])
+    except ValueError:
+        raise RuntimeError('AK_MODULE_SECRET должен быть в hex')
+    if len(AK_SECRET) < 16 or not os.environ.get('AK_DATA_DIR'):
+        raise RuntimeError('Ядро не передало AK_MODULE_SECRET (от 16 байт) или AK_DATA_DIR')
+    # Свои токены в режиме модуля не выдаются; ключ всё равно нужен access.sign — выводим его из секрета ядра.
+    SECRET = hmac.new(AK_SECRET, b'den-local-sign', hashlib.sha256).hexdigest()
+    AK_CODE = os.environ.get('AK_MODULE_ID') or 'crm'
+    AK_BASE = '/' + (os.environ.get('AK_BASE_PATH') or f'/m/{AK_CODE}').strip('/')
+    AK_CORE_URL = (os.environ.get('AK_CORE_URL') or 'http://127.0.0.1:9100').rstrip('/')
+else:
+    SECRET = os.environ.get('DEN_SECRET') or ''
+    if len(SECRET) < 32:
+        raise RuntimeError('DEN_SECRET не задан или короче 32 символов: впишите длинный случайный секрет в den.env')
 
-DATA_DIR = Path(os.environ.get('DEN_DATA_DIR') or ROOT / 'data').resolve()
+DATA_DIR = Path(os.environ.get('AK_DATA_DIR') if AK else os.environ.get('DEN_DATA_DIR') or ROOT / 'data').resolve()
 FILES_DIR = DATA_DIR / 'files'
 BACKUP_DIR = DATA_DIR / 'backups'
 DB_PATH = DATA_DIR / 'den.db'
 PUBLIC_URL = (os.environ.get('DEN_PUBLIC_URL') or 'http://localhost:8787').rstrip('/')
-ALLOWED_ORIGINS = [o.strip().rstrip('/') for o in (os.environ.get('DEN_ALLOWED_ORIGINS') or 'https://sharinskiy888-art.github.io').split(',') if o.strip()]
+ALLOWED_ORIGINS = [] if AK else [o.strip().rstrip('/') for o in (os.environ.get('DEN_ALLOWED_ORIGINS') or 'https://sharinskiy888-art.github.io').split(',') if o.strip()]
 ACCESS_TTL = _int('DEN_ACCESS_TTL', 3600)
 REFRESH_TTL = _int('DEN_REFRESH_TTL', 30 * 24 * 3600)
 REFRESH_GRACE = _int('DEN_REFRESH_GRACE', 10)
@@ -55,8 +73,8 @@ FEEDBACK_LIMIT = _int('DEN_FEEDBACK_LIMIT', 5)
 FEEDBACK_DAILY = _int('DEN_FEEDBACK_DAILY', 100)
 TRUSTED_PROXY = (os.environ.get('DEN_TRUSTED_PROXY') or '').strip()
 BACKUP_KEEP = _int('DEN_BACKUP_KEEP', 14)
-BACKUP_EVERY = _int('DEN_BACKUP_EVERY', 24 * 3600)
-STATIC_DIR = Path(os.environ['DEN_STATIC_DIR']).resolve() if os.environ.get('DEN_STATIC_DIR') else None
+BACKUP_EVERY = 0 if AK else _int('DEN_BACKUP_EVERY', 24 * 3600)  # модулю копии заказывает ядро (/ak/v1/backup)
+STATIC_DIR = Path(os.environ['DEN_STATIC_DIR']).resolve() if os.environ.get('DEN_STATIC_DIR') else ROOT if AK else None
 ADMIN_EMAIL = (os.environ.get('DEN_ADMIN_EMAIL') or '').strip().lower()
 ADMIN_PASSWORD = os.environ.get('DEN_ADMIN_PASSWORD') or ''
 # Окно переноса из Supabase (этап 5): DEN_MIGRATION=1 — организатор может перенести свои поручения (исполнители — приглашёнными).
@@ -71,6 +89,7 @@ def _version():
 
 
 VERSION = _version()
+MODULE_VERSION = f'1.0.{VERSION}' if VERSION.isdigit() else '0.0.0'  # для АК-Сервера версия строго X.Y.Z
 
 # Каждая миграция только добавляет таблицы и столбцы: старые копии базы остаются читаемыми.
 MIGRATIONS = [
@@ -112,6 +131,9 @@ MIGRATIONS = [
                             label text not null, report text not null, server text not null, ok integer not null,
                             created_at text not null, primary key (user_id, device));
     create table imported_shared (id text primary key, owner_id text not null);
+    """,
+    """
+    create table ak_events (event_id text primary key, type text not null, received_at text not null);
     """,
 ]
 

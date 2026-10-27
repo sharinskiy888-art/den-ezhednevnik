@@ -55,6 +55,8 @@ def last_backup_age():
 
 def start_schedule(stop: threading.Event):
     """Отсчёт — от последней копии, а не от запуска: компьютер, который выключают каждый вечер, тоже получит копии."""
+    if db.BACKUP_EVERY <= 0:  # 0 — свои копии выключены (модуль АК: копии делает ядро)
+        return
     def loop():
         while True:
             wait = max(1.0, db.BACKUP_EVERY - last_backup_age())

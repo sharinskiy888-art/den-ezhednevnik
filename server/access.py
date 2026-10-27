@@ -118,12 +118,65 @@ def user_from_token(con, token):
 
 
 def current_user(request: Request) -> User:
+    if db.AK:
+        return ak_user(request)
     header = request.headers.get('authorization', '')
     token = header[7:].strip() if header[:7].lower() == 'bearer ' else ''
     user = user_from_token(request.app.state.con, token) if token else None
     if not user:
         raise ApiError(401, 'Вход истёк или недействителен. Войдите снова.', 'unauthorized')
     return user
+
+
+# --- Модуль АК: кто вошёл и его роли — из заголовков ядра (подпись уже проверил ak.Gate) ---
+# owner и admin — руководитель CRM; только viewer — просмотр без правок; любая другая роль — монтажник
+# (видит только назначенные ему заявки). Администратор «Дня» (обратная связь, сверка, копии) — только owner.
+AK_MANAGERS = {'owner', 'admin'}
+
+
+def ak_crm_role(roles):
+    roles = set(roles)
+    if roles & AK_MANAGERS:
+        return 'manager'
+    if not roles:
+        return ''
+    return 'viewer' if roles == {'viewer'} else 'worker'
+
+
+def ak_user(request: Request) -> User:
+    ident = request.scope.get('ak') or {}
+    uid = ident.get('user') or ''
+    if not uid:
+        raise ApiError(401, 'Откройте «День» через АК-Сервер: вход — там', 'no_user')
+    expected = request.headers.get('x-den-user', '').lower()
+    if expected and expected != uid:  # в АК-Сервер вошёл другой сотрудник, а вкладка ещё с данными прежнего
+        raise ApiError(409, 'В АК-Сервер вошёл другой сотрудник. Данные переключаются.', 'user_changed')
+    con = request.app.state.con
+    row = con.execute('select email from users where id=?', (uid,)).fetchone()
+    email = row['email'] if row else ak_register(con, uid)
+    roles = ident.get('roles') or []
+    return User(uid, email, 'admin' if 'owner' in roles else 'user', '', ak_crm_role(roles))
+
+
+def ak_register(con, uid):
+    """Первый вход сотрудника. Ключ в поручениях и заявках — «<uuid>@ak»: не меняется и не совпадёт с чужим
+    (email в ядре могут сменить или дать другому). Пароля нет и не будет: входят только через ядро."""
+    with db.tx(con):
+        con.execute("insert or ignore into users (id, email, password_hash, role, created_at) values (?,?,'!ak','user',?)",
+                    (uid, f'{uid}@ak', db.now_iso()))
+        return con.execute('select email from users where id=?', (uid,)).fetchone()['email']
+
+
+def require_ak_service(request: Request):
+    """Служебные адреса /ak/v1/* — только от ядра и без пользователя (ak.Gate уже проверил подпись)."""
+    ident = request.scope.get('ak')
+    if not db.AK or ident is None or ident.get('user'):
+        raise ApiError(404, 'Не найдено', 'not_found')
+
+
+def require_standalone(message='В режиме модуля АК это делается в АК-Сервере'):
+    if db.AK:
+        raise ApiError(403, message, 'ak_mode')
 
 
 def require_admin(request: Request) -> User:
@@ -192,6 +245,8 @@ class RateLimiter:
 
 def client_ip(request: Request):
     """Адрес устройства. За nginx (VPS) все приходят с адреса прокси — тогда берём X-Forwarded-For, но только от него."""
+    if db.AK:  # все запросы приходят от ядра с 127.0.0.1 — лимиты считаем по человеку
+        return 'ak:' + str((request.scope.get('ak') or {}).get('user') or '')
     host = request.client.host if request.client else '?'
     if db.TRUSTED_PROXY and host == db.TRUSTED_PROXY:
         forwarded = request.headers.get('x-forwarded-for', '').split(',')[-1].strip()
@@ -391,7 +446,7 @@ def check_activity(old, new, me):
 # --- CRM: руководитель (manager) видит и меняет всё, монтажник (worker) только читает назначенное ему ---
 
 CRM_KINDS = {'clients', 'objects', 'orders', 'contracts', 'payments', 'dict'}
-CRM_ROLES = {'manager', 'worker', ''}
+CRM_ROLES = {'manager', 'worker', ''}  # viewer (только просмотр всего) бывает только в режиме модуля АК
 
 
 def crm_role(user: User):
@@ -411,7 +466,7 @@ def require_crm(user: User, kind=None, write=False):
 
 def crm_visible(user: User, kind):
     """Условие SQL на строки CRM, которые видит этот пользователь (таблица crm, псевдоним c)."""
-    if crm_role(user) == 'manager' or kind == 'dict':
+    if crm_role(user) in ('manager', 'viewer') or kind == 'dict':
         return 'c.kind=?', (kind,)
     mine = "select order_id from crm_assignees where email=?"
     email = user.email.lower()

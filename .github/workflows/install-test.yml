@@ -80,6 +80,18 @@ jobs:
         run: if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
       - name: Сборка (Nuitka + установщик)
         run: powershell -ExecutionPolicy Bypass -File deploy\windows\build.ps1
+      - name: Пакет модуля АК-Сервера — сборка и запуск как у ядра
+        run: |
+          python deploy\ak\make_module.py build\den_server.dist build\ak
+          if ($LASTEXITCODE) { throw 'пакет не собрался' }
+          $zip = (Get-ChildItem build\ak -Filter 'AK-Crm-Modul-*.zip').FullName
+          New-Item -ItemType Directory "$env:RUNNER_TEMP\ak-smoke" | Out-Null
+          python deploy\ak\smoke.py $zip "$env:RUNNER_TEMP\ak-smoke"
+          if ($LASTEXITCODE) { Get-Content "$env:RUNNER_TEMP\ak-smoke\module.log" -ErrorAction SilentlyContinue; throw 'пакет не прошёл проверку' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ak-crm-module
+          path: build/ak/AK-Crm-Modul-*.zip
       - name: Тихая установка, вход, данные
         run: |
           $ver = (Get-Content version.json -Raw | ConvertFrom-Json).version

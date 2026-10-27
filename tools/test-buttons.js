@@ -125,6 +125,7 @@ function handleApi(req, res, p) {
     const parsed = () => { try { return JSON.parse(body || '{}'); } catch { return {}; } };
     const user = { id: userId, email: 'tester@example.com', role: 'user' };
     const shared = /^\/api\/shared\/([^/]+)(\/answer)?$/.exec(p);
+    if (p === '/api/ak/me') return json({ ak: false }); // свой сервер, не модуль АК-Сервера
     if (p === '/api/auth/user') return json(user);
     if (/^\/api\/auth\/(login|refresh|register)$/.test(p)) return json({ access_token: 'den1.qa.qa', refresh_token: 'qa.1.qa', token_type: 'bearer', expires_in: 7200, expires_at: Math.floor(Date.now() / 1000) + 7200, user });
     if (p === '/api/shared/heads') return json(sharedRow.map(r => ({ id: r.id, updated_at: r.updated_at, pu: r.payload?.updatedAt || null, invited_emails: r.invited_emails, accepted_emails: r.accepted_emails, leave_requests: r.leave_requests || [] })));

@@ -220,6 +220,7 @@
     $$('#crmCardForm [data-crm-stage]').forEach(button => button.addEventListener('click', () => { $$('#crmCardForm [data-crm-stage]').forEach(b => b.classList.toggle('active', b === button)); }));
     $$('#crmCardForm [data-crm-task]').forEach(button => button.addEventListener('click', () => { $('#crmCardDialog').close(); $('#crmDialog').close(); openDialog(button.dataset.crmTask, 'shared'); }));
     $('#crmPhotoInput')?.addEventListener('change', event => addPhoto(event.target.files?.[0]));
+    window.DayAk?.employeePicker($('#crmCardForm textarea[name="assignees"]')); // АК-Сервер: исполнители — из сотрудников ядра
     renderPhotos(item);
     if (!$('#crmCardDialog').open) $('#crmCardDialog').showModal();
     $('#crmCardDialog .shared-panel').scrollTop = 0; // новая карточка — с начала, а не с места прокрутки прошлой

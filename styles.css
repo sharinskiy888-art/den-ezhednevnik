@@ -316,3 +316,7 @@ dialog { border-radius:12px;box-shadow:0 20px 55px rgba(25,41,57,.22); }.close-b
 .crm-stage{font-weight:700;color:var(--violet)}.crm-stage-paid{color:var(--muted)}.crm-systems{display:flex;flex-wrap:wrap;gap:6px 12px;border:0;padding:0;margin:0}.crm-systems legend{color:var(--muted);font-size:11px;margin-bottom:4px}
 .crm-card .secondary-button{grid-column:auto;grid-row:auto}.crm-photos{display:flex;flex-wrap:wrap;gap:6px}.crm-photos img{width:84px;height:84px;object-fit:cover;border-radius:8px}.crm-photo-add{display:inline-block;cursor:pointer;text-align:center}
 @media(max-width:850px){.crm-stages{grid-template-columns:repeat(3,1fr)}.crm-tabs:not(:has(button[hidden])){grid-template-columns:repeat(3,1fr)}}
+/* Модуль АК-Сервера: выбор сотрудников и свободный левый нижний угол (там кнопка «АК» ядра) */
+.ak-pick { display:flex;flex-wrap:wrap;gap:6px;margin-top:6px; }.ak-pick button { padding:5px 10px;font-size:13px; }
+html.ak-mode .sidebar { padding-bottom:88px; }
+@media(max-width:850px){html.ak-mode .bottom-nav{padding-left:calc(64px + env(safe-area-inset-left))}}

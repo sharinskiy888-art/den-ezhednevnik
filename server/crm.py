@@ -13,7 +13,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import Response
 
 from . import db, files, shared
-from .access import CRM_ROLES, SAFE_ID, ApiError, bad, crm_role, crm_visible, current_user, field, read_json, require_admin, require_crm
+from .access import CRM_ROLES, SAFE_ID, ApiError, bad, crm_role, crm_visible, current_user, field, read_json, require_admin, require_crm, require_standalone
 from .sync import MAX_ROW, json_response, rows_json
 
 router = APIRouter(prefix='/api')
@@ -325,6 +325,7 @@ async def delete_row(kind: str, row_id: str, request: Request):
 
 @router.put('/admin/users/{user_id}/crm', status_code=204)
 async def set_role(user_id: str, request: Request):
+    require_standalone('В режиме модуля АК роли выдаются в АК-Сервере')
     require_admin(request)
     role = field(await read_json(request), 'role', max_len=20)
     if role not in CRM_ROLES:

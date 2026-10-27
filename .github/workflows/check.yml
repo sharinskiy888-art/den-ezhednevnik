@@ -52,6 +52,8 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Живая проверка — браузер + настоящий сервер
         run: PYTHON=python node tools/test-live.js
+      - name: Живая проверка модуля АК-Сервера — браузер + ядро-заглушка + модуль
+        run: PYTHON=python node tools/test-ak.js
       - name: Автотест всех кнопок (Playwright)
         run: |
           set +e
