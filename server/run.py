@@ -48,6 +48,9 @@ def main(argv=None):
         sys.exit(__doc__)
     if db.AK:
         sys.dont_write_bytecode = True  # папка программы — только для чтения
+        for stream in (sys.stdout, sys.stderr):  # журнал ядра — файл; в кодировке Windows (cp1252) русский текст уронил бы печать
+            if hasattr(stream, 'reconfigure'):
+                stream.reconfigure(encoding='utf-8', errors='replace')
         host, port = os.environ.get('AK_HOST') or '127.0.0.1', os.environ.get('AK_PORT') or ''
         if host not in ('127.0.0.1', '::1', 'localhost'):
             sys.exit(f'AK_HOST={host}: модуль АК слушает только 127.0.0.1, наружу не открывается')

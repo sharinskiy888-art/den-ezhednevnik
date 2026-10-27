@@ -61,4 +61,5 @@ def build(dist, out_dir):
 if __name__ == '__main__':
     if len(sys.argv) != 3:
         sys.exit(__doc__)
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
     build(sys.argv[1], sys.argv[2])

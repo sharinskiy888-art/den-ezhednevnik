@@ -38,6 +38,7 @@ def free_port():
 
 
 def main(package, work):
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')  # консоль Windows в CI — cp1252
     work = Path(work).resolve()
     program, data, logs = work / 'program', work / 'data', work / 'logs'
     with zipfile.ZipFile(package) as z:
@@ -87,6 +88,9 @@ def main(package, work):
         h = signed_headers(bytes.fromhex(secret), 'crm', 'POST', '/m/crm/ak/v1/backup', body)
         assert http(url + '/m/crm/ak/v1/backup', 'POST', body, {**h, 'Content-Type': 'application/json'})[0] == 200
         assert (data / '.backup' / '2026-10-27_1200' / 'den.db').is_file()
+        bad_event = b'{"seq":1}'  # модуль пишет в журнал по-русски — не должен падать на кодировке Windows
+        h = signed_headers(bytes.fromhex(secret), 'crm', 'POST', '/m/crm/ak/v1/events', bad_event)
+        assert http(url + '/m/crm/ak/v1/events', 'POST', bad_event, {**h, 'Content-Type': 'application/json'})[0] == 200
         h = signed_headers(bytes.fromhex(secret), 'crm', 'POST', '/m/crm/ak/v1/stop', b'')
         assert http(url + '/m/crm/ak/v1/stop', 'POST', b'', h)[0] == 200
         assert proc.wait(15) == 0, 'не завершился по /ak/v1/stop'
