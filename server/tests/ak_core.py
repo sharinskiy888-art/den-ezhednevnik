@@ -98,7 +98,7 @@ class Handler(BaseHTTPRequestHandler):
             user, _, roles = urllib.parse.unquote(cookie['ak_core_test']).partition('|')
         h = signed_headers(core.secret, core.code, self.command, self.path, body, user, roles,
                            self.headers.get('X-Test-Name', ''))  # имя уже в url-кодировке, как у ядра
-        for name in ('Content-Type', 'Authorization', 'X-Den-User'):
+        for name in ('Content-Type', 'Authorization', 'X-Den-User', 'X-Den-Epoch'):
             if self.headers.get(name):
                 h[name] = self.headers[name]
         req = urllib.request.Request(f'http://127.0.0.1:{core.module_port}{self.path}', data=body or None,
@@ -131,16 +131,22 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(401, {'error': {'code': 'bad_sign', 'message': 'подпись'}})
         path = urllib.parse.urlsplit(self.path)
         parts = path.path.strip('/').split('/')
-        if parts[2:3] in (['users'], ['employees']) and len(parts) == 4:
+        record = lambda e: {'id': e['id'], 'rev': 1, 'deleted': bool(e.get('deleted')), 'updated_at': '2026-10-28T00:00:00Z',
+                            'data': {k: v for k, v in e.items() if k not in ('id', 'deleted')}}
+        if parts[2:3] == ['users'] and len(parts) == 4:  # {"uuid","login","name","roles","active"}
             e = core.employees.get(parts[3])
-            return self._send(200, e) if e else self._send(404, {'error': {'code': 'not_found', 'message': 'нет'}})
-        if parts[2:] == ['employees']:
+            return self._send(200, {'uuid': e['id'], 'login': e.get('email', ''), 'name': e.get('name', ''), 'roles': [],
+                                    'active': not e.get('deleted')}) if e else self._send(404, {'error': {'code': 'not_found', 'message': 'нет'}})
+        if parts[2:3] == ['employees'] and len(parts) == 4:
+            e = core.employees.get(parts[3])
+            return self._send(200, record(e)) if e else self._send(404, {'error': {'code': 'not_found', 'message': 'нет'}})
+        if parts[2:] == ['employees']:  # {"items":[{id,rev,deleted,updated_at,data}],"next_cursor","more"}
             q = urllib.parse.parse_qs(path.query)
             items = sorted(core.employees.values(), key=lambda e: e['id'])
             start = int((q.get('cursor') or ['0'])[0] or 0)
             page = items[start:start + 2]  # по 2 — чтобы проверить переход по курсору
-            nxt = str(start + 2) if start + 2 < len(items) else ''
-            return self._send(200, {'items': page, 'next_cursor': nxt})
+            more = start + 2 < len(items)
+            return self._send(200, {'items': [record(e) for e in page], 'next_cursor': str(start + 2), 'more': more})
         self._send(404, {'error': {'code': 'not_found', 'message': 'нет'}})
 
 

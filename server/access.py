@@ -151,9 +151,19 @@ def ak_user(request: Request) -> User:
     expected = request.headers.get('x-den-user', '').lower()
     if expected and expected != uid:  # в АК-Сервер вошёл другой сотрудник, а вкладка ещё с данными прежнего
         raise ApiError(409, 'В АК-Сервер вошёл другой сотрудник. Данные переключаются.', 'user_changed')
+    epoch = request.headers.get('x-den-epoch', '')
+    if epoch and db.EPOCH and epoch != db.EPOCH:  # владелец восстановил данные из копии, а на устройстве — прежние
+        raise ApiError(409, 'Данные «Дня» восстановлены из копии. Обновляю страницу.', 'data_restored')
+    if not epoch and db.EPOCH and request.method not in ('GET', 'HEAD') and request.url.path not in ('/api/ak/restore', '/api/feedback'):
+        # запись без метки (старая версия приложения, вкладка не узнала метку) могла бы вернуть данные до восстановления
+        raise ApiError(409, 'Приложение сверяет данные с сервером. Повторите через секунду.', 'epoch_required')
     con = request.app.state.con
-    row = con.execute('select email from users where id=?', (uid,)).fetchone()
+    row = con.execute('select email, name from users where id=?', (uid,)).fetchone()
     email = row['email'] if row else ak_register(con, uid)
+    name = ident.get('name') or ''
+    if name and (not row or row['name'] != name):  # имя для списка исполнителей; пишется, только когда сменилось
+        with db.tx(con):
+            con.execute('update users set name=? where id=?', (name, uid))
     roles = ident.get('roles') or []
     return User(uid, email, 'admin' if 'owner' in roles else 'user', '', ak_crm_role(roles))
 
@@ -165,6 +175,14 @@ def ak_register(con, uid):
         con.execute("insert or ignore into users (id, email, password_hash, role, created_at) values (?,?,'!ak','user',?)",
                     (uid, f'{uid}@ak', db.now_iso()))
         return con.execute('select email from users where id=?', (uid,)).fetchone()['email']
+
+
+def require_ak_owner(request: Request) -> User:
+    """Восстановление из файла — только владелец (owner) из ядра."""
+    user = current_user(request)
+    if not db.AK or 'owner' not in ((request.scope.get('ak') or {}).get('roles') or []):
+        raise ApiError(403, 'Восстановить данные может только владелец АК-Сервера', 'forbidden')
+    return user
 
 
 def require_ak_service(request: Request):

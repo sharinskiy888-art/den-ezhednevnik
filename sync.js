@@ -46,7 +46,7 @@
     if (!refreshing) refreshing = refresh(refreshToken).finally(() => { refreshing = null; });
     return refreshing;
   }
-  async function request(path, options = {}, useAuth = true, retried = false) {
+  async function request(path, options = {}, useAuth = true, retried = false, repeated = false) {
     let session = getSession();
     if (useAuth && session?.expires_at && session.expires_at * 1000 < Date.now() + 60000 && session.refresh_token) {
       try { session = await refreshOnce(session.refresh_token); }
@@ -57,8 +57,24 @@
     // В АК-Сервере в том же браузере мог войти другой сотрудник: сервер сверит, чьи это данные (иначе 409 user_changed).
     // Сверяется тот, чьи данные открыты в этой вкладке (bound), а не общий для вкладок вход в localStorage.
     if (session?.ak) headers['X-Den-User'] = bound || session.user.id;
+    // Метка данных, которые лежат на этом устройстве: после «Восстановить из файла» сервер их не примет (409 data_restored).
+    // Метка — своя у каждой вкладки: вкладка с прежними данными получит 409, даже если соседняя уже обновилась.
+    if (session?.ak && tabEpoch.epoch && tabEpoch.user === (bound || session.user.id)) headers['X-Den-Epoch'] = tabEpoch.epoch;
     const { raw, ...fetchOptions } = options;
-    const response = await fetch(`${API}${path}`, { ...fetchOptions, headers, cache: 'no-store' });
+    // АК-Сервер мягко перезапускает модуль (ночью, по памяти): несколько секунд нет ответа или 502/503.
+    // Один повтор через 4 с — человек перезапуска не заметит. Повторяются только чтение и запись данных по id
+    // (повтор ничего не задвоит); отзыв, вход, приглашения и файлы — нет.
+    const method = (options.method || 'GET').toUpperCase();
+    const repeatable = !repeated && (method === 'GET' || (/^\/(data|crm|shared)\//.test(path) && !/\/(files|media|photo)/.test(path) && (!options.body || typeof options.body === 'string')));
+    let response;
+    try { response = await fetch(`${API}${path}`, { ...fetchOptions, headers, cache: 'no-store' }); }
+    catch (error) {
+      if (!repeatable || navigator.onLine === false) throw error;
+      await new Promise(resolve => setTimeout(resolve, 4000)); return request(path, options, useAuth, retried, true);
+    }
+    if (repeatable && (response.status === 502 || response.status === 503) && (isAk() || response.status === 502)) {
+      await new Promise(resolve => setTimeout(resolve, 4000)); return request(path, options, useAuth, retried, true);
+    }
     if (!response.ok) {
       if (useAuth && response.status === 401 && session?.access_token) {
         if (!retried && session.refresh_token) {
@@ -77,6 +93,8 @@
       try { const body = await response.json(); message = body.message || message; code = body.code || ''; } catch {}
       const error = new Error(message);
       error.status = response.status; error.code = code;
+      if (code === 'data_restored' && session?.ak) window.dispatchEvent(new Event('day-data-restored'));
+      if (code === 'epoch_required' && session?.ak) window.dispatchEvent(new Event('day-epoch-needed'));
       if (code === 'user_changed' && session?.ak) {
         error.userChanged = true;
         await detectAk(); window.dispatchEvent(new Event('day-ak-user-changed'));
@@ -113,7 +131,8 @@
   function user() { return getSession()?.user || null; }
   // Модуль АК-Сервера: входят в ядро, оно сообщает серверу, кто это. Своего пароля и токенов нет.
   // Возвращает true, если человек на устройстве сменился (или вошёл впервые) — приложение переключает данные.
-  let akSeen = false; let bound = null;
+  let akSeen = false; let bound = null; let tabEpoch = {};
+  const setEpoch = (epoch, userId) => { tabEpoch = { epoch: epoch || '', user: userId }; };
   const isAk = () => akSeen || !!getSession()?.ak;
   const bindUser = id => { bound = id || null; };
   async function detectAk() {
@@ -127,10 +146,12 @@
     let body = null; try { body = await response.json(); } catch { return false; }
     if (body?.ak === false) { if (before?.ak) { setSession(null); return true; } return false; } // свой сервер, не модуль
     if (!body?.ak || !body.user?.id) return false;
-    akSeen = true; setSession({ ak: true, user: { id: body.user.id, email: body.user.email, name: body.user.name || '' } });
+    akSeen = true; setSession({ ak: true, epoch: body.epoch || '', restored: body.restored || '', user: { id: body.user.id, email: body.user.email, name: body.user.name || '', owner: body.user.role === 'admin' } });
     return before?.user?.id !== body.user.id;
   }
   // Сотрудники ядра — подсказки при выборе исполнителей (ключ — email из ядра или «<uuid>@ak»).
+  // «Восстановить из файла» (только владелец): архив уходит как есть, сервер сам находит в нём копию «Дня».
+  async function akRestore(file) { return request('/ak/restore', { method: 'POST', body: file, headers: { 'Content-Type': 'application/zip' } }); }
   async function akEmployees() { return isAk() ? (await request('/ak/employees', { method: 'GET' })) || [] : []; }
   // Удалённые записи не стираются физически, а хранятся как «надгробия» { __deleted: true, updatedAt }.
   // Надгробие проходит через ту же логику «новее побеждает», что и обычная правка, поэтому
@@ -446,5 +467,5 @@
   async function reportCounts(counts, supabase, device, label) {
     return post('/migration/report', { device, label, counts, ...(supabase ? { supabase } : {}) });
   }
-  window.DaySync = { isAk, detectAk, akEmployees, bindUser, oldCloud, oldCloudMine, markOldCloud, loadOldPersonal, importOldShared, toKop, reportCounts, uploadSharedMedia, loadSharedMedia, getSession, user, signUp, signIn, signOut, updatePassword, sync, syncExpenses, loadSharedTasks, loadSharedTask, saveSharedTask, deleteSharedTask, answerSharedInvite, requestLeaveShared, crmRole, mirrorCrm, uploadCrmPhoto, touchPresence, loadSharedPresence, savePushSubscription, deletePushSubscription, sendFeedback };
+  window.DaySync = { isAk, detectAk, setEpoch, akEmployees, akRestore, bindUser, oldCloud, oldCloudMine, markOldCloud, loadOldPersonal, importOldShared, toKop, reportCounts, uploadSharedMedia, loadSharedMedia, getSession, user, signUp, signIn, signOut, updatePassword, sync, syncExpenses, loadSharedTasks, loadSharedTask, saveSharedTask, deleteSharedTask, answerSharedInvite, requestLeaveShared, crmRole, mirrorCrm, uploadCrmPhoto, touchPresence, loadSharedPresence, savePushSubscription, deletePushSubscription, sendFeedback };
 })();

@@ -1,6 +1,7 @@
 """Настройки и база: SQLite в режиме WAL, миграции только добавлением, замок от второго запуска."""
 import json
 import os
+import secrets
 import sqlite3
 import sys
 import time
@@ -135,7 +136,20 @@ MIGRATIONS = [
     """
     create table ak_events (event_id text primary key, type text not null, received_at text not null);
     """,
+    """
+    alter table users add column name text not null default '';
+    """,
 ]
+EPOCH = ''  # модуль АК: метка «поколения» данных; меняется при восстановлении из копии (устройства забывают старое)
+
+
+def load_epoch(con, fresh=False):
+    """Метка хранится в самой базе: после восстановления копии в базе старая метка, поэтому её сразу заменяют (fresh)."""
+    global EPOCH
+    con.execute("insert or replace into meta values ('epoch', ?)" if fresh else "insert or ignore into meta values ('epoch', ?)",
+                (secrets.token_hex(8),))
+    EPOCH = con.execute("select value from meta where key='epoch'").fetchone()[0]
+    return EPOCH
 
 
 def connect(path=DB_PATH):

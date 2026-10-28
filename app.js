@@ -11,7 +11,7 @@ const NOTIFICATION_KEY = 'day-planner-notifications-v1';
 const EXPENSES_KEY = 'day-planner-expenses-v1';
 const FINANCE_LIMITS_KEY = 'day-planner-finance-limits-v1';
 const DELETED_EXPENSES_KEY = 'day-planner-deleted-expenses-v1';
-const APP_VERSION = '104';
+const APP_VERSION = '105';
 const UPDATE_SEEN_KEY = 'day-planner-update-seen-v1';
 const UPDATE_APPLIED_KEY = 'day-planner-update-applied-v1';
 const LANG_KEY = 'day-planner-lang-v1';
@@ -75,7 +75,7 @@ const TRANSLATIONS = { ru: {
   'feedback.helpLabel': 'Помощь разработчику', 'feedback.describe': 'Опишите проблему или предложение', 'feedback.placeholder': 'Что произошло? Что вы нажимали? Что ожидали увидеть?', 'feedback.voiceAria': 'Надиктовать текст', 'feedback.replyEmail': 'Email отправителя', 'feedback.emailPlaceholder': 'Будет взят из аккаунта', 'feedback.attachPhoto': '▧ Прикрепить фото проблемы', 'feedback.removePhotoAria': 'Убрать фото', 'feedback.send': 'Отправить разработчику', 'feedback.hint': 'Сообщение уйдёт разработчику в фоне. Фото перед отправкой автоматически уменьшается. Ответ придёт на email аккаунта или на тот, что вы укажете.',
   'sync.cloudLabel': 'Облако', 'sync.title': 'Синхронизация', 'sync.email': 'Email', 'sync.password': 'Пароль', 'sync.passwordPlaceholder': 'Не менее 8 символов', 'sync.signUp': 'Регистрация', 'sync.signIn': 'Войти', 'sync.forgotPassword': 'Забыли пароль?', 'sync.invite': 'Код приглашения (только для регистрации)', 'sync.invitePlaceholder': 'Выдаёт администратор',
   'sync.changePassword': 'Сменить пароль', 'sync.oldPassword': 'Старый пароль', 'sync.newPasswordPlaceholder': 'Новый пароль, от 8 символов', 'sync.savePassword': 'Сохранить пароль',
-  'sync.syncNow': 'Синхронизировать сейчас', 'sync.switchUser': 'Сменить пользователя', 'sync.pinLogin': 'Быстрый вход по PIN', 'sync.pinHint': 'Четыре цифры хранятся только на этом устройстве.', 'sync.pinDigits': '4 цифры', 'sync.pinNewAria': 'Новый PIN-код', 'sync.pinSet': 'Установить PIN', 'sync.pinRemove': 'Убрать PIN',
+  'sync.syncNow': 'Синхронизировать сейчас', 'sync.switchUser': 'Сменить пользователя', 'sync.pinLogin': 'Быстрый вход по PIN', 'sync.pinHint': 'Четыре цифры хранятся только на этом устройстве.', 'sync.pinDigits': '4 цифры', 'sync.pinNewAria': 'Новый PIN-код', 'sync.pinSet': 'Установить PIN', 'sync.pinRemove': 'Убрать PIN', 'sync.akRestore': 'Восстановить из файла', 'sync.akRestoreHint': 'Архив АК-Сервера (ak-….zip) или копия «Дня». Нынешние данные не пропадут: они отложатся в папку before-restore.', 'sync.akRestorePick': 'Выбрать файл копии',
   'sync.note': 'У каждого email свой отдельный ежедневник. На общем устройстве нажмите «Сменить пользователя», прежде чем другой человек войдёт в свой аккаунт.',
   'pin.enter': 'Введите PIN', 'pin.hint': 'Четыре цифры для быстрого входа в ежедневник.', 'pin.codeAria': 'PIN-код', 'pin.open': 'Открыть ежедневник', 'pin.usePassword': 'Войти по почте и паролю',
   'profile.personalDataLabel': 'Личные данные', 'profile.myProfile': 'Мой профиль', 'profile.chooseAria': 'Выбрать фотографию из галереи', 'profile.photoAlt': 'Фотография профиля',
@@ -140,7 +140,7 @@ const TRANSLATIONS = { ru: {
   'feedback.helpLabel': 'Help the developer', 'feedback.describe': 'Describe the issue or suggestion', 'feedback.placeholder': 'What happened? What did you tap? What did you expect?', 'feedback.voiceAria': 'Dictate text', 'feedback.replyEmail': 'Reply email', 'feedback.emailPlaceholder': "Taken from your account", 'feedback.attachPhoto': '▧ Attach a photo of the issue', 'feedback.removePhotoAria': 'Remove photo', 'feedback.send': 'Send to developer', 'feedback.hint': 'The message is sent to the developer in the background. Photos are shrunk automatically before sending. The reply arrives at your account email or the one you enter.',
   'sync.cloudLabel': 'Cloud', 'sync.title': 'Sync', 'sync.email': 'Email', 'sync.password': 'Password', 'sync.passwordPlaceholder': 'At least 8 characters', 'sync.signUp': 'Sign up', 'sync.signIn': 'Sign in', 'sync.forgotPassword': 'Forgot your password?', 'sync.invite': 'Invitation code (sign-up only)', 'sync.invitePlaceholder': 'Given by the administrator',
   'sync.changePassword': 'Change password', 'sync.oldPassword': 'Current password', 'sync.newPasswordPlaceholder': 'New password, 8+ characters', 'sync.savePassword': 'Save password',
-  'sync.syncNow': 'Sync now', 'sync.switchUser': 'Switch user', 'sync.pinLogin': 'Quick PIN sign-in', 'sync.pinHint': 'The four digits are stored only on this device.', 'sync.pinDigits': '4 digits', 'sync.pinNewAria': 'New PIN', 'sync.pinSet': 'Set PIN', 'sync.pinRemove': 'Remove PIN',
+  'sync.syncNow': 'Sync now', 'sync.switchUser': 'Switch user', 'sync.pinLogin': 'Quick PIN sign-in', 'sync.pinHint': 'The four digits are stored only on this device.', 'sync.pinDigits': '4 digits', 'sync.pinNewAria': 'New PIN', 'sync.pinSet': 'Set PIN', 'sync.pinRemove': 'Remove PIN', 'sync.akRestore': 'Restore from file', 'sync.akRestoreHint': 'An AK Server archive (ak-….zip) or a Day backup. Current data is not lost: it is set aside in the before-restore folder.', 'sync.akRestorePick': 'Choose backup file',
   'sync.note': 'Each email has its own separate planner. On a shared device, tap "Switch user" before someone else signs into their account.',
   'pin.enter': 'Enter PIN', 'pin.hint': 'Four digits for quick sign-in to the planner.', 'pin.codeAria': 'PIN', 'pin.open': 'Open planner', 'pin.usePassword': 'Sign in with email and password',
   'profile.personalDataLabel': 'Personal data', 'profile.myProfile': 'My profile', 'profile.chooseAria': 'Choose a photo from gallery', 'profile.photoAlt': 'Profile photo',
@@ -356,11 +356,13 @@ function seedTasks() {
 }
 
 function save() {
+  if (restoredReload) return true; // данные восстановлены из копии, страница перезагружается
   try { localStorage.setItem(taskStorageKey(), JSON.stringify(tasks)); if (!suppressSync) queueCloudSync(); return true; }
   catch { toast('Не хватает памяти. Удалите несколько больших вложений.'); return false; }
 }
 
 function saveExpenses() {
+  if (restoredReload) return true;
   try { localStorage.setItem(expensesStorageKey(), JSON.stringify(expenses)); if (!suppressSync) queueCloudSync(); return true; }
   catch { toast('Не хватает памяти для сохранения операций.'); return false; }
 }
@@ -1541,6 +1543,8 @@ function refreshSyncUi() {
   const ak = !!window.DaySync?.isAk?.(); document.documentElement.classList.toggle('ak-mode', ak);
   // В АК-Сервере вход и пароль — у ядра: «Сменить пользователя» и смена пароля здесь не нужны.
   $('#syncLogout').hidden = ak; $('#syncPasswordForm').hidden = ak;
+  // ПИН и выбор сотрудника — у ядра (п. 12 ТЗ модуля); восстановление из файла — только владельцу (п. 29).
+  $('#pinSettings').hidden = ak; $('#syncNote').hidden = ak; $('#akRestoreBox').hidden = !(ak && user?.owner);
   $('#syncAuthForm').hidden = !!user; $('#syncConnected').hidden = !user;
   $('#pinRemoveButton').hidden = !user || !localStorage.getItem(pinStorageKey());
   const avatar = $('#profileButton');
@@ -1626,6 +1630,7 @@ function showCloudBanner(error) {
 }
 async function performSync(showMessage = true) {
   if (!window.DaySync?.user()) { if (showMessage) toast('Сначала войдите в облако'); return; }
+  if (restoredReload) return;
   if (syncInFlight) { syncAgain = true; return; } // правка во время обмена уйдёт следующим заходом
   syncInFlight = true; syncAgain = false;
   const syncUserId = window.DaySync.user().id;
@@ -1811,6 +1816,7 @@ async function savePin() {
 }
 function removePin() { localStorage.removeItem(pinStorageKey()); localStorage.removeItem(pinUnlockedAtStorageKey()); $('#pinSetupInput').value = ''; pinUnlocked = true; refreshSyncUi(); toast('PIN удалён'); }
 async function maybeLockApp() {
+  if (window.DaySync?.isAk?.()) return; // в АК-Сервере экран блокировки и ПИН — у ядра
   if (!window.DaySync?.user() || !localStorage.getItem(pinStorageKey()) || $('#pinDialog').open) return;
   if (pinUnlocked || pinUnlockStillValid()) { pinUnlocked = true; return; }
   $('#pinUnlockInput').value = ''; $('#pinError').textContent = ''; $('#pinDialog').showModal(); setTimeout(() => $('#pinUnlockInput').focus(), 50);
@@ -2510,7 +2516,7 @@ window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); instal
 $('#installButton').addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('#installButton').hidden = true; });
 showUpdatedNoticeIfNeeded();
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=104'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
+  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=105'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
   navigator.serviceWorker.addEventListener('message', event => {
     if (event.data?.type !== 'DAY_PUSH') return;
     showReminderAlert(event.data.taskId || '', event.data.title || 'Новое уведомление', event.data.body || '');
@@ -2546,15 +2552,73 @@ async function employeePicker(textarea) {
   textarea.insertAdjacentElement('afterend', box);
 }
 window.DayAk = { employeePicker };
-window.addEventListener('day-ak-user-changed', () => { switchAccountData(); performSync(false); });
+window.addEventListener('day-ak-user-changed', async () => { await checkDataEpoch(); switchAccountData(); performSync(false); });
 // Вход сменился в другой вкладке: эта вкладка не должна дальше отправлять данные прежнего человека.
 window.addEventListener('storage', event => { if (event.key === 'day-sync-session-v1' && window.DaySync?.user()?.id !== accountLoadedFor) switchAccountData(); });
 
+// --- Модуль АК: владелец восстановил данные из копии. Устройства забывают прежнее и скачивают данные заново,
+// иначе «новее побеждает» вернуло бы на сервер всё, что было после копии. ---
+const EPOCH_KEY = 'day-data-epoch-v1';
+async function forgetLocalData(userId) {
+  const keep = [PIN_KEY, PIN_UNLOCKED_AT_KEY, NOTIFICATION_KEY, EPOCH_KEY];
+  Object.keys(localStorage).forEach(key => { if (key.endsWith(`:${userId}`) && !keep.some(prefix => key.startsWith(prefix))) localStorage.removeItem(key); });
+  try { await window.DayCrm?.forget?.(userId); } catch {}
+}
+async function checkDataEpoch() {
+  const me = window.DaySync?.user(); const epoch = window.DaySync?.getSession?.()?.epoch;
+  if (!me || !epoch) return false;
+  const key = `${EPOCH_KEY}:${me.id}`; const seen = localStorage.getItem(key);
+  // Метка другая — устройство было выключено, пока восстанавливали. Метки ещё нет, а восстановление было
+  // (первый запуск этой версии после него) — данные на устройстве тоже могут быть старше копии.
+  const stale = seen ? seen !== epoch : !!window.DaySync.getSession()?.restored;
+  if (stale) await forgetLocalData(me.id);
+  localStorage.setItem(key, epoch); window.DaySync.setEpoch?.(epoch, me.id); // метка данных, загруженных в эту вкладку
+  return stale;
+}
+// Запись без метки сервер не принимает (вкладка открылась, когда модуль перезапускался): узнать метку и повторить.
+let epochAsked = 0;
+window.addEventListener('day-epoch-needed', async () => {
+  if (Date.now() - epochAsked < 5000) return; epochAsked = Date.now();
+  if (!await window.DaySync?.detectAk?.() && window.DaySync?.getSession?.()?.epoch) { if (await checkDataEpoch()) { location.reload(); return; } setTimeout(() => performSync(false), 300); }
+});
+// Соседняя вкладка восстановила копию или узнала новую метку: эта сразу перестаёт сохранять и перезагружается.
+window.addEventListener('storage', event => {
+  const me = window.DaySync?.user();
+  if (!me || event.key !== `${EPOCH_KEY}:${me.id}` || !event.oldValue || event.newValue === event.oldValue) return;
+  restoredReload = true; location.reload();
+});
+// Сразу перезагрузка: пока в памяти прежние данные, их нельзя ни сохранять, ни отправлять (save и performSync молчат).
+var restoredReload = false; // var: save() вызывается и раньше этой строки
+async function reloadAfterRestore(message) {
+  if (restoredReload) return; restoredReload = true;
+  try { sessionStorage.setItem('day-restored-note', message); } catch {}
+  try { await window.DaySync?.detectAk?.(); } catch {}
+  const me = window.DaySync?.user(); const epoch = window.DaySync?.getSession?.()?.epoch;
+  // сначала метка (другие вкладки сразу перестают сохранять), потом забыть данные
+  if (me) { if (epoch) localStorage.setItem(`${EPOCH_KEY}:${me.id}`, epoch); await forgetLocalData(me.id); }
+  location.reload();
+}
+window.addEventListener('day-data-restored', () => reloadAfterRestore(L('Владелец восстановил данные из копии — загружены заново', 'The owner restored data from a backup — reloaded')));
+async function restoreFromFile(file) {
+  if (!file) return;
+  if (!confirm(L(`Заменить все данные «Дня» данными из копии «${file.name}»? Нынешние данные сохранятся в папке before-restore.`, `Replace all Day data with the backup “${file.name}”? Current data is kept in the before-restore folder.`))) return;
+  const button = $('#akRestoreButton'); button.disabled = true; setSyncStatus('', L('Восстанавливаю из копии…', 'Restoring from backup…'), file.name);
+  try {
+    const result = await window.DaySync.akRestore(file);
+    await reloadAfterRestore(L(`Восстановлено из копии ${result.copy}: записей ${result.rows}`, `Restored from ${result.copy}: ${result.rows} records`));
+  } catch (error) { setSyncStatus('error', L('Не удалось восстановить', 'Restore failed'), error.message); toast(error.message); }
+  finally { button.disabled = false; $('#akRestoreFile').value = ''; }
+}
+$('#akRestoreButton').addEventListener('click', () => $('#akRestoreFile').click());
+$('#akRestoreFile').addEventListener('change', event => restoreFromFile(event.target.files[0]));
+
 async function initializeAccount() {
   accountLoadedFor = window.DaySync?.user()?.id; window.DaySync?.bindUser?.(accountLoadedFor);
-  if (await window.DaySync?.detectAk?.()) switchAccountData(); // АК-Сервер: человек сменился или вошёл впервые на этом устройстве
+  const changed = await window.DaySync?.detectAk?.(); // АК-Сервер: человек сменился или вошёл впервые на этом устройстве
+  if (await checkDataEpoch() || changed) switchAccountData();
   if (window.DaySync?.isAk?.() && window.DaySync.user()) { try { akEmployeesCache = await window.DaySync.akEmployees(); render(); } catch {} }
   refreshSyncUi();
+  try { const note = sessionStorage.getItem('day-restored-note'); if (note) { sessionStorage.removeItem('day-restored-note'); setTimeout(() => toast(note), 300); } } catch {}
   if (window.DaySync?.user()) { await maybeLockApp(); await performSync(false); }
   else if (localStorage.getItem('day-cloud-moved')) {
     // Облако переехало на новый адрес: один раз просим войти тем же email и паролем.

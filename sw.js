@@ -1,5 +1,5 @@
-const CACHE='day-planner-v104';
-const ASSETS=['./?v=104','index.html?v=104','styles.css?v=104','sync-config.js?v=104','sync.js?v=104','i18n-en.js?v=104','app.js?v=104','crm.js?v=104','version.js?v=104','version.json?v=104','manifest.webmanifest','assets/icon.svg','assets/icon-192.png','assets/icon-512.png'];
+const CACHE='day-planner-v105';
+const ASSETS=['./?v=105','index.html?v=105','styles.css?v=105','sync-config.js?v=105','sync.js?v=105','i18n-en.js?v=105','app.js?v=105','crm.js?v=105','version.js?v=105','version.json?v=105','manifest.webmanifest','assets/icon.svg','assets/icon-192.png','assets/icon-512.png'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',event=>{
@@ -8,7 +8,7 @@ self.addEventListener('fetch',event=>{
   // Данные с сервера (/api/…) и чужие адреса не кэшируются: иначе при сбое сети показались бы старые чужие ответы.
   if(url.origin!==self.location.origin||url.pathname.includes('/api/'))return;
   if(event.request.mode==='navigate'){
-    event.respondWith(fetch(event.request).then(response=>{const copy=response.clone();caches.open(CACHE).then(cache=>cache.put(event.request,copy));return response;}).catch(()=>caches.match(event.request).then(cached=>cached||caches.match('./?v=104'))));
+    event.respondWith(fetch(event.request).then(response=>{const copy=response.clone();caches.open(CACHE).then(cache=>cache.put(event.request,copy));return response;}).catch(()=>caches.match(event.request).then(cached=>cached||caches.match('./?v=105'))));
     return;
   }
   event.respondWith(fetch(event.request).then(response=>{const copy=response.clone();caches.open(CACHE).then(cache=>cache.put(event.request,copy));return response;}).catch(()=>caches.match(event.request)));

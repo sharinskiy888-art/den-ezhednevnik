@@ -7,6 +7,7 @@ import base64
 import binascii
 import re
 import threading
+import time
 import traceback
 from contextlib import asynccontextmanager
 
@@ -27,6 +28,8 @@ feedback_limiter = RateLimiter(db.FEEDBACK_LIMIT, 60)
 db.lock_data_dir()
 con = db.connect()
 db.migrate(con)
+if db.AK:
+    db.load_epoch(con)  # метка данных: после «Восстановить из файла» устройства узнают, что прежнее надо забыть
 if not db.AK:
     auth.ensure_first_admin(con)
 
@@ -51,6 +54,7 @@ async def maintenance_loop():
         try:
             crm.run_maintenance(con)
         except Exception:
+            print(f'{time.strftime("%Y-%m-%d %H:%M:%S")} Ошибка фоновой задачи (заявки ТО)', flush=True)
             traceback.print_exc()
         await asyncio.sleep(600)
 
@@ -81,6 +85,8 @@ async def http_error(request, exc):
 
 @app.exception_handler(Exception)
 async def crash(request, exc):
+    # В журнал (stdout → module.log у АК-Сервера): время, что делали, ошибка и трассировка; тела запросов — нет
+    print(f'{time.strftime("%Y-%m-%d %H:%M:%S")} Ошибка: {request.method} {request.url.path}', flush=True)
     traceback.print_exc()  # в журнал без тел запросов: пароли и токены туда не попадают
     return error(500, 'Внутренняя ошибка сервера. Попробуйте ещё раз.', 'server_error')
 
@@ -88,7 +94,7 @@ async def crash(request, exc):
 @app.middleware('http')
 async def limits_and_cache(request: Request, call_next):
     length = request.headers.get('content-length')
-    if length and length.isdigit() and int(length) > MAX_BODY:
+    if length and length.isdigit() and int(length) > MAX_BODY and request.url.path != '/api/ak/restore':  # копия до 100 МБ — её предел в ak.Gate
         return error(413, 'Слишком большой запрос (больше 32 МБ)', 'too_large')
     response = await call_next(request)
     if request.url.path.startswith('/api/'):

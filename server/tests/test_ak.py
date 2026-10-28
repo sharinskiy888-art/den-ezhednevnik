@@ -4,6 +4,9 @@
 """
 import json
 import os
+import re
+import zipfile
+import secrets
 import shutil
 import socket
 import sqlite3
@@ -23,12 +26,12 @@ from conftest import ROOT, T0, free_port
 pytestmark = pytest.mark.etap7
 SECRET_HEX = 'ab12' * 16
 SECRET = bytes.fromhex(SECRET_HEX)
-BOSS, WORKER, VIEWER, NOBODY, CASHIER = (str(uuid.uuid4()) for _ in range(5))
+BOSS, WORKER, VIEWER, NOBODY, CASHIER, GONE = (str(uuid.uuid4()) for _ in range(6))
 EMPLOYEES = {BOSS: {'id': BOSS, 'name': 'Шамиль', 'email': 'Boss@Firma.ru'},
              WORKER: {'id': WORKER, 'name': 'Иван Монтажник', 'email': 'ivan@firma.ru'},
              VIEWER: {'id': VIEWER, 'name': 'Бухгалтер'},  # без email — ключ «<uuid>@ak»
              CASHIER: {'id': CASHIER, 'name': 'Кассир', 'email': 'kassa@firma.ru'},
-             str(uuid.uuid4()): {'id': 'x', 'name': 'Удалённый', 'deleted': True}}
+             GONE: {'id': GONE, 'name': 'Удалённый', 'deleted': True}}
 class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, *args):
         return None  # переадресацию проверяем сами: повтор без подписи ядро не отправит
@@ -60,7 +63,7 @@ class Module:
         self.url = f'http://127.0.0.1:{self.port}'
         base = {k: v for k, v in os.environ.items() if not k.startswith(('DEN_', 'AK_'))}
         self.env = {**base, 'AK_MODULE_ID': 'crm', 'AK_MODULE_VERSION': '', 'AK_MODULE_SECRET': SECRET_HEX, 'AK_HOST': '127.0.0.1',
-                    'AK_PORT': str(self.port), 'AK_BASE_PATH': '/m/crm', 'AK_CORE_URL': self.core.url, 'AK_CORE_VERSION': '0.8.8',
+                    'AK_PORT': str(self.port), 'AK_BASE_PATH': '/m/crm', 'AK_CORE_URL': self.core.url, 'AK_CORE_VERSION': '1.0.3',
                     'AK_PROTOCOL': '1', 'AK_DATA_DIR': str(self.data), 'AK_LOG_DIR': str(tmp_path / 'logs'),
                     'DEN_ENV_FILE': str(tmp_path / 'den.env'), **env}
         (tmp_path / 'den.env').write_text('DEN_SECRET=короткий\nDEN_DATA_DIR=/нельзя\n', encoding='utf-8')  # в режиме модуля не читается
@@ -93,9 +96,11 @@ class Module:
         h = signed_headers(SECRET, 'crm', method, path, data, user, roles, name, **kw)
         return http(self.url + path, method, data if body is not None else None, h)
 
-    def as_user(self, user, roles, method='GET', path='', body=None, name=''):
-        """Запрос через ядро-заглушку от имени сотрудника — как из браузера."""
+    def as_user(self, user, roles, method='GET', path='', body=None, name='', epoch=True):
+        """Запрос через ядро-заглушку от имени сотрудника — как из браузера. Запись — с меткой данных, как у приложения."""
         h = {'X-Test-User': user, 'X-Test-Roles': roles, 'X-Test-Name': urllib.parse.quote(name)}
+        if method not in ('GET', 'HEAD') and epoch:
+            h['X-Den-Epoch'] = epoch if isinstance(epoch, str) else http(f'{self.core.url}/m/crm/api/ak/me', headers=h)[1]['epoch']
         return http(f'{self.core.url}/m/crm/{path}', method, body, h)
 
 
@@ -153,6 +158,15 @@ def test_unsigned_tampered_and_replayed_requests_get_401(mod):
 def test_user_name_signed_as_is(mod):
     name = urllib.parse.quote('Шамиль Ш.')
     assert mod.signed('GET', '/m/crm/api/ak/me', user=BOSS, roles='owner', name=name)[1]['user']['name'] == 'Шамиль Ш.'
+    name = urllib.parse.quote_plus('Шамиль Ш.')  # так кодирует ядро 1.0.3: пробел = «+»
+    assert '+' in name and mod.signed('GET', '/m/crm/api/ak/me', user=BOSS, roles='owner', name=name)[1]['user']['name'] == 'Шамиль Ш.'
+
+
+def test_nonce_length(mod):
+    path = '/m/crm/api/data/tasks/heads'
+    assert mod.signed('GET', path, user=BOSS, roles='owner', nonce='a' * 15)[0] == 401  # nonce 16–128 символов
+    assert mod.signed('GET', path, user=BOSS, roles='owner', nonce='b' * 129)[0] == 401
+    assert mod.signed('GET', path, user=BOSS, roles='owner', nonce=secrets.token_hex(8))[0] == 200
 
 
 # --- п. 8–9: адреса /m/crm/ и вход только через ядро ---
@@ -191,8 +205,10 @@ def test_first_login_key_is_uuid(mod):
     assert body['crm_role'] == 'manager'
     assert mod.as_user(VIEWER, 'viewer', path='api/ak/me')[1]['user']['email'] == f'{VIEWER}@ak'
     assert mod.as_user(WORKER, 'courier', path='api/ak/me')[1]['crm_role'] == 'worker'
-    assert mod.as_user(CASHIER, 'admin', path='api/ak/me')[1] == {'ak': True, 'crm_role': 'manager', 'user': {
-        'id': CASHIER, 'email': f'{CASHIER}@ak', 'name': '', 'role': 'user'}}
+    body = mod.as_user(CASHIER, 'admin', path='api/ak/me')[1]
+    assert re.fullmatch(r'[0-9a-f]{16}', body.pop('epoch'))
+    assert body.pop('restored') == ''  # восстановлений ещё не было
+    assert body == {'ak': True, 'crm_role': 'manager', 'user': {'id': CASHIER, 'email': f'{CASHIER}@ak', 'name': '', 'role': 'user'}}
 
 
 def test_employees_list_for_assignees(mod):
@@ -200,8 +216,13 @@ def test_employees_list_for_assignees(mod):
     status, body, _ = mod.as_user(BOSS, 'owner', path='api/ak/employees')
     assert status == 200
     keys = {e['id']: e['key'] for e in body}
-    assert keys == {u: f'{u}@ak' for u in (BOSS, WORKER, VIEWER, CASHIER)}  # удалённый не показывается; список — по курсору
-    assert {e['name'] for e in body} == {'Шамиль', 'Иван Монтажник', 'Бухгалтер', 'Кассир'}
+    # справочник ядра {items:[{id,rev,deleted,updated_at,data}], more} по курсору; удалённый не показывается
+    assert {u: f'{u}@ak' for u in (BOSS, WORKER, VIEWER, CASHIER)}.items() <= keys.items()
+    assert {'Шамиль', 'Иван Монтажник', 'Бухгалтер', 'Кассир'} <= {e['name'] for e in body} and 'Удалённый' not in {e['name'] for e in body}
+    # кто уже входил в «День», виден по имени из X-AK-User-Name, даже если его нет в справочнике
+    newcomer = str(uuid.uuid4())
+    mod.as_user(newcomer, 'courier', path='api/ak/me', name='Пётр Новый')
+    assert {'id': newcomer, 'name': 'Пётр Новый', 'key': f'{newcomer}@ak'} in mod.as_user(BOSS, 'owner', path='api/ak/employees')[1]
     assert all(ok for _, ok in mod.core.checked) and mod.core.checked  # запросы модуля к ядру подписаны верно
 
 
@@ -210,8 +231,8 @@ def test_core_down(tmp_path):
     try:
         m.core.down = True
         assert m.as_user(str(uuid.uuid4()), 'owner', path='api/ak/me')[0] == 200  # вход ядру не нужен: ключ из UUID
-        status, body, _ = m.as_user(BOSS, 'owner', path='api/ak/employees')
-        assert status == 503 and body['code'] == 'core_unavailable'
+        fresh = m.as_user(BOSS, 'owner', path='api/ak/employees')[1]  # ядро не отвечает: остаются те, кто уже входил
+        assert [e['key'] for e in fresh] and all(e['key'].endswith('@ak') for e in fresh)
     finally:
         m.stop()
 
@@ -330,6 +351,107 @@ def test_backup_restore_and_stop(tmp_path):
         r.stop()
 
 
+
+# --- п. 29–30: «Восстановить из файла» в самом модуле (только владелец, без перезапуска) ---
+
+def zip_of(folder, prefix=''):
+    path = folder.parent / f'{folder.name}-{secrets.token_hex(3)}.zip'
+    with zipfile.ZipFile(path, 'w') as z:
+        for p in folder.rglob('*'):
+            if p.is_file():
+                z.write(p, prefix + p.relative_to(folder).as_posix())
+    return path.read_bytes()
+
+
+def task_ids(m, epoch=None):
+    h = {'X-Test-User': BOSS, 'X-Test-Roles': 'owner', **({'X-Den-Epoch': epoch} if epoch else {})}
+    status, body, _ = http(f'{m.core.url}/m/crm/api/data/tasks', headers=h)
+    return status, ({r['id'] for r in body} if status == 200 else body)
+
+
+def test_restore_from_file(tmp_path):
+    m = Module(tmp_path)
+    try:
+        epoch = m.as_user(BOSS, 'owner', path='api/ak/me', name='Шамиль')[1]['epoch']
+        assert m.as_user(BOSS, 'owner', 'POST', 'api/data/tasks', rows({'id': 'old', 'title': 'Было в копии'}))[0] == 204
+        photo = m.data / 'files' / 'shared' / 't1' / 'a.jpg'
+        photo.parent.mkdir(parents=True)
+        photo.write_bytes(b'jpg-old')
+        for name in ('2026-10-26_0300', '2026-10-27_0300'):
+            assert m.signed('POST', '/m/crm/ak/v1/backup', {'name': name})[0] == 200
+        copies = m.data / '.backup'
+        # общий архив АК: данные ядра + modules/crm/<имя>/ (берётся последняя копия)
+        ak_zip = tmp_path / 'ak-2026-10-27.zip'
+        with zipfile.ZipFile(ak_zip, 'w') as z:
+            z.writestr('core/ak.db', b'core')
+            for name in ('2026-10-26_0300', '2026-10-27_0300'):
+                for p in (copies / name).rglob('*'):
+                    if p.is_file():
+                        z.write(p, f'modules/crm/{name}/{p.relative_to(copies / name).as_posix()}')
+        shutil.copytree(copies / '2026-10-27_0300', tmp_path / 'own')
+        # после копии: новая задача и другое фото
+        assert m.as_user(BOSS, 'owner', 'POST', 'api/data/tasks', rows({'id': 'new', 'title': 'После копии'}))[0] == 204
+        photo.write_bytes(b'jpg-new')
+        # только владелец; не zip; zip без «Дня»; выход за папку — отказ, данные не тронуты
+        assert m.as_user(WORKER, 'admin', 'POST', 'api/ak/restore', ak_zip.read_bytes())[0] == 403
+        assert m.as_user(BOSS, 'owner', 'POST', 'api/ak/restore', b'not a zip')[1]['code'] == 'bad_backup'
+        bad = tmp_path / 'bad.zip'
+        with zipfile.ZipFile(bad, 'w') as z:
+            z.writestr('modules/retail/2026-10-27_0300/retail.db', b'x')
+        assert m.as_user(BOSS, 'owner', 'POST', 'api/ak/restore', bad.read_bytes())[0] == 400
+        with zipfile.ZipFile(bad, 'w') as z:
+            z.writestr('den.db', (copies / '2026-10-27_0300' / 'den.db').read_bytes())
+            z.writestr('files/../../evil.txt', b'x')
+        assert m.as_user(BOSS, 'owner', 'POST', 'api/ak/restore', bad.read_bytes())[0] == 400
+        assert not (m.data.parent / 'evil.txt').exists() and task_ids(m)[1] == {'old', 'new'}
+        # восстановление из общего архива АК — сразу, без перезапуска
+        status, body, _ = m.as_user(BOSS, 'owner', 'POST', 'api/ak/restore', ak_zip.read_bytes())
+        assert status == 200 and body['ok'] and body['copy'] == '2026-10-27_0300' and body['epoch'] != epoch, body
+        assert m.proc.poll() is None and task_ids(m)[1] == {'old'} and photo.read_bytes() == b'jpg-old'
+        aside = m.data / body['aside']
+        con = sqlite3.connect(aside / 'den.db')
+        assert con.execute("select count(*) from rows where id='new'").fetchone()[0] == 1  # прежнее отложено, не потеряно
+        con.close()
+        assert (aside / 'files' / 'shared' / 't1' / 'a.jpg').read_bytes() == b'jpg-new'
+        # устройство с прежними данными: сервер не берёт их, а просит забыть и скачать заново
+        status, err = task_ids(m, epoch)
+        assert status == 409 and err['code'] == 'data_restored'
+        status, err, _ = m.as_user(BOSS, 'owner', 'POST', 'api/data/tasks', rows({'id': 'new', 'title': 'Старое устройство'}), epoch=epoch)
+        assert status == 409 and err['code'] == 'data_restored'
+        # запись без метки (старая версия приложения) тоже не принимается; чтение — можно
+        status, err, _ = m.as_user(BOSS, 'owner', 'POST', 'api/data/tasks', rows({'id': 'new', 'title': 'Без метки'}), epoch=False)
+        assert status == 409 and err['code'] == 'epoch_required'
+        me = m.as_user(BOSS, 'owner', path='api/ak/me')[1]
+        assert me['restored'] and me['epoch'] == body['epoch']
+        assert task_ids(m, body['epoch'])[0] == 200
+        assert m.as_user(BOSS, 'owner', path='api/ak/me')[1]['epoch'] == body['epoch']
+        # свой zip (содержимое одной папки копии); копия от прежней версии модуля — миграции те же, что при запуске
+        old_db = tmp_path / 'own' / 'den.db'
+        con = sqlite3.connect(old_db)
+        con.execute('alter table users drop column name')
+        con.execute("update meta set value='5' where key='schema'")  # до столбца users.name
+        con.commit()
+        con.close()
+        status, body, _ = m.as_user(BOSS, 'owner', 'POST', 'api/ak/restore', zip_of(tmp_path / 'own'))
+        assert status == 200, body
+        assert task_ids(m, body['epoch'])[1] == {'old'}
+        assert m.as_user(BOSS, 'owner', path='api/ak/me', name='Шамиль')[0] == 200  # столбец name снова есть
+        # копия от более новой версии — отказ
+        con = sqlite3.connect(old_db)
+        con.execute("update meta set value='999' where key='schema'")
+        con.commit()
+        con.close()
+        status, err, _ = m.as_user(BOSS, 'owner', 'POST', 'api/ak/restore', zip_of(tmp_path / 'own'))
+        assert status == 400 and 'новой версией' in err['message']
+        assert task_ids(m, body['epoch'])[0] == 200
+        # после перезапуска — те же восстановленные данные и та же метка
+        assert m.signed('POST', '/m/crm/ak/v1/stop')[0] == 200 and m.proc.wait(10) == 0
+        m.start()
+        assert task_ids(m, body['epoch'])[1] == {'old'}
+        assert not list((m.data / 'tmp').glob('*'))  # временные файлы убраны
+    finally:
+        m.stop()
+
 # --- п. 4 (запуск): только 127.0.0.1, данные только в AK_DATA_DIR ---
 
 def test_refuses_external_host(tmp_path):
@@ -378,7 +500,7 @@ def test_package_builds_and_starts_like_core(tmp_path):
         names = set(z.namelist())
         meta = json.loads(z.read('module.json'))
     assert {'module.json', 'icon.png', 'den-server.exe', 'version.json', 'CHANGELOG.md'} <= names and 'task.ps1' not in names
-    assert meta['id'] == 'crm' and meta['version'] == f'1.0.{version}' and meta['protocol'] == 1 and meta['min_core'] == '0.8.8'
+    assert meta['id'] == 'crm' and meta['version'] == f'1.0.{version}' and meta['protocol'] == 1 and meta['min_core'] == '1.0.3' and meta['start_timeout_sec'] == 120
     assert meta['start'] == 'den-server.exe' and '..' not in meta['start'] and 'viewer' in meta['roles']
     (tmp_path / 'work').mkdir()
     out = subprocess.run([sys.executable, 'deploy/ak/smoke.py', str(package), str(tmp_path / 'work')], cwd=ROOT,

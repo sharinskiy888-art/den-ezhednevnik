@@ -115,6 +115,14 @@
     } catch (error) { if ($('#crmDialog').open) toast(error.message || L('Не удалось обновить «Клиенты»', 'Could not update Clients')); }
     finally { state.syncing = false; if (state.again) sync(); }
   }
+  // Данные восстановлены из копии: карточки на устройстве забываются и скачиваются заново (иначе вернулись бы на сервер).
+  async function forget(userId) {
+    for (const kind of KINDS) {
+      await idbSet(`${userId}:${kind}`, { items: [], tomb: {} });
+      try { localStorage.removeItem(`day-sync-meta-v1:crm:${kind}:${userId}`); } catch {}
+      if (state.userId === userId) { state.data[kind] = new Map(); state.tomb[kind] = {}; state.index[kind] = null; }
+    }
+  }
   async function wipe() { for (const kind of KINDS) { state.data[kind] = new Map(); state.tomb[kind] = {}; await saveLocal(kind); } } // доступ закрыли — телефоны клиентов не остаются на устройстве
   async function saveItem(kind, item) {
     const now = new Date().toISOString(); const saved = { ...item, updatedAt: now };
@@ -301,6 +309,6 @@
   $$('[data-crm-tab]').forEach(button => button.addEventListener('click', () => { state.tab = button.dataset.crmTab; renderList(); }));
   $('#crmCardDialog').addEventListener('close', () => { if ($('#crmDialog').open) renderList(); });
 
-  window.DayCrm = { sync, open, search, parseRub, formatRub, state, refreshTab, loadLocal, saveLocal, saveItemForTest: item => saveItem('clients', item) };
+  window.DayCrm = { sync, forget, open, search, parseRub, formatRub, state, refreshTab, loadLocal, saveLocal, saveItemForTest: item => saveItem('clients', item) };
   (async () => { const me = window.DaySync?.user(); if (me) { await loadLocal(me.id); refreshTab(); } })();
 })();

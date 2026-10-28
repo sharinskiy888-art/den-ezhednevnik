@@ -55,7 +55,7 @@ def main(package, work):
     tmp.mkdir(parents=True)
     logs.mkdir()
     env.update({'AK_MODULE_ID': 'crm', 'AK_MODULE_VERSION': meta['version'], 'AK_MODULE_SECRET': secret, 'AK_HOST': '127.0.0.1',
-                'AK_PORT': str(port), 'AK_BASE_PATH': '/m/crm', 'AK_CORE_URL': core.url, 'AK_CORE_VERSION': '0.8.8', 'AK_PROTOCOL': '1',
+                'AK_PORT': str(port), 'AK_BASE_PATH': '/m/crm', 'AK_CORE_URL': core.url, 'AK_CORE_VERSION': '1.0.3', 'AK_PROTOCOL': '1',
                 'AK_DATA_DIR': str(data), 'AK_LOG_DIR': str(logs), 'TEMP': str(tmp), 'TMP': str(tmp), 'HOME': str(tmp),
                 'USERPROFILE': str(tmp), 'APPDATA': str(tmp)})
     before = {p.relative_to(program).as_posix(): p.stat().st_mtime_ns for p in program.rglob('*') if p.is_file()}

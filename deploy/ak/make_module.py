@@ -17,8 +17,8 @@ ROLES = ['owner', 'admin', 'cashier', 'storekeeper', 'courier', 'partner', 'view
 
 
 def module_json(version):
-    return {'id': 'crm', 'name': 'День-CRM', 'version': version, 'protocol': 1, 'min_core': '0.8.8',
-            'start': 'den-server.exe', 'args': [], 'start_timeout_sec': 60, 'icon': 'icon.png',
+    return {'id': 'crm', 'name': 'День-CRM', 'version': version, 'protocol': 1, 'min_core': '1.0.3',
+            'start': 'den-server.exe', 'args': [], 'start_timeout_sec': 120, 'icon': 'icon.png',
             'subscribes': [], 'emits': [], 'roles': ROLES}
 
 

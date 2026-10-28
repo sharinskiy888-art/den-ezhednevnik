@@ -222,19 +222,21 @@ Email всегда приводится к нижнему регистру и о
 ## 11. Модуль АК-Сервера (`ak.py`, код `crm`)
 Та же программа. Если ядро передало `AK_MODULE_SECRET`, сервер работает модулем: `den.env` не читается, данные — в `AK_DATA_DIR`, слушает только `AK_HOST:AK_PORT` (127.0.0.1; другой адрес — отказ запуска).
 
-**Каждый запрос** (кроме `GET /m/crm/healthz`) проверяет `ak.Gate`: строка `v1|core|crm|METHOD|PATH?QUERY|sha256(тело)|X-AK-Time|X-AK-Nonce|X-AK-User|X-AK-Org|X-AK-Roles|X-AK-User-Name`, HMAC-SHA256 ключом `bytes.fromhex(AK_MODULE_SECRET)`, время ±60 с (секунды Unix или RFC3339), nonce не повторяется 120 с. Не прошло — `401 bad_sign | replay`. Затем срезается `AK_BASE_PATH`: дальше те же адреса `/api/…` и экраны. Вне `/m/crm/` — 404, `/m/crm` → `308 /m/crm/`.
+**Каждый запрос** (кроме `GET /m/crm/healthz`) проверяет `ak.Gate`: строка `v1|core|crm|METHOD|PATH?QUERY|sha256(тело)|X-AK-Time|X-AK-Nonce|X-AK-User|X-AK-Org|X-AK-Roles|X-AK-User-Name`, HMAC-SHA256 ключом `bytes.fromhex(AK_MODULE_SECRET)`, время ±60 с (секунды Unix или RFC3339), nonce (16–128 символов) не повторяется 120 с. Не прошло — `401 bad_sign | replay`. Затем срезается `AK_BASE_PATH`: дальше те же адреса `/api/…` и экраны. Вне `/m/crm/` — 404, `/m/crm` → `308 /m/crm/`.
 
-**Кто вошёл** — `X-AK-User` (UUID). Без него открыты только `/healthz` и `/ak/v1/*`; служебные `/ak/v1/*` с пользователем или с признаками браузера (`Cookie`, `Origin`, `Sec-Fetch-*`) — 404. Роли (`access.ak_crm_role`): owner, admin → руководитель CRM; только viewer → просмотр всего без правок; любая другая → монтажник; без ролей — CRM закрыта. Администратор «Дня» — owner. Ключ человека в поручениях и заявках — `<uuid>@ak` (email ядра не используется: его могут сменить или отдать другому); имена — из `employees`. Ядро нужно только для списка сотрудников (`503 core_unavailable`, если не отвечает).
+**Кто вошёл** — `X-AK-User` (UUID). Без него открыты только `/healthz` и `/ak/v1/*`; служебные `/ak/v1/*` с пользователем или с признаками браузера (`Cookie`, `Origin`, `Sec-Fetch-*`) — 404. Роли (`access.ak_crm_role`): owner, admin → руководитель CRM; только viewer → просмотр всего без правок; любая другая → монтажник; без ролей — CRM закрыта. Администратор «Дня» — owner. Ключ человека в поручениях и заявках — `<uuid>@ak` (email ядра не используется: его могут сменить или отдать другому); имена — из `employees` и из `X-AK-User-Name` (`unquote_plus`, хранится в `users.name`). Ядро нужно только для списка сотрудников; не отвечает — список из тех, кто уже входил (`503 core_unavailable`, только если никого нет).
 Заголовок `X-Den-User` от приложения сверяется с `X-AK-User`: не совпал (в ядро вошёл другой) — `409 user_changed`, приложение переключает данные.
+Заголовок `X-Den-Epoch` — метка данных вкладки; не совпала с `meta.epoch` (владелец восстановил копию) — `409 data_restored`, приложение забывает данные на устройстве и перезагружается. Пока идёт восстановление, запросы сотрудников — `503 restoring` (приложение повторит через 4 с).
 Выключено: `/api/auth/*`, `/api/admin/users*`, приглашения, `PUT /api/admin/users/{id}/crm` (`403 ak_mode`), свои ежедневные копии.
 
 | Метод и адрес | Кто | Ответ |
 |---|---|---|
 | `GET /m/crm/healthz` | без подписи | `200 {ok, version: "1.0.N", app: "N"}`; после команды stop — 503 |
-| `GET /m/crm/api/ak/me` | сотрудник | `200 {ak: true, user: {id, email, name, role}, crm_role}` |
-| `GET /m/crm/api/ak/employees` | сотрудник | `200 [{id, name, key}]` — справочник `employees` ядра по курсору, кэш 60 с, без `deleted:true` |
+| `GET /m/crm/api/ak/me` | сотрудник | `200 {ak: true, user: {id, email, name, role}, crm_role, epoch}` |
+| `GET /m/crm/api/ak/employees` | сотрудник | `200 [{id, name, key}]` — справочник `employees` ядра по курсору (до `more:false`), кэш 60 с, без `deleted:true`, плюс все, кто уже входил |
+| `POST /m/crm/api/ak/restore` | только owner | тело — zip (до 100 МБ): архив АК `ak-….zip` или свой zip копии → `200 {ok, copy, rows, aside, epoch}`; плохой архив — `400 bad_backup` (данные не тронуты); не owner — 403 |
 | `GET /api/ak/me` (отдельный сервер) | все | `200 {ak: false}` — приложение показывает свой вход |
-| `GET /m/crm/ak/v1/busy` | ядро | `{busy, reason}` — занят, пока идёт копия или запрос сотрудника |
+| `GET /m/crm/ak/v1/busy` | ядро | `{busy, reason}` — занят, пока идёт копия, восстановление или запрос сотрудника |
 | `POST /m/crm/ak/v1/stop` | ядро | `200`, затем штатное завершение (база сброшена в основной файл) |
 | `POST /m/crm/ak/v1/backup` | ядро | `{name}` (`ГГГГ-ММ-ДД_ЧЧММ`) → `AK_DATA_DIR/.backup/<name>/den.db` (backup API) + `files/`; хранятся 3 последние |
 | `POST /m/crm/ak/v1/events` | ядро | `{seq, event_id, type, source, time, data}` → `200 {ok, duplicate}`; повтор `event_id` не обрабатывается; без `event_id` — `200 {ok, ignored}` (очередь ядра не встаёт) |
