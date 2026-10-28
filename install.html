@@ -19,12 +19,12 @@
       </header>
       <div class="content">
         <div>
-          <img class="qr" src="qr-iphone.svg" alt="QR-код для открытия ежедневника">
-          <div class="linkbox">https://sharinskiy888-art.github.io/den-ezhednevnik/</div>
+          <img class="qr" id="qr" src="qr-iphone.svg" alt="QR-код для открытия ежедневника">
+          <div class="linkbox" id="appLink"></div>
         </div>
         <div>
           <div class="actions">
-            <a class="button" href="https://sharinskiy888-art.github.io/den-ezhednevnik/">Открыть ежедневник</a>
+            <a class="button" id="openApp" href="./">Открыть ежедневник</a>
             <button class="button secondary" id="shareButton" type="button">Отправить ссылку</button>
             <button class="button secondary" id="copyButton" type="button">Скопировать ссылку</button>
           </div>
@@ -50,7 +50,11 @@
     </section>
   </main>
   <script>
-    const appUrl='https://sharinskiy888-art.github.io/den-ezhednevnik/';
+    // Ссылка — на тот сервер, с которого открыта эта страница (свой сервер, VPS или прежний сайт).
+    const appUrl=new URL('./',location.href).href;
+    document.querySelector('#appLink').textContent=appUrl;
+    // Готовый QR-код ведёт на прежний сайт GitHub Pages — на своём сервере его не показываем, чтобы не увести людей туда.
+    if(location.hostname!=='sharinskiy888-art.github.io')document.querySelector('#qr').hidden=true;
     document.querySelector('#copyButton').addEventListener('click',async event=>{await navigator.clipboard.writeText(appUrl);event.currentTarget.textContent='Ссылка скопирована ✓';});
     document.querySelector('#shareButton').addEventListener('click',async()=>{if(navigator.share)await navigator.share({title:'День — ежедневник',text:'Установить ежедневник «День»',url:location.href});else{await navigator.clipboard.writeText(location.href);document.querySelector('#shareButton').textContent='Ссылка скопирована ✓';}});
   </script>

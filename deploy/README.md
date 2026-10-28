@@ -20,10 +20,11 @@
 6. **Удаление** — «Параметры → Приложения → День — сервер». Данные остаются в `C:\ProgramData\Den\data`, файл настроек — `C:\Program Files\Den\den.env` (при повторной установке всё подхватится, вход у людей не слетит).
 
 ## 2. Арендованный сервер VPS в России (для монтажников с мобильным интернетом)
-Нужно: VPS с Ubuntu 22.04 или 24.04 (1 ядро, 1 ГБ памяти хватает) и домен (например, `den.vashsait.ru`), направленный на адрес VPS.
+Нужно: VPS с Ubuntu 22.04 или 24.04 (1 ядро, 1 ГБ памяти хватает, процессор x86 или ARM) и домен (например, `den.vashsait.ru`), направленный на адрес VPS.
+GitHub серверу не нужен: всё ставится из одного архива `den-server-<версия>.tar.gz` (GitHub → Actions → «Install test» → Artifacts → `den-server-linux`, или собрать `bash deploy/linux/make_release.sh`). Внутри — программа и все библиотеки, из интернета берутся только nginx и сертификат.
 ```
-git clone -b python-server https://github.com/sharinskiy888-art/den-ezhednevnik.git
-cd den-ezhednevnik
+scp den-server-104.tar.gz root@адрес-VPS:          # со своего компьютера
+tar xzf den-server-104.tar.gz && cd den-server-104 # дальше — на VPS
 sudo bash deploy/linux/install.sh --domain den.vashsait.ru --email вы@почта.ru
 sudo bash deploy/linux/admin.sh add вы@почта.ru - admin      # пароль спросит, не показывая
 ```
@@ -41,6 +42,11 @@ sudo bash deploy/linux/admin.sh add вы@почта.ru - admin      # парол
 2. В АК-Сервере: «Установить программу из файла» → выберите этот zip. Плитка «День-CRM» станет зелёной.
 3. Вход, сотрудники, роли, копии и обновления — в АК-Сервере. Свой администратор, пароли и `den.env` не нужны.
    - Владелец и управляющий — руководители раздела «Клиенты», «только просмотр» видит всё без правок, остальные — монтажники (видят только свои заявки).
+
+## Переезд на другой сервер (VPS → VPS или компьютер → VPS)
+1. На старом: `sudo bash deploy/linux/admin.sh backup` (Windows: `den-server.exe admin backup`) — появятся `den-….db` и `files-….zip` в папке копий.
+2. На новом поставить «День» (раздел 2), затем скопировать эти два файла в `/var/lib/den/backups/` (владелец `den`) и `/etc/den/den.env` со старого (права прежние: `sudo chown root:den /etc/den/den.env && sudo chmod 640 /etc/den/den.env`, затем `sudo systemctl restart den`) — тогда людям не придётся входить заново.
+3. `sudo bash deploy/linux/admin.sh restore den-….db` — задачи, поручения, CRM и фото на месте. Направить домен на новый адрес.
 
 ## Копии
 - Сами: раз в сутки база и все фото (хранятся 14 последних), плюс перед каждым обновлением.

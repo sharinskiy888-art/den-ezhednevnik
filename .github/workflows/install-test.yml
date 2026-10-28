@@ -16,8 +16,18 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - name: Установка (без домена)
-        run: sudo bash deploy/linux/install.sh --no-tls
+      - name: Архив для VPS (без GitHub и PyPI) и установка из него
+        run: |
+          bash deploy/linux/make_release.sh
+          V=$(python3 -c 'import json; print(json.load(open("version.json"))["version"])')
+          tar -C "$RUNNER_TEMP" -xzf "build/den-server-$V.tar.gz"
+          # PyPI закрыт: библиотеки должны поставиться только из архива
+          sudo env PIP_INDEX_URL=http://127.0.0.1:9/ bash "$RUNNER_TEMP/den-server-$V/deploy/linux/install.sh" --no-tls
+          [ ! -e /opt/den/current/.git ] && [ -f /opt/den/current/server/main.py ]
+      - uses: actions/upload-artifact@v4
+        with:
+          name: den-server-linux
+          path: build/den-server-*.tar.gz
       - name: Администратор, вход, данные через nginx
         run: |
           sudo DEN_NEW_PASSWORD=pass-admin-1 bash deploy/linux/admin.sh add admin@den.test - admin
@@ -65,6 +75,20 @@ jobs:
           for i in $(seq 1 30); do curl -fs http://127.0.0.1/api/health >/dev/null && break; sleep 0.5; done
           H=$(curl -fs http://127.0.0.1/api/data/tasks/heads -H "Authorization: Bearer $TOKEN")
           echo "$H" | grep -q '"t1"' && ! echo "$H" | grep -q '"t2"'
+      - name: Переезд на «новый сервер» по инструкции — копия, чистая установка, возврат
+        run: |
+          sudo bash deploy/linux/admin.sh backup
+          NAME=$(sudo ls -t /var/lib/den/backups | grep '^den-.*\.db$' | head -1)
+          mkdir -p "$RUNNER_TEMP/move"; sudo cp "/var/lib/den/backups/$NAME" "/var/lib/den/backups/files-${NAME:4:-3}.zip" /etc/den/den.env "$RUNNER_TEMP/move/"
+          sudo systemctl stop den; sudo rm -rf /var/lib/den /etc/den /opt/den   # «новый» сервер — без данных
+          V=$(python3 -c 'import json; print(json.load(open("version.json"))["version"])')
+          sudo bash "$RUNNER_TEMP/den-server-$V/deploy/linux/install.sh" --no-tls
+          sudo install -d -o den -g den -m 700 /var/lib/den/backups
+          sudo install -o den -g den -m 600 "$RUNNER_TEMP/move/$NAME" "$RUNNER_TEMP/move/files-${NAME:4:-3}.zip" /var/lib/den/backups/
+          sudo install -o root -g den -m 640 "$RUNNER_TEMP/move/den.env" /etc/den/den.env
+          sudo bash deploy/linux/admin.sh restore "$NAME"
+          for i in $(seq 1 30); do curl -fs http://127.0.0.1/api/health >/dev/null && break; sleep 0.5; done
+          curl -fs http://127.0.0.1/api/data/tasks/heads -H "Authorization: Bearer $TOKEN" | grep -q '"t1"'   # прежний вход работает
       - name: Журнал при сбое
         if: failure()
         run: sudo journalctl -u den -n 80 --no-pager

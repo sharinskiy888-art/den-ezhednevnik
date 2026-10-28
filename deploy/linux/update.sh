@@ -20,7 +20,11 @@ for f in index.html app.js crm.js sync.js sync-config.js i18n-en.js styles.css s
 done
 [ -d "$SRC/assets" ] && cp -r "$SRC/assets" "$REL/"
 python3 -m venv "$REL/venv"
-"$REL/venv/bin/pip" install -q --disable-pip-version-check -r "$SRC/server/requirements.txt"
+if [ -d "$SRC/wheels" ]; then  # архив make_release.sh: библиотеки уже внутри, интернет и PyPI не нужны
+  "$REL/venv/bin/pip" install -q --disable-pip-version-check --no-index --find-links "$SRC/wheels" -r "$SRC/server/requirements.txt"
+else
+  "$REL/venv/bin/pip" install -q --disable-pip-version-check -r "$SRC/server/requirements.txt"
+fi
 
 if [ -n "$PREV" ] && [ -d "$PREV" ] && [ -f /var/lib/den/den.db ]; then
   echo "Копия базы перед обновлением"
