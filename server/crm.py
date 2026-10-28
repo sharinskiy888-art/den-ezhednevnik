@@ -12,7 +12,7 @@ import time
 from fastapi import APIRouter, Request
 from fastapi.responses import Response
 
-from . import db, files, shared
+from . import db, files, partners, shared
 from .access import CRM_ROLES, SAFE_ID, ApiError, bad, crm_role, crm_visible, current_user, field, read_json, require_admin, require_crm, require_standalone
 from .sync import MAX_ROW, json_response, rows_json
 
@@ -129,6 +129,8 @@ def write(con, kind, rows, author):
     con.executemany('insert into crm (kind, id, payload, updated_at, pu, ref) values (?,?,?,?,?,?) on conflict (kind, id) do update set '
                     'payload=excluded.payload, updated_at=excluded.updated_at, pu=excluded.pu, ref=excluded.ref',
                     [(kind, r[0], r[2], r[3], r[4], r[5]) for r in rows])
+    if kind == 'clients':
+        partners.enqueue(con, [r[0] for r in rows])  # модуль АК: клиенты — в справочник ядра partners
     if kind != 'orders':
         return []
     removed = []

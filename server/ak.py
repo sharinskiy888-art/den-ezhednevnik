@@ -28,7 +28,7 @@ from pathlib import Path
 from fastapi import APIRouter, Request
 from fastapi.concurrency import run_in_threadpool
 
-from . import backup, db
+from . import backup, db, partners
 from .access import MAX_BODY, ApiError, bad, current_user, field, read_json, require_ak_owner, require_ak_service
 
 SKEW, NONCE_TTL = 60, 120  # ±60 с по времени, nonce не повторяется 120 с (п. 10 ТЗ модуля)
@@ -394,7 +394,7 @@ def make_copy(name):
                 dst.close()
                 src.close()
             if db.FILES_DIR.is_dir():
-                shutil.copytree(db.FILES_DIR, temp / 'files', symlinks=True)
+                shutil.copytree(db.FILES_DIR, temp / 'files', symlinks=True, copy_function=shutil.copyfile)
             if target.exists():
                 shutil.rmtree(target)
             temp.rename(target)
@@ -438,6 +438,8 @@ async def event(request: Request):
     with db.tx(con):
         fresh = con.execute('insert or ignore into ak_events values (?,?,?)', (event_id, kind, db.now_iso())).rowcount
         con.execute('delete from ak_events where received_at < ?', (time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(time.time() - 90 * 86400)),))
+    if fresh and kind == 'partner.changed':  # клиент изменён в АК-Сервере или другой программе
+        partners.on_event(body.get('data'))  # разберёт фоновый поток: ответ ядру — сразу
     return {'ok': True, 'duplicate': not fresh}
 
 
@@ -584,6 +586,7 @@ def restore(con, archive):
                     rollback(con, aside, moved, placed)
                     raise
                 _employees['at'] = 0
+                partners.state['resync'] = True  # клиенты копии сверяются со справочником ядра
                 # отложенное не удаляется, пока ему нет 30 дней (владелец мог перебирать копии) и всегда остаются 3 последних
                 olds = sorted(p for p in db.DATA_DIR.iterdir() if p.is_dir() and p.name.startswith('before-restore-'))
                 for old in olds[:-COPIES_KEPT]:

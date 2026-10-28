@@ -159,7 +159,9 @@ def ak_user(request: Request) -> User:
         raise ApiError(409, 'Приложение сверяет данные с сервером. Повторите через секунду.', 'epoch_required')
     con = request.app.state.con
     row = con.execute('select email, name from users where id=?', (uid,)).fetchone()
-    email = row['email'] if row else ak_register(con, uid)
+    email = row['email'] if row else ak_register(con, uid, ident.get('roles') or [])
+    if row and ak_adopt_pending(con, uid):  # при первом входе ядро не ответило — ещё раз
+        ak_adopt(con, uid, ident.get('roles') or [])
     name = ident.get('name') or ''
     if name and (not row or row['name'] != name):  # имя для списка исполнителей; пишется, только когда сменилось
         with db.tx(con):
@@ -168,13 +170,72 @@ def ak_user(request: Request) -> User:
     return User(uid, email, 'admin' if 'owner' in roles else 'user', '', ak_crm_role(roles))
 
 
-def ak_register(con, uid):
+def ak_register(con, uid, roles=()):
     """Первый вход сотрудника. Ключ в поручениях и заявках — «<uuid>@ak»: не меняется и не совпадёт с чужим
-    (email в ядре могут сменить или дать другому). Пароля нет и не будет: входят только через ядро."""
+    (email в ядре могут сменить или дать другому). Пароля нет и не будет: входят только через ядро.
+    Если в базе есть люди прежней установки (перенесённой legacy.import_once), его прежние данные переходят к нему."""
+    ak_adopt(con, uid, roles)
     with db.tx(con):
         con.execute("insert or ignore into users (id, email, password_hash, role, created_at) values (?,?,'!ak','user',?)",
                     (uid, f'{uid}@ak', db.now_iso()))
         return con.execute('select email from users where id=?', (uid,)).fetchone()['email']
+
+
+def ak_adopt(con, uid, roles):
+    """Прежние данные — сотруднику uid. Ядро не ответило — запомнить (meta adopt_pending) и попробовать при следующем входе."""
+    from . import legacy
+    if not legacy.legacy_users(con):
+        return
+    found = ak_logins(uid)
+    pending = set(json.loads((con.execute("select value from meta where key='adopt_pending'").fetchone() or ['[]'])[0]))
+    if found is None:
+        pending.add(uid)
+        _adopt_tried[uid] = time.time()
+    else:
+        pending.discard(uid)
+        old = legacy.match(con, uid, roles, *found)
+        if old:
+            legacy.adopt(con, old, uid)
+    with db.tx(con):
+        con.execute("insert or replace into meta values ('adopt_pending', ?)", (json.dumps(sorted(pending)),))
+
+
+_adopt_tried = {}  # uid -> время последней попытки: ядро недоступно — не чаще раза в минуту
+
+
+def ak_adopt_pending(con, uid):
+    if time.time() - _adopt_tried.get(uid, 0) < 60:
+        return False
+    row = con.execute("select value from meta where key='adopt_pending'").fetchone()
+    if not row or uid not in json.loads(row[0]):
+        return False
+    _adopt_tried[uid] = time.time()
+    return True
+
+
+def ak_logins(uid):
+    """(логин и email сотрудника в ядре, email остальных сотрудников) — чтобы узнать его среди людей прежней установки.
+    Ядро не ответило — None. Короткое ожидание: вызывается при входе."""
+    from . import ak
+    mine, others = [], set()
+    try:
+        try:
+            info = ak.core('GET', f'/core/v1/users/{uid}', timeout=3) or {}
+        except ak.CoreError as e:
+            if e.status != 404:
+                raise
+            info = {}
+        mine += [str(info.get('login') or ''), str(info.get('email') or '')]
+        for e in ak.core_list('employees'):
+            data = e.get('data') if isinstance(e.get('data'), dict) else e
+            email = str(data.get('email') or '').strip().lower()
+            if ak.employee_user(e) == uid:
+                mine.append(email)
+            elif email:
+                others.add(email)
+    except (ak.CoreError, ApiError):
+        return None
+    return mine, others
 
 
 def require_ak_owner(request: Request) -> User:

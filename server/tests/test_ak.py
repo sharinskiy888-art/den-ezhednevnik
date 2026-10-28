@@ -452,6 +452,177 @@ def test_restore_from_file(tmp_path):
     finally:
         m.stop()
 
+
+# --- ТЗ «АК-День»: клиенты — в справочнике ядра partners ---
+
+def wait_for(check, seconds=20):
+    end = time.time() + seconds
+    while time.time() < end:
+        result = check()
+        if result:
+            return result
+        time.sleep(0.2)
+    return check()
+
+
+def crm_clients(m):
+    return {r['id']: r['payload'] for r in m.as_user(BOSS, 'owner', path='api/crm/clients')[1]}
+
+
+def core_now():
+    from ak_core import now_iso
+    return now_iso()
+
+
+def event(m, data, event_id=None):
+    return m.signed('POST', '/m/crm/ak/v1/events', {'seq': 1, 'event_id': event_id or str(uuid.uuid4()), 'type': 'partner.changed',
+                                                     'source': 'retail', 'time': T0, 'data': data})
+
+
+def test_clients_in_core_partners(tmp_path):
+    m = Module(tmp_path)
+    try:
+        core = m.core
+        client = {'id': 'cl-1', 'name': 'ООО Ромашка', 'inn': '7700000001', 'phone': '+7 900 111-22-33', 'note': 'вход со двора'}
+        assert m.as_user(BOSS, 'owner', 'POST', 'api/crm/clients', rows(client))[0] == 204
+        rec = wait_for(lambda: core.partners.get('cl-1'))
+        assert rec and rec['rev'] == 1 and rec['data']['name'] == 'ООО Ромашка' and rec['data']['phone'] == '+7 900 111-22-33'
+        assert rec['data']['inn'] == '7700000001' and not rec['deleted']
+        # правка в «Дне» — новый rev
+        assert m.as_user(BOSS, 'owner', 'POST', 'api/crm/clients', rows({**client, 'name': 'ООО Ромашка-2'}))[0] == 204
+        assert wait_for(lambda: core.partners['cl-1']['rev'] == 2 and core.partners['cl-1']['data']['name'] == 'ООО Ромашка-2')
+        # правка в другой программе: событие partner.changed → карточка в «Дне», свои поля карточки сохраняются
+        same = str(uuid.uuid4())
+        assert event(m, core.change_partner('cl-1', name='ООО Ромашка (из Ритейла)'), same)[0] == 200
+        got = wait_for(lambda: crm_clients(m)['cl-1']['name'] == 'ООО Ромашка (из Ритейла)' and crm_clients(m)['cl-1'])
+        assert got and got['phone'] == '+7 900 111-22-33' and got['updatedAt'] > T0
+        # тот же event_id второй раз — не обрабатывается; устаревший rev — ничего не меняет
+        core.change_partner('cl-1', name='Не должно прийти по старому событию')
+        status, answer, _ = event(m, {'id': 'cl-1', 'rev': 99}, same)
+        assert status == 200 and answer['duplicate']
+        assert event(m, {'id': 'cl-1', 'rev': 1, 'deleted': False})[0] == 200
+        time.sleep(3)
+        assert crm_clients(m)['cl-1']['name'] == 'ООО Ромашка (из Ритейла)'
+        # 409: запись в ядре изменили, а событие не дошло. Правка «Дня» новее — уходит в ядро с новым rev...
+        now = core_now()
+        assert m.as_user(BOSS, 'owner', 'POST', 'api/crm/clients', rows({**client, 'name': 'Ромашка — новее', 'updatedAt': now}))[0] == 204
+        assert wait_for(lambda: core.partners['cl-1']['data']['name'] == 'Ромашка — новее')
+        # ...правка старее записи ядра — уступает: в «Дне» становится запись ядра
+        middle = core_now()
+        time.sleep(0.05)
+        core.change_partner('cl-1', name='Ромашка из ядра')
+        assert m.as_user(BOSS, 'owner', 'POST', 'api/crm/clients', rows({**client, 'name': 'Старая правка', 'updatedAt': middle}))[0] == 204
+        assert wait_for(lambda: crm_clients(m)['cl-1']['name'] == 'Ромашка из ядра')
+        assert core.partners['cl-1']['data']['name'] == 'Ромашка из ядра'
+        # 400 (ядро не приняло): владелец получает одно уведомление, повтор — не раньше чем через час, а не при каждом проходе
+        core.reject = {'cl-bad'}
+        assert m.as_user(BOSS, 'owner', 'POST', 'api/crm/clients', rows({'id': 'cl-bad', 'name': 'Отказ'}))[0] == 204
+        assert wait_for(lambda: core.notices)
+        time.sleep(3)
+        assert len(core.notices) == 1 and 'cl-bad' not in core.partners
+        # ядро не отвечает: правка ждёт в очереди и уходит, когда ядро вернулось
+        core.down = True
+        assert m.as_user(BOSS, 'owner', 'POST', 'api/crm/clients', rows({**client, 'id': 'cl-2', 'name': 'ИП Петров'}))[0] == 204
+        time.sleep(3)
+        assert 'cl-2' not in core.partners
+        core.down = False
+        assert wait_for(lambda: core.partners.get('cl-2'), 30)
+        # удаление в «Дне» — в ядре пометка deleted:true, запись не стирается
+        assert m.as_user(BOSS, 'owner', 'POST', 'api/crm/clients', rows({'id': 'cl-2', '__deleted': True, 'updatedAt': core_now()}))[0] == 204
+        assert wait_for(lambda: core.partners['cl-2']['deleted'])
+        assert core.partners['cl-2']['data']['name'] == 'ИП Петров' and core.partners['cl-2']['data']['phone'] == '+7 900 111-22-33'
+        # партнёр, заведённый в ядре, пока модуль был остановлен, появляется при запуске (проход справочника)
+        assert m.signed('POST', '/m/crm/ak/v1/stop')[0] == 200 and m.proc.wait(10) == 0
+        core.change_partner('p-new', name='Партнёр из Ритейла', phone='+7 900 000-00-01')
+        m.start()
+        assert wait_for(lambda: crm_clients(m).get('p-new', {}).get('name') == 'Партнёр из Ритейла')
+        # монтажник клиентов (и их телефонов) не видит, как и раньше
+        status, body, _ = m.as_user(WORKER, 'courier', path='api/crm/clients')
+        assert status == 200 and body == [], (status, body)
+        assert all(ok for _, ok in core.checked)  # все запросы модуля к ядру подписаны
+    finally:
+        m.stop()
+    text = m.log.read_text(errors='replace')
+    assert '900 111' not in text and 'Ромашка' not in text, 'телефоны и названия клиентов не пишутся в журнал'
+    assert 'Traceback' not in text
+
+
+# --- ТЗ «АК-День»: данные прежней установки переносятся при первом запуске ---
+
+def make_legacy(folder):
+    """Прежняя установка «Дня» (свой сервер): администратор и монтажник со своими данными, клиент CRM, фото."""
+    env = {k: v for k, v in os.environ.items() if not k.startswith(('DEN_', 'AK_'))}
+    env.update({'DEN_DATA_DIR': str(folder), 'DEN_SECRET': 's' * 40, 'DEN_ENV_FILE': str(folder / 'нет.env'),
+                'DEN_NEW_PASSWORD': 'old-pass-123'})
+    for email, *role in (('admin@old.ru', 'admin'), ('ivan@firma.ru',)):
+        subprocess.run([sys.executable, '-m', 'server.admin', 'add', email, '-', *role], cwd=ROOT, env=env, check=True, capture_output=True)
+    con = sqlite3.connect(folder / 'den.db')
+    ids = dict(con.execute('select email, id from users'))
+    con.executemany('insert into rows values (?,?,?,?,?,null)', [
+        (ids['admin@old.ru'], 'tasks', 'old-task', json.dumps({'id': 'old-task', 'title': 'Старая задача', 'updatedAt': T0}), T0),
+        (ids['ivan@firma.ru'], 'tasks', 'ivan-task', json.dumps({'id': 'ivan-task', 'title': 'Задача Ивана', 'updatedAt': T0}), T0)])
+    con.execute("insert into crm values ('orders','o-1',?,?,null,'obj-1')",
+                (json.dumps({'id': 'o-1', 'objectId': 'obj-1', 'assignees': ['ivan@firma.ru'], 'updatedAt': T0}), T0))
+    con.execute("insert into crm_assignees values ('o-1','ivan@firma.ru')")
+    con.commit()
+    con.close()
+    (folder / 'files' / 'crm' / 'obj-1').mkdir(parents=True)
+    (folder / 'files' / 'crm' / 'obj-1' / 'a.jpg').write_bytes(b'old-photo')
+
+
+def test_legacy_data_moved_on_first_start(tmp_path):
+    legacy = tmp_path / 'Users' / 'shamil' / 'AppData' / 'Local' / 'Den' / 'data'
+    legacy.mkdir(parents=True)
+    make_legacy(legacy)
+    before = {p.relative_to(legacy).as_posix(): p.stat().st_mtime_ns for p in legacy.rglob('*') if p.is_file()}
+    m = Module(tmp_path, DEN_LEGACY_DATA=str(legacy))
+    try:
+        assert (m.data / 'files' / 'crm' / 'obj-1' / 'a.jpg').read_bytes() == b'old-photo'
+        # владелец получает данные единственного прежнего администратора
+        assert m.as_user(BOSS, 'owner', path='api/ak/me')[0] == 200
+        assert {r['id'] for r in m.as_user(BOSS, 'owner', path='api/data/tasks')[1]} == {'old-task'}
+        # монтажник узнан по email (логин в ядре ivan@firma.ru): его задачи и заявка
+        assert m.as_user(WORKER, 'courier', path='api/ak/me')[0] == 200
+        assert {r['id'] for r in m.as_user(WORKER, 'courier', path='api/data/tasks')[1]} == {'ivan-task'}
+        orders = m.as_user(WORKER, 'courier', path='api/crm/orders')[1]
+        assert [o['payload']['assignees'] for o in orders] == [[f'{WORKER}@ak']]
+        # входа по старому паролю в модуле нет
+        assert m.as_user(BOSS, 'owner', 'POST', 'api/auth/login', {'email': 'admin@old.ru', 'password': 'old-pass-123'})[0] == 404
+    finally:
+        m.stop()
+    after = {p.relative_to(legacy).as_posix(): p.stat().st_mtime_ns for p in legacy.rglob('*') if p.is_file()}
+    assert after == before, 'прежняя папка должна только читаться'
+    assert 'взяты из' in m.log.read_text(errors='replace')
+    # второй запуск: база модуля уже есть — повторно ничего не переносится
+    m2 = Module(tmp_path, data_dir=m.data, DEN_LEGACY_DATA=str(legacy))
+    try:
+        assert {r['id'] for r in m2.as_user(BOSS, 'owner', path='api/data/tasks')[1]} == {'old-task'}
+    finally:
+        m2.stop()
+
+def test_legacy_waits_while_old_server_runs(tmp_path):
+    """Прежний сервер ещё запущен (держит свой den.lock): база не копируется посреди записи, модуль работает пустым
+    и переносит данные при следующем запуске, если в нём ещё ничего не завели."""
+    import fcntl
+    legacy = tmp_path / 'old'
+    legacy.mkdir()
+    make_legacy(legacy)
+    lock = open(legacy / 'den.lock', 'a+')
+    fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    m = Module(tmp_path, DEN_LEGACY_DATA=str(legacy))
+    try:
+        assert m.as_user(BOSS, 'owner', path='api/data/tasks')[1] == []
+    finally:
+        m.stop()
+        lock.close()
+    assert 'сейчас запущен' in m.log.read_text(errors='replace')
+    m2 = Module(tmp_path, data_dir=m.data, DEN_LEGACY_DATA=str(legacy))
+    try:
+        assert {r['id'] for r in m2.as_user(BOSS, 'owner', path='api/data/tasks')[1]} == {'old-task'}
+    finally:
+        m2.stop()
+
+
 # --- п. 4 (запуск): только 127.0.0.1, данные только в AK_DATA_DIR ---
 
 def test_refuses_external_host(tmp_path):

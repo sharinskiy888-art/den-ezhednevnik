@@ -2,7 +2,7 @@
 
   python deploy/ak/make_module.py <папка собранной программы> <куда положить zip>
 
-Папка программы — сборка Nuitka (build\\den_server.dist после build.ps1): den-server.exe, экраны, version.json.
+Папка программы — build/ak-stage после build_module.sh (свой Python + crm.cmd) или сборка Nuitka (build\\den_server.dist после build.ps1).
 Только стандартная библиотека Python. Ничего не скачивает.
 """
 import json
@@ -16,10 +16,10 @@ SKIP = {'task.ps1', 'den.env', 'den-setup.iss'}  # только для само�
 ROLES = ['owner', 'admin', 'cashier', 'storekeeper', 'courier', 'partner', 'viewer']
 
 
-def module_json(version):
+def module_json(version, start='den-server.exe'):
     return {'id': 'crm', 'name': 'День-CRM', 'version': version, 'protocol': 1, 'min_core': '1.0.3',
-            'start': 'den-server.exe', 'args': [], 'start_timeout_sec': 120, 'icon': 'icon.png',
-            'subscribes': [], 'emits': [], 'roles': ROLES}
+            'start': start, 'args': [], 'start_timeout_sec': 120, 'icon': 'icon.png',
+            'subscribes': ['partner.changed'], 'emits': [], 'roles': ROLES}
 
 
 def png_size(data):
@@ -34,8 +34,10 @@ def build(dist, out_dir):
     if not str(app).isdigit():
         raise SystemExit(f'Номер версии «{app}» — не число')
     version = f'1.0.{app}'  # АК-Сервер принимает только X.Y.Z; 1.0.103 = сборка «Дня» 103
-    if not (dist / 'den-server.exe').is_file() and not (dist / 'den-server').is_file():
-        raise SystemExit(f'В {dist} нет den-server.exe: сначала соберите программу (build.ps1)')
+    # crm.cmd — сборка на Linux со своим Python (build_module.sh); den-server.exe — сборка Nuitka на Windows (build.ps1)
+    start = next((n for n in ('crm.cmd', 'den-server.exe', 'den-server') if (dist / n).is_file()), None)
+    if not start:
+        raise SystemExit(f'В {dist} нет crm.cmd или den-server.exe: сначала соберите программу')
     icon = (ROOT / 'assets' / 'icon-192.png').read_bytes()
     width, height = png_size(icon)
     if width > 256 or height > 256:
@@ -43,7 +45,7 @@ def build(dist, out_dir):
     out_dir.mkdir(parents=True, exist_ok=True)
     target = out_dir / f'AK-Crm-Modul-{version}.zip'
     with zipfile.ZipFile(target, 'w', zipfile.ZIP_DEFLATED) as z:
-        z.writestr('module.json', json.dumps(module_json(version), ensure_ascii=False, indent=1))
+        z.writestr('module.json', json.dumps(module_json(version, 'den-server.exe' if start == 'den-server' else start), ensure_ascii=False, indent=1))
         z.writestr('icon.png', icon)
         changelog = ROOT / 'CHANGELOG.md'
         if changelog.is_file():

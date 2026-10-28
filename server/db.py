@@ -139,6 +139,12 @@ MIGRATIONS = [
     """
     alter table users add column name text not null default '';
     """,
+    """
+    create table if not exists core_outbox (seq integer primary key autoincrement, book text not null, id text not null, created_at real not null,
+                              attempts integer not null default 0, next_at real not null default 0, last_error text);
+    create index if not exists core_outbox_id on core_outbox(book, id);
+    create table if not exists core_links (book text not null, id text not null, core_rev integer not null default 0, primary key (book, id));
+    """,
 ]
 EPOCH = ''  # модуль АК: метка «поколения» данных; меняется при восстановлении из копии (устройства забывают старое)
 

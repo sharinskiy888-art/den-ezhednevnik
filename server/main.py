@@ -17,7 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from . import auth, backup, crm, db, files, migration, shared, sync
+from . import auth, backup, crm, db, files, legacy, migration, partners, shared, sync
 from .access import MAX_BODY, ApiError, RateLimiter, bad, client_ip, current_user, field, read_json, require_admin, user_from_token
 
 STATIC_FILES = {'index.html', 'app.js', 'crm.js', 'sync.js', 'sync-config.js', 'i18n-en.js', 'styles.css', 'sw.js', 'version.js',
@@ -26,10 +26,15 @@ PHOTO_RE = re.compile(r'^data:image/(jpeg|png|webp|gif);base64,([A-Za-z0-9+/=]+)
 feedback_limiter = RateLimiter(db.FEEDBACK_LIMIT, 60)
 
 db.lock_data_dir()
+if db.AK:
+    legacy.import_once()  # первый запуск модуля: забрать данные прежней установки «Дня» на этом компьютере
 con = db.connect()
 db.migrate(con)
 if db.AK:
     db.load_epoch(con)  # метка данных: после «Восстановить из файла» устройства узнают, что прежнее надо забыть
+    if legacy.state['wait']:  # прежний сервер был запущен: перенести при следующем запуске, пока база пустая
+        with db.tx(con):
+            con.execute("insert or replace into meta values ('legacy_wait', '1')")
 if not db.AK:
     auth.ensure_first_admin(con)
 
@@ -38,6 +43,7 @@ if not db.AK:
 async def lifespan(app):
     stop = threading.Event()
     backup.start_schedule(stop)
+    partners.start(stop)  # модуль АК: клиенты ↔ справочник ядра partners
     task = asyncio.create_task(maintenance_loop())
     yield
     stop.set()

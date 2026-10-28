@@ -6,6 +6,7 @@
 
 Отдельно: python server/tests/ak_core.py <порт ядра> <порт модуля> <секрет hex> [код]
 """
+import datetime
 import hashlib
 import hmac
 import json
@@ -18,6 +19,7 @@ import urllib.parse
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+LOCK = threading.Lock()
 OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 AK_BUTTON = '<script id="ak-button">/* кнопка АК */</script>'
 
@@ -41,16 +43,32 @@ def signed_headers(secret, code, method, uri, body=b'', user='', roles='', name=
     return h
 
 
+def now_iso():
+    return datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z')
+
+
 class Core:
     def __init__(self, secret_hex, module_port, code='crm', employees=None):
         self.secret, self.code, self.module_port = bytes.fromhex(secret_hex), code, module_port
         self.employees = employees or {}  # uuid -> {"id","name","email",…}
         self.checked = []  # (путь, подпись верна)
         self.down = False
+        self.reject = set()  # id, на которые справочник отвечает 400
+        self.partners, self.seq, self.notices = {}, 0, []  # справочник partners: id -> {id, rev, deleted, updated_at, data, seq}
         handler = type('H', (Handler,), {'core': self})
         self.http = ThreadingHTTPServer(('127.0.0.1', 0), handler)
         self.port = self.http.server_address[1]
         self.url = f'http://127.0.0.1:{self.port}'
+
+    def change_partner(self, pid, deleted=False, **data):
+        """Изменение клиента «в другой программе»: rev + 1. Возвращает тело события partner.changed."""
+        with LOCK:
+            old = self.partners.get(pid)
+            self.seq += 1
+            rec = {'id': pid, 'rev': (old['rev'] if old else 0) + 1, 'deleted': deleted, 'updated_at': now_iso(),
+                   'data': {**(old['data'] if old else {}), **data}, 'seq': self.seq}
+            self.partners[pid] = rec
+        return {'id': pid, 'rev': rec['rev'], 'deleted': deleted}
 
     def start(self):
         threading.Thread(target=self.http.serve_forever, daemon=True).start()
@@ -140,6 +158,11 @@ class Handler(BaseHTTPRequestHandler):
         if parts[2:3] == ['employees'] and len(parts) == 4:
             e = core.employees.get(parts[3])
             return self._send(200, record(e)) if e else self._send(404, {'error': {'code': 'not_found', 'message': 'нет'}})
+        if parts[2:3] == ['partners']:
+            return self._partners(parts, path, body)
+        if parts[2:] == ['notify'] and self.command == 'POST':
+            core.notices.append(json.loads(body))
+            return self._send(200, {'ok': True})
         if parts[2:] == ['employees']:  # {"items":[{id,rev,deleted,updated_at,data}],"next_cursor","more"}
             q = urllib.parse.parse_qs(path.query)
             items = sorted(core.employees.values(), key=lambda e: e['id'])
@@ -148,6 +171,36 @@ class Handler(BaseHTTPRequestHandler):
             more = start + 2 < len(items)
             return self._send(200, {'items': [record(e) for e in page], 'next_cursor': str(start + 2), 'more': more})
         self._send(404, {'error': {'code': 'not_found', 'message': 'нет'}})
+
+
+    def _partners(self, parts, path, body):
+        """Справочник partners по ТЗ: PUT — запись целиком с rev (0 — создать), 409 при чужом rev, 400 без name."""
+        core, out = self.core, lambda r: {k: v for k, v in r.items() if k != 'seq'}
+        if len(parts) == 3 and self.command == 'GET':
+            q = urllib.parse.parse_qs(path.query)
+            cursor, limit = int((q.get('cursor') or ['0'])[0] or 0), int((q.get('limit') or ['500'])[0])
+            rows = sorted((r for r in core.partners.values() if r['seq'] > cursor), key=lambda r: r['seq'])
+            page = rows[:min(limit, 2)]  # по 2 — чтобы проверить курсор
+            return self._send(200, {'items': [out(r) for r in page], 'next_cursor': str(page[-1]['seq'] if page else cursor),
+                                    'more': len(rows) > len(page)})
+        if len(parts) != 4:
+            return self._send(404, {'error': {'code': 'not_found', 'message': 'нет'}})
+        pid, rec = parts[3], core.partners.get(parts[3])
+        if self.command == 'GET':
+            return self._send(200, out(rec)) if rec else self._send(404, {'error': {'code': 'not_found', 'message': 'нет'}})
+        if self.command != 'PUT':
+            return self._send(405, {'error': {'code': 'method', 'message': 'нет'}})
+        data = json.loads(body)
+        if data.get('rev') != (rec['rev'] if rec else 0):
+            return self._send(409, {'error': {'code': 'conflict', 'message': 'rev'}})
+        if not data.get('name') or pid in core.reject:
+            return self._send(400, {'error': {'code': 'bad_field', 'message': 'name'}})
+        with LOCK:
+            core.seq += 1
+            new = {'id': pid, 'rev': data['rev'] + 1, 'deleted': bool(data.get('deleted')), 'updated_at': now_iso(),
+                   'data': {k: v for k, v in data.items() if k not in ('rev', 'deleted')}, 'seq': core.seq}
+            core.partners[pid] = new
+        self._send(200, {'id': pid, 'rev': new['rev'], 'updated_at': new['updated_at']})
 
 
 if __name__ == '__main__':
