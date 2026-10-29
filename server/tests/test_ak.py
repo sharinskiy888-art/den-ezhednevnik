@@ -672,7 +672,7 @@ def test_package_builds_and_starts_like_core(tmp_path):
         meta = json.loads(z.read('module.json'))
     assert {'module.json', 'icon.png', 'den-server.exe', 'version.json', 'CHANGELOG.md'} <= names and 'task.ps1' not in names
     assert meta['id'] == 'crm' and meta['version'] == f'1.0.{version}' and meta['protocol'] == 1 and meta['min_core'] == '1.0.3' and meta['start_timeout_sec'] == 120
-    assert meta['start'] == 'den-server.exe' and '..' not in meta['start'] and 'viewer' in meta['roles']
+    assert meta['start'] == 'den-server.exe' and '..' not in meta['start'] and 'viewer' in meta['roles'] and 'CRM' in meta['about']
     (tmp_path / 'work').mkdir()
     out = subprocess.run([sys.executable, 'deploy/ak/smoke.py', str(package), str(tmp_path / 'work')], cwd=ROOT,
                          capture_output=True, text=True, timeout=120)

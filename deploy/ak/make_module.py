@@ -13,11 +13,13 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 SKIP = {'task.ps1', 'den.env', 'den-setup.iss'}  # только для самостоятельной установки; секретов в пакете нет
+ABOUT = 'Ежедневник, поручения монтажникам с фото и отчётами, клиенты, объекты, заявки и ТО (CRM)'  # описание на плитке ядра
 ROLES = ['owner', 'admin', 'cashier', 'storekeeper', 'courier', 'partner', 'viewer']
 
 
 def module_json(version, start='den-server.exe'):
     return {'id': 'crm', 'name': 'День-CRM', 'version': version, 'protocol': 1, 'min_core': '1.0.3',
+            'about': ABOUT,
             'start': start, 'args': [], 'start_timeout_sec': 120, 'icon': 'icon.png',
             'subscribes': ['partner.changed'], 'emits': [], 'roles': ROLES}
 

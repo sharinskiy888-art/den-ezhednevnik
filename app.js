@@ -11,7 +11,7 @@ const NOTIFICATION_KEY = 'day-planner-notifications-v1';
 const EXPENSES_KEY = 'day-planner-expenses-v1';
 const FINANCE_LIMITS_KEY = 'day-planner-finance-limits-v1';
 const DELETED_EXPENSES_KEY = 'day-planner-deleted-expenses-v1';
-const APP_VERSION = '106';
+const APP_VERSION = '107';
 const UPDATE_SEEN_KEY = 'day-planner-update-seen-v1';
 const UPDATE_APPLIED_KEY = 'day-planner-update-applied-v1';
 const LANG_KEY = 'day-planner-lang-v1';
@@ -2516,7 +2516,7 @@ window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); instal
 $('#installButton').addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('#installButton').hidden = true; });
 showUpdatedNoticeIfNeeded();
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=106'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
+  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=107'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
   navigator.serviceWorker.addEventListener('message', event => {
     if (event.data?.type !== 'DAY_PUSH') return;
     showReminderAlert(event.data.taskId || '', event.data.title || 'Новое уведомление', event.data.body || '');
