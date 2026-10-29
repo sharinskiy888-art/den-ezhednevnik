@@ -623,6 +623,69 @@ def test_legacy_waits_while_old_server_runs(tmp_path):
         m2.stop()
 
 
+def test_legacy_shared_tasks_invites_and_manual_link(tmp_path):
+    """Перенос поручений прежней установки: организатор и монтажник узнаны по email, приглашение на email сотрудника,
+    который в прежнем «Дне» не регистрировался, доходит до него; человека, которого ядро не знает (petr@old.ru),
+    владелец связывает с сотрудником вручную — его задачи и поручения переходят к нему."""
+    legacy = tmp_path / 'old'
+    legacy.mkdir()
+    make_legacy(legacy)
+    env = {k: v for k, v in os.environ.items() if not k.startswith(('DEN_', 'AK_'))}
+    env.update({'DEN_DATA_DIR': str(legacy), 'DEN_SECRET': 's' * 40, 'DEN_ENV_FILE': str(legacy / 'нет.env'), 'DEN_NEW_PASSWORD': 'old-pass-123'})
+    subprocess.run([sys.executable, '-m', 'server.admin', 'add', 'petr@old.ru', '-'], cwd=ROOT, env=env, check=True, capture_output=True)
+    con = sqlite3.connect(legacy / 'den.db')
+    ids = dict(con.execute('select email, id from users'))
+    tid = str(uuid.uuid4())
+    payload = {'title': 'Монтаж АПС', 'status': 'open', 'ownerId': ids['admin@old.ru'], 'ownerEmail': 'admin@old.ru',
+               'subtasks': [{'title': 'Кабель', 'done': True, 'doneBy': 'ivan@firma.ru'}],
+               'reports': [{'id': 'r1', 'by': 'ivan@firma.ru', 'text': 'Сделал', 'photo': f'shared/{tid}/a.jpg', 'at': T0}],
+               'invitedEmails': ['kassa@firma.ru'], 'acceptedEmails': ['ivan@firma.ru', 'petr@old.ru'], 'updatedAt': T0}
+    con.execute('insert into shared (id, owner_id, owner_email, invited_emails, accepted_emails, leave_requests, payload, updated_at) values (?,?,?,?,?,?,?,?)',
+                (tid, ids['admin@old.ru'], 'admin@old.ru', '["kassa@firma.ru"]', '["ivan@firma.ru", "petr@old.ru"]', '[]', json.dumps(payload, ensure_ascii=False), T0))
+    con.executemany('insert into shared_members values (?,?)', [(tid, 'kassa@firma.ru'), (tid, 'ivan@firma.ru'), (tid, 'petr@old.ru')])
+    con.execute('insert into rows values (?,?,?,?,?,null)', (ids['petr@old.ru'], 'tasks', 'petr-task', json.dumps({'id': 'petr-task', 'updatedAt': T0}), T0))
+    con.commit()
+    con.close()
+    (legacy / 'files' / 'shared' / tid).mkdir(parents=True)
+    (legacy / 'files' / 'shared' / tid / 'a.jpg').write_bytes(b'photo')
+    m = Module(tmp_path, DEN_LEGACY_DATA=str(legacy))
+    try:
+        mine = lambda user, roles: {t['id']: t for t in m.as_user(user, roles, path='api/shared')[1]}
+        boss = mine(BOSS, 'owner')
+        assert boss[tid]['owner_id'] == BOSS
+        ivan = mine(WORKER, 'courier')[tid]
+        assert f'{WORKER}@ak' in ivan['accepted_emails'] and ivan['payload']['reports'][0]['by'] == f'{WORKER}@ak'
+        assert ivan['payload']['subtasks'][0]['doneBy'] == f'{WORKER}@ak'
+        assert m.as_user(WORKER, 'courier', path=f'api/files/shared/{tid}/a.jpg')[0] == 200
+        # кассир в прежнем «Дне» не регистрировался, но был приглашён на свой email — приглашение дошло
+        kassa = mine(CASHIER, 'cashier')
+        assert tid in kassa and f'{CASHIER}@ak' in kassa[tid]['invited_emails'], kassa
+        # petr@old.ru ядру не известен: владелец видит его в списке и связывает с сотрудником VIEWER
+        left = m.as_user(BOSS, 'owner', path='api/ak/legacy')[1]
+        assert [p['email'] for p in left['people']] == ['petr@old.ru'] and left['people'][0]['records'] == 1 and left['invites'] == []
+        assert m.as_user(WORKER, 'courier', path='api/ak/legacy')[0] == 403
+        assert m.as_user(WORKER, 'courier', 'POST', 'api/ak/legacy/link', {'email': 'petr@old.ru', 'user': WORKER})[0] == 403
+        m.as_user(VIEWER, 'viewer', path='api/ak/me')
+        assert m.as_user(BOSS, 'owner', 'POST', 'api/ak/legacy/link', {'email': 'petr@old.ru', 'user': str(uuid.uuid4())})[0] == 400
+        # владелец уже позвал сотрудника под новым ключом в ту же задачу — после связывания без повторов и без прежнего email
+        db_ = sqlite3.connect(m.data / 'den.db')
+        db_.execute('insert into shared_members values (?,?)', (tid, f'{VIEWER}@ak'))
+        db_.execute('update shared set accepted_emails=? where id=?', (json.dumps([f'{WORKER}@ak', 'petr@old.ru', f'{VIEWER}@ak']), tid))
+        db_.commit()
+        status, body, _ = m.as_user(BOSS, 'owner', 'POST', 'api/ak/legacy/link', {'email': 'Petr@old.ru', 'user': VIEWER})
+        row = db_.execute('select accepted_emails from shared where id=?', (tid,)).fetchone()[0]
+        assert json.loads(row) == [f'{WORKER}@ak', f'{VIEWER}@ak'], row
+        assert not db_.execute("select 1 from shared_members where email='petr@old.ru'").fetchone()
+        db_.close()
+        assert status == 200 and body == {'people': [], 'invites': []}, body
+        assert {r['id'] for r in m.as_user(VIEWER, 'viewer', path='api/data/tasks')[1]} == {'petr-task'}
+        assert f'{VIEWER}@ak' in mine(VIEWER, 'viewer')[tid]['accepted_emails']
+        assert m.as_user(BOSS, 'owner', 'POST', 'api/ak/legacy/link', {'email': 'petr@old.ru', 'user': VIEWER})[0] == 404
+    finally:
+        m.stop()
+    assert 'Traceback' not in m.log.read_text(errors='replace')
+
+
 # --- п. 4 (запуск): только 127.0.0.1, данные только в AK_DATA_DIR ---
 
 def test_refuses_external_host(tmp_path):

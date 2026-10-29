@@ -11,7 +11,7 @@ const NOTIFICATION_KEY = 'day-planner-notifications-v1';
 const EXPENSES_KEY = 'day-planner-expenses-v1';
 const FINANCE_LIMITS_KEY = 'day-planner-finance-limits-v1';
 const DELETED_EXPENSES_KEY = 'day-planner-deleted-expenses-v1';
-const APP_VERSION = '107';
+const APP_VERSION = '108';
 const UPDATE_SEEN_KEY = 'day-planner-update-seen-v1';
 const UPDATE_APPLIED_KEY = 'day-planner-update-applied-v1';
 const LANG_KEY = 'day-planner-lang-v1';
@@ -347,7 +347,7 @@ function taskWord(count) {
 function switchAccountData() {
   accountLoadedFor = window.DaySync?.user()?.id; window.DaySync?.bindUser?.(accountLoadedFor); // эта вкладка теперь держит данные этого человека
   adoptOldDeviceData();
-  tasks = loadTasks(); deletedIds = loadDeletedIds(); profile = loadProfile(); pendingProfilePhoto = profile.photo || ''; periodPlans = loadPeriodPlans(); appStateUpdatedAt = localStorage.getItem(stateUpdatedStorageKey()) || new Date(0).toISOString(); sharedTasks = []; expenses = loadExpenses(); financeLimits = loadFinanceLimits(); deletedExpenseIds = loadDeletedExpenseIds(); runAutoCarry(); render(); renderFinance(); refreshSyncUi(); renderProfile(); loadSharedTasks(false);
+  tasks = loadTasks(); deletedIds = loadDeletedIds(); profile = loadProfile(); pendingProfilePhoto = profile.photo || ''; periodPlans = loadPeriodPlans(); appStateUpdatedAt = localStorage.getItem(stateUpdatedStorageKey()) || new Date(0).toISOString(); sharedTasks = loadSharedCache(); expenses = loadExpenses(); financeLimits = loadFinanceLimits(); deletedExpenseIds = loadDeletedExpenseIds(); runAutoCarry(); render(); renderFinance(); refreshSyncUi(); renderProfile(); loadSharedTasks(false);
   if (!window.DaySync?.user()) window.DayCrm?.sync(); // вышли — прячем «Клиенты» прежнего пользователя
 }
 
@@ -1570,8 +1570,26 @@ function preparePinField(input) {
 }
 function openSyncDialog() {
   if ($('#profileDialog').open) $('#profileDialog').close();
-  refreshSyncUi(); $('#pinSetupInput').value = ''; $('#syncDialog').showModal();
+  refreshSyncUi(); $('#pinSetupInput').value = ''; $('#syncDialog').showModal(); renderAkLegacy();
   setTimeout(() => { if (!$('#syncConnected').hidden) $('#pinSetupInput').focus(); }, 50);
+}
+// Модуль АК, только владелец: люди прежней установки, которых не узнали по email в ядре, — связать с сотрудником вручную.
+async function renderAkLegacy(left) {
+  const box = $('#akLegacyBox'); box.hidden = true;
+  if (!window.DaySync?.isAk?.() || !window.DaySync.user()?.owner) return;
+  try { left = left || await window.DaySync.akLegacy(); akEmployeesCache = await window.DaySync.akEmployees(); } catch { return; }
+  const items = [...(left.people || []).map(p => ({ email: p.email, text: `${p.email} · ${L('записей', 'records')}: ${p.records}` })), ...(left.invites || []).map(email => ({ email, text: `${email} · ${L('только приглашён', 'invited only')}` }))];
+  if (!items.length) return;
+  const options = `<option value="">${L('Кто это?', 'Who is it?')}</option>` + akEmployeesCache.map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name || p.key)}</option>`).join('');
+  $('#akLegacyList').innerHTML = items.map(item => `<div class="ak-legacy-row"><small>${escapeHtml(item.text)}</small><select aria-label="${L('Сотрудник', 'Employee')}">${options}</select><button type="button" class="secondary-button" data-legacy-email="${escapeHtml(item.email)}">${L('Связать', 'Link')}</button></div>`).join('');
+  box.hidden = false;
+  $$('[data-legacy-email]').forEach(button => button.addEventListener('click', async () => {
+    const userId = button.previousElementSibling.value;
+    if (!userId) { toast(L('Выберите сотрудника', 'Choose an employee')); return; }
+    button.disabled = true;
+    try { const rest = await window.DaySync.akLegacyLink(button.dataset.legacyEmail, userId); toast(L('Связано: задачи и поручения перешли сотруднику', 'Linked: tasks and shared tasks moved to the employee')); renderAkLegacy(rest); }
+    catch (error) { button.disabled = false; toast(error.message); }
+  }));
 }
 // Резервная копия: файл на устройстве — страховка на случай сбоя облака или ошибки при обновлении.
 function exportBackup() {
@@ -1928,8 +1946,12 @@ async function applyPromptedUpdate() {
 function parseSharedEmails(value = '') {
   return [...new Set(value.split(/[\s,;]+/).map(email => email.trim().toLocaleLowerCase()).filter(email => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || /^[0-9a-f-]{36}@ak$/.test(email)))]; // <uuid>@ak — сотрудник АК-Сервера
 }
+// Сервер не ответил сам: нет связи, или VPS/туннель ответил 404 без кода, 502–504, 52x (компьютер с сервером выключен)
+function serverUnreachable(error) { const status = error?.status; return !status ? error instanceof TypeError || /failed to fetch|networkerror|load failed/i.test(error?.message || '') : status === 404 ? !error.code : [502, 503, 504].includes(status) || (status >= 520 && status < 600); }
 function sharedErrorText(error) {
   const message = error?.message || '';
+  // Ответ не от сервера «Дня» (нет кода): VPS или туннель ответил 404/502, пока компьютер с сервером выключен
+  if (serverUnreachable(error) && !(error instanceof TypeError)) return L('Сервер «Дня» сейчас недоступен — возможно, выключен компьютер с сервером. Поручения видны, изменить их можно, когда он снова включится', 'The Day server is unavailable — the server computer may be off. Shared tasks are visible; you can change them when it is back on');
   if (error?.status === 404) return L('Эта совместная задача удалена или вам закрыли к ней доступ', 'This shared task was deleted or you no longer have access');
   if (error?.status === 403) return message || L('Нет доступа к этой совместной задаче', 'No access to this shared task');
   if (/shared_tasks|answer_shared_invite|404|schema cache/i.test(message)) return 'Раздел совместных задач ещё настраивается. Обновите приложение через минуту';
@@ -2065,13 +2087,18 @@ async function answerSharedInvitePrompt(accepted) {
     toast(L('Задача принята. Отмечайте статус и присылайте отчёт прямо в задаче', 'Task accepted. Update the status and send reports right in the task'));
   } catch (error) { acceptButton.disabled = false; laterButton.disabled = false; toast(sharedErrorText(error)); }
 }
+// Последний список поручений хранится и на устройстве: если сервер (компьютер с АК-Сервером) выключен или нет связи,
+// исполнитель всё равно видит свои поручения, адрес и подзадачи. Менять их можно, только когда сервер снова на связи.
+const sharedCacheKey = () => `day-shared-cache-v1:${window.DaySync?.user()?.id || 'guest'}`;
+function loadSharedCache() { try { const list = JSON.parse(localStorage.getItem(sharedCacheKey()) || '[]'); return Array.isArray(list) ? list : []; } catch { return []; } }
+function saveSharedCache() { try { if (window.DaySync?.user()) localStorage.setItem(sharedCacheKey(), JSON.stringify(sharedTasks)); } catch {} }
 async function loadSharedTasks(showErrors = false) {
   if (!window.DaySync?.user() || !window.DaySync?.loadSharedTasks || sharedLoading) { renderSharedBadges(); return sharedTasks; }
   sharedLoading = true;
   try {
     const previousInvites = new Map(sharedInvites().map(task => [task.id, task.inviteReminderAt || '']));
     const firstLoad = !sharedTasks.length; const previousReports = new Map(sharedTasks.map(task => [task.id, (task.reports || []).map(report => report.id)]));
-    sharedTasks = await window.DaySync.loadSharedTasks();
+    sharedTasks = await window.DaySync.loadSharedTasks(); saveSharedCache();
     const newInvites = sharedInvites().filter(task => !previousInvites.has(task.id) || previousInvites.get(task.id) !== (task.inviteReminderAt || ''));
     if (!firstLoad) {
       const fresh = sharedTasks.flatMap(task => (task.reports || []).filter(report => report.by !== currentAccountEmail() && previousReports.has(task.id) && !previousReports.get(task.id).includes(report.id)).map(report => ({ task, report })));
@@ -2085,7 +2112,11 @@ async function loadSharedTasks(showErrors = false) {
     renderSharedInvitePrompt();
     renderTasks(); renderStats();
     if (newInvites.length && Notification.permission === 'granted') showAppNotification('Новое приглашение', { body: newInvites[0].title, tag: `shared-${newInvites[0].id}` });
-  } catch (error) { if (showErrors) toast(sharedErrorText(error)); }
+  } catch (error) {
+    if (error?.status === 401 || error?.status === 403) { try { localStorage.removeItem(sharedCacheKey()); } catch {} } // доступ закрыт — сохранённый список не показывать
+    else if (!sharedTasks.length && window.DaySync?.user() && serverUnreachable(error)) { sharedTasks = loadSharedCache(); renderSharedBadges(); renderTasks(); renderStats(); }
+    if (showErrors) toast(sharedErrorText(error));
+  }
   finally { sharedLoading = false; }
   return sharedTasks;
 }
@@ -2516,7 +2547,7 @@ window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); instal
 $('#installButton').addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('#installButton').hidden = true; });
 showUpdatedNoticeIfNeeded();
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=107'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
+  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=108'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
   navigator.serviceWorker.addEventListener('message', event => {
     if (event.data?.type !== 'DAY_PUSH') return;
     showReminderAlert(event.data.taskId || '', event.data.title || 'Новое уведомление', event.data.body || '');
@@ -2616,6 +2647,7 @@ async function initializeAccount() {
   accountLoadedFor = window.DaySync?.user()?.id; window.DaySync?.bindUser?.(accountLoadedFor);
   const changed = await window.DaySync?.detectAk?.(); // АК-Сервер: человек сменился или вошёл впервые на этом устройстве
   if (await checkDataEpoch() || changed) switchAccountData();
+  else if (!sharedTasks.length && window.DaySync?.user()) { sharedTasks = loadSharedCache(); renderSharedBadges(); } // поручения видны сразу, даже без связи с сервером
   if (window.DaySync?.isAk?.() && window.DaySync.user()) { try { akEmployeesCache = await window.DaySync.akEmployees(); render(); } catch {} }
   refreshSyncUi();
   try { const note = sessionStorage.getItem('day-restored-note'); if (note) { sessionStorage.removeItem('day-restored-note'); setTimeout(() => toast(note), 300); } } catch {}

@@ -8,7 +8,7 @@
   <meta name="description" content="Простой ежедневник, который работает офлайн на телефоне и Windows.">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=107">
+  <link rel="stylesheet" href="styles.css?v=108">
   <title>День — ежедневник</title>
 </head>
 <body>
@@ -598,6 +598,10 @@
           <input type="file" id="akRestoreFile" accept=".zip,application/zip" hidden>
           <div><button type="button" class="secondary-button" id="akRestoreButton" data-i18n="sync.akRestorePick">Выбрать файл копии</button></div>
         </div>
+        <div class="pin-settings" id="akLegacyBox" hidden>
+          <strong>Люди прежнего «Дня» без пары</strong><small>Их email нет в АК-Сервере, поэтому их задачи и поручения ещё ни к кому не перешли. Выберите, какой это сотрудник, и нажмите «Связать».</small>
+          <div id="akLegacyList" class="ak-legacy-list"></div>
+        </div>
         <div class="pin-settings" id="pinSettings">
           <strong data-i18n="sync.pinLogin">Быстрый вход по PIN</strong><small data-i18n="sync.pinHint">Четыре цифры хранятся только на этом устройстве.</small>
           <input type="text" id="pinSetupInput" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" autocomplete="off" enterkeyhint="done" data-form-type="other" placeholder="4 цифры" aria-label="Новый PIN-код" data-i18n-placeholder="sync.pinDigits" data-i18n-aria="sync.pinNewAria">
@@ -646,10 +650,10 @@
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastAction" hidden></button></div>
-  <script src="sync-config.js?v=107"></script>
-  <script src="sync.js?v=107"></script>
-  <script src="i18n-en.js?v=107"></script>
-  <script src="app.js?v=107"></script>
-  <script src="crm.js?v=107"></script>
+  <script src="sync-config.js?v=108"></script>
+  <script src="sync.js?v=108"></script>
+  <script src="i18n-en.js?v=108"></script>
+  <script src="app.js?v=108"></script>
+  <script src="crm.js?v=108"></script>
 </body>
 </html>

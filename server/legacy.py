@@ -9,6 +9,7 @@
 а владельцу (owner) — данные единственного прежнего администратора, если по email никого не нашлось.
 """
 import glob
+import json
 import os
 import shutil
 import sqlite3
@@ -164,10 +165,30 @@ def match(con, uid, roles, logins, others=()):
     return None
 
 
+def rename(con, oemail, nemail):
+    """Человек с прежним ключом oemail теперь nemail: в поручениях (приглашён, принял, просил выйти, отчёты, подзадачи)
+    и в заявках CRM. Только внутри открытой транзакции."""
+    qo, qn = f'"{oemail}"', f'"{nemail}"'
+    for column in ('invited_emails', 'accepted_emails', 'leave_requests', 'payload'):
+        con.execute(f'update shared set {column}=replace({column}, ?, ?) where instr({column}, ?)', (qo, qn, qo))
+    # человека уже позвали под новым ключом в ту же задачу: прежняя строка не переименуется (ключ занят) — убрать её
+    con.execute('update or ignore shared_members set email=? where email=?', (nemail, oemail))
+    con.execute('delete from shared_members where email=?', (oemail,))
+    con.execute('update or ignore crm_assignees set email=? where email=?', (nemail, oemail))
+    con.execute('delete from crm_assignees where email=?', (oemail,))
+    con.execute('update crm set payload=replace(payload, ?, ?) where instr(payload, ?)', (qo, qn, qo))
+    for row in con.execute('select id, invited_emails, accepted_emails, leave_requests from shared where instr(invited_emails, ?) '
+                           'or instr(accepted_emails, ?) or instr(leave_requests, ?)', (qn, qn, qn)).fetchall():
+        lists = [list(dict.fromkeys(json.loads(row[k]))) for k in (1, 2, 3)]  # без повторов, порядок тот же
+        accepted = set(lists[1])
+        lists[0] = [e for e in lists[0] if e not in accepted]  # уже принял — не висит в приглашённых
+        con.execute('update shared set invited_emails=?, accepted_emails=?, leave_requests=? where id=?',
+                    (*(json.dumps(x, ensure_ascii=False) for x in lists), row[0]))
+
+
 def adopt(con, old, uid):
     """Всё прежнего человека — сотруднику uid (в одной транзакции). Его старая запись входа удаляется."""
     oid, oemail, nemail = old['id'], old['email'].lower(), f'{uid}@ak'
-    qo, qn = f'"{oemail}"', f'"{nemail}"'
     with db.tx(con):
         con.execute("insert or ignore into users (id, email, password_hash, role, created_at) values (?,?,'!ak','user',?)", (uid, nemail, db.now_iso()))
         # у сотрудника уже есть записи с теми же id (телефон успел выгрузить прежние данные): кто новее — тот остаётся
@@ -175,13 +196,27 @@ def adopt(con, old, uid):
                     'and o.id=rows.id and o.updated_at > rows.updated_at)', (uid, oid))
         con.execute('update or ignore rows set user_id=? where user_id=?', (uid, oid))
         con.execute('update shared set owner_id=?, owner_email=? where owner_id=?', (uid, nemail, oid))
-        for column in ('invited_emails', 'accepted_emails', 'leave_requests', 'payload'):
-            con.execute(f'update shared set {column}=replace({column}, ?, ?) where instr({column}, ?)', (qo, qn, qo))
-        con.execute('update or ignore shared_members set email=? where email=?', (nemail, oemail))
-        con.execute('update or ignore crm_assignees set email=? where email=?', (nemail, oemail))
-        con.execute('update crm set payload=replace(payload, ?, ?) where instr(payload, ?)', (qo, qn, qo))
+        rename(con, oemail, nemail)
         con.execute('update or ignore presence set user_id=?, email=? where user_id=?', (uid, nemail, oid))
         con.execute('update or ignore reconcile set user_id=? where user_id=?', (uid, oid))
         con.execute('update imported_shared set owner_id=? where owner_id=?', (uid, oid))
         con.execute('delete from users where id=?', (oid,))
     log(f'данные прежнего пользователя перешли к сотруднику {uid}')
+
+
+def pending_emails(con):
+    """Прежние email, которые ещё ждут своего сотрудника: приглашён или исполнитель, но в «Дне» не регистрировался."""
+    found = {r[0].lower() for r in con.execute("select email from shared_members where email not like '%@ak'")}
+    found |= {r[0].lower() for r in con.execute("select email from crm_assignees where email not like '%@ak'")}
+    return found - {r['email'].lower() for r in legacy_users(con)}
+
+
+def adopt_invites(con, emails, uid):
+    """Приглашения прежней установки на email сотрудника (сам он в прежнем «Дне» не регистрировался) — ему."""
+    waiting = pending_emails(con) & {e.strip().lower() for e in emails if e and '@' in e}
+    if not waiting:
+        return
+    with db.tx(con):
+        for email in waiting:
+            rename(con, email, f'{uid}@ak')
+    log(f'приглашения прежней установки перешли к сотруднику {uid}: {len(waiting)}')

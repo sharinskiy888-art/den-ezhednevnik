@@ -56,6 +56,8 @@ jobs:
         run: PYTHON=python node tools/test-ak.js
       - name: Телефоны, планшет, ноутбук, ПК и синхронизация между ними
         run: PYTHON=python node tools/test-devices.js
+      - name: Сценарии модуля АК — несколько сотрудников, поручение целиком, перенос, сервер выключен
+        run: PYTHON=python node tools/test-scenarios.js
       - name: Автотест всех кнопок (Playwright)
         run: |
           set +e

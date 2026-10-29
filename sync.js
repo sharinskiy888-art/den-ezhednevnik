@@ -139,7 +139,10 @@
     let response;
     try { response = await fetch(`${API}/ak/me`, { cache: 'no-store' }); } catch { return false; } // нет сети — остаётся прежний вход
     const before = getSession();
-    if (response.status === 404 || response.status === 405) { if (before?.ak) { setSession(null); return true; } return false; } // не модуль
+    // Не модуль — только если так ответил сам сервер «Дня» (JSON). Страница 404 от VPS или туннеля, пока компьютер
+    // с АК-Сервером выключен, вход не сбрасывает.
+    const json = (response.headers.get('content-type') || '').includes('json');
+    if ((response.status === 404 || response.status === 405) && json) { if (before?.ak) { setSession(null); return true; } return false; }
     let code = ''; try { code = (await response.clone().json())?.code || ''; } catch {}
     if (['no_user', 'bad_sign', 'replay', 'core_unavailable'].includes(code)) akSeen = true; // модуль, но вход в ядро не пришёл: своего входа всё равно нет
     if (!response.ok) return false;
@@ -152,6 +155,8 @@
   // Сотрудники ядра — подсказки при выборе исполнителей (ключ — email из ядра или «<uuid>@ak»).
   // «Восстановить из файла» (только владелец): архив уходит как есть, сервер сам находит в нём копию «Дня».
   async function akRestore(file) { return request('/ak/restore', { method: 'POST', body: file, headers: { 'Content-Type': 'application/zip' } }); }
+  const akLegacy = () => request('/ak/legacy', { method: 'GET' });
+  const akLegacyLink = (email, userId) => post('/ak/legacy/link', { email, user: userId });
   async function akEmployees() { return isAk() ? (await request('/ak/employees', { method: 'GET' })) || [] : []; }
   // Удалённые записи не стираются физически, а хранятся как «надгробия» { __deleted: true, updatedAt }.
   // Надгробие проходит через ту же логику «новее побеждает», что и обычная правка, поэтому
@@ -259,7 +264,7 @@
     };
   }
   // Старый сервер без раздела поручений отвечает 404 — это «поручений нет», а не сбой.
-  const emptyIfMissing = error => { if (error.status === 404) return null; throw error; };
+  const emptyIfMissing = error => { if (error.status === 404 && error.code) return null; throw error; }; // 404 без кода — не наш сервер (туннель), список не обнулять
   // Совместные задачи тоже грузятся экономно: лёгкий список «id + время правки + участники», а задача целиком
   // (с фото) скачивается, только если она изменилась с прошлой загрузки.
   let sharedCache = { userId: '', rows: new Map() };
@@ -467,5 +472,5 @@
   async function reportCounts(counts, supabase, device, label) {
     return post('/migration/report', { device, label, counts, ...(supabase ? { supabase } : {}) });
   }
-  window.DaySync = { isAk, detectAk, setEpoch, akEmployees, akRestore, bindUser, oldCloud, oldCloudMine, markOldCloud, loadOldPersonal, importOldShared, toKop, reportCounts, uploadSharedMedia, loadSharedMedia, getSession, user, signUp, signIn, signOut, updatePassword, sync, syncExpenses, loadSharedTasks, loadSharedTask, saveSharedTask, deleteSharedTask, answerSharedInvite, requestLeaveShared, crmRole, mirrorCrm, uploadCrmPhoto, touchPresence, loadSharedPresence, savePushSubscription, deletePushSubscription, sendFeedback };
+  window.DaySync = { isAk, detectAk, setEpoch, akEmployees, akLegacy, akLegacyLink, akRestore, bindUser, oldCloud, oldCloudMine, markOldCloud, loadOldPersonal, importOldShared, toKop, reportCounts, uploadSharedMedia, loadSharedMedia, getSession, user, signUp, signIn, signOut, updatePassword, sync, syncExpenses, loadSharedTasks, loadSharedTask, saveSharedTask, deleteSharedTask, answerSharedInvite, requestLeaveShared, crmRole, mirrorCrm, uploadCrmPhoto, touchPresence, loadSharedPresence, savePushSubscription, deletePushSubscription, sendFeedback };
 })();

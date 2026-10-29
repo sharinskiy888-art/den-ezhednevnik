@@ -348,6 +348,49 @@ async def employee_list(request: Request):
     return await run_in_threadpool(employees, con)
 
 
+# --- Прежняя установка: люди, которых не удалось узнать автоматически (их email нет в ядре) ---
+
+def legacy_left(con):
+    from . import legacy
+    people = [{'email': r['email'], 'admin': r['role'] == 'admin',
+               'records': con.execute('select count(*) from rows where user_id=?', (r['id'],)).fetchone()[0]} for r in legacy.legacy_users(con)]
+    return {'people': people, 'invites': sorted(legacy.pending_emails(con))}
+
+
+@router.get('/api/ak/legacy')
+async def legacy_list(request: Request):
+    """Владельцу: кого из прежней установки ещё не связали с сотрудником АК-Сервера."""
+    require_ak_owner(request)
+    return await run_in_threadpool(legacy_left, request.app.state.con)
+
+
+def legacy_link(con, email, uid):
+    from . import legacy
+    if uid not in {p['id'] for p in employees(con)}:
+        raise ApiError(400, 'Такого сотрудника нет в АК-Сервере', 'bad_field')
+    old = next((r for r in legacy.legacy_users(con) if r['email'].lower() == email), None)
+    if old:
+        legacy.adopt(con, old, uid)
+    elif email in legacy.pending_emails(con):
+        with db.tx(con):
+            legacy.rename(con, email, f'{uid}@ak')
+    else:
+        raise ApiError(404, 'Этого человека уже связали или его нет в прежних данных', 'not_found')
+    return legacy_left(con)
+
+
+@router.post('/api/ak/legacy/link')
+async def legacy_link_route(request: Request):
+    """Владелец связывает прежнего человека (email) с сотрудником ядра: его задачи, поручения и заявки переходят сотруднику."""
+    require_ak_owner(request)
+    body = await read_json(request)
+    if not isinstance(body, dict):
+        raise bad('Нужны email и сотрудник')
+    email = field(body, 'email', str, max_len=320).strip().lower()
+    uid = field(body, 'user', str, max_len=64).strip().lower()
+    return await run_in_threadpool(legacy_link, request.app.state.con, email, uid)
+
+
 # --- Служебные адреса (только ядро, без пользователя) ---
 
 @router.get('/ak/v1/busy')

@@ -160,7 +160,7 @@ def ak_user(request: Request) -> User:
     con = request.app.state.con
     row = con.execute('select email, name from users where id=?', (uid,)).fetchone()
     email = row['email'] if row else ak_register(con, uid, ident.get('roles') or [])
-    if row and ak_adopt_pending(con, uid):  # при первом входе ядро не ответило — ещё раз
+    if row and (ak_adopt_pending(con, uid) or ak_invites_due(con, uid)):  # при первом входе ядро не ответило — ещё раз
         ak_adopt(con, uid, ident.get('roles') or [])
     name = ident.get('name') or ''
     if name and (not row or row['name'] != name):  # имя для списка исполнителей; пишется, только когда сменилось
@@ -184,7 +184,7 @@ def ak_register(con, uid, roles=()):
 def ak_adopt(con, uid, roles):
     """Прежние данные — сотруднику uid. Ядро не ответило — запомнить (meta adopt_pending) и попробовать при следующем входе."""
     from . import legacy
-    if not legacy.legacy_users(con):
+    if not legacy.legacy_users(con) and not legacy.pending_emails(con):
         return
     found = ak_logins(uid)
     pending = set(json.loads((con.execute("select value from meta where key='adopt_pending'").fetchone() or ['[]'])[0]))
@@ -196,6 +196,7 @@ def ak_adopt(con, uid, roles):
         old = legacy.match(con, uid, roles, *found)
         if old:
             legacy.adopt(con, old, uid)
+        legacy.adopt_invites(con, found[0], uid)
     with db.tx(con):
         con.execute("insert or replace into meta values ('adopt_pending', ?)", (json.dumps(sorted(pending)),))
 
@@ -208,6 +209,16 @@ def ak_adopt_pending(con, uid):
         return False
     row = con.execute("select value from meta where key='adopt_pending'").fetchone()
     if not row or uid not in json.loads(row[0]):
+        return False
+    _adopt_tried[uid] = time.time()
+    return True
+
+
+def ak_invites_due(con, uid):
+    """Остались приглашения прежней установки на email (сотрудник входил ещё до переноса приглашений): раз в 10 минут
+    проверить, не его ли это email в ядре."""
+    from . import legacy
+    if time.time() - _adopt_tried.get(uid, 0) < 600 or not legacy.pending_emails(con):
         return False
     _adopt_tried[uid] = time.time()
     return True

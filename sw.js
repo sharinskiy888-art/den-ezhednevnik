@@ -1,5 +1,5 @@
-const CACHE='day-planner-v107';
-const ASSETS=['./?v=107','index.html?v=107','styles.css?v=107','sync-config.js?v=107','sync.js?v=107','i18n-en.js?v=107','app.js?v=107','crm.js?v=107','version.js?v=107','version.json?v=107','manifest.webmanifest','assets/icon.svg','assets/icon-192.png','assets/icon-512.png'];
+const CACHE='day-planner-v108';
+const ASSETS=['./?v=108','index.html?v=108','styles.css?v=108','sync-config.js?v=108','sync.js?v=108','i18n-en.js?v=108','app.js?v=108','crm.js?v=108','version.js?v=108','version.json?v=108','manifest.webmanifest','assets/icon.svg','assets/icon-192.png','assets/icon-512.png'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',event=>{
@@ -8,10 +8,17 @@ self.addEventListener('fetch',event=>{
   // Данные с сервера (/api/…) и чужие адреса не кэшируются: иначе при сбое сети показались бы старые чужие ответы.
   if(url.origin!==self.location.origin||url.pathname.includes('/api/'))return;
   if(event.request.mode==='navigate'){
-    event.respondWith(fetch(event.request).then(response=>{const copy=response.clone();caches.open(CACHE).then(cache=>cache.put(event.request,copy));return response;}).catch(()=>caches.match(event.request).then(cached=>cached||caches.match('./?v=107'))));
+    const cachedPage=()=>caches.match(event.request).then(cached=>cached||caches.match('./?v=108'));
+    // Кэшируется только настоящая страница. Сервер выключен, а VPS или туннель ответил 502/404 — открываем сохранённое приложение
+    // и не затираем его страницей ошибки. Переход на вход ядра (redirect) отдаём как есть и не кэшируем.
+    event.respondWith(fetch(event.request).then(response=>{
+      if(response.ok&&!response.redirected){const copy=response.clone();caches.open(CACHE).then(cache=>cache.put(event.request,copy));return response;}
+      if(response.type==='opaqueredirect'||response.redirected||response.status===401||response.status===403)return response; // вход в ядро — его дело
+      return cachedPage().then(cached=>cached||response);
+    }).catch(cachedPage));
     return;
   }
-  event.respondWith(fetch(event.request).then(response=>{const copy=response.clone();caches.open(CACHE).then(cache=>cache.put(event.request,copy));return response;}).catch(()=>caches.match(event.request)));
+  event.respondWith(fetch(event.request).then(response=>{if(response.ok&&!response.redirected){const copy=response.clone();caches.open(CACHE).then(cache=>cache.put(event.request,copy));return response;}return caches.match(event.request).then(cached=>cached||response);}).catch(()=>caches.match(event.request)));
 });
 self.addEventListener('push',event=>{
   let payload={};
