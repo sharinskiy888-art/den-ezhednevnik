@@ -47,13 +47,14 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   try {
     for (let i = 0; i < 100; i++) { try { if ((await fetch(base + 'api/health', { headers: as(BOSS, 'owner') })).ok) break; } catch {} await wait(150); }
     browser = await chromium.launch(); const errors = []; const outside = [];
+    let restoring = false; // пока идёт восстановление, модуль отвечает 503 restoring, приложение повторяет через 4 с (так задумано)
     const device = async (name, user, roles, viewport) => {
       const context = await browser.newContext(viewport ? { viewport } : {});
       await context.addCookies([{ name: 'ak_core_test', value: encodeURIComponent(`${user}|${roles}`), url: base }]); // как вход в ядро
       const page = await context.newPage();
       page.on('pageerror', e => errors.push(`${name}: ${e.message}`));
       page.on('request', r => { const u = new URL(r.url()); if (u.port === String(corePort) && !u.pathname.startsWith('/m/crm/')) outside.push(u.pathname); });
-      page.on('response', r => { if (r.status() >= 400 && !(r.status() === 409 && page.expect409) && !(r.status() === 502 && page.expect502)) errors.push(`${name}: ${r.status()} ${new URL(r.url()).pathname}`); });
+      page.on('response', r => { if (r.status() >= 400 && !(r.status() === 409 && page.expect409) && !(r.status() === 502 && page.expect502) && !(r.status() === 503 && restoring)) errors.push(`${name}: ${r.status()} ${new URL(r.url()).pathname}`); });
       await page.goto(base); await page.waitForTimeout(1500); return { page, context };
     };
     // 1. Владелец открывает модуль: входа нет, человек — из ядра
@@ -128,9 +129,10 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
 src = pathlib.Path(sys.argv[1]); z = zipfile.ZipFile(sys.argv[2], 'w'); z.writestr('core/ak.db', b'core')
 [z.write(p, 'modules/crm/2026-10-28_0330/' + p.relative_to(src).as_posix()) for p in src.rglob('*') if p.is_file()]; z.close()`, path.join(data, '.backup', '2026-10-28_0330'), zip]);
     owner.on('dialog', d => d.accept()); phone.expect409 = true;
-    await owner.evaluate(() => openSyncDialog());
+    await owner.evaluate(() => openSyncDialog()); restoring = true;
     await Promise.all([owner.waitForNavigation({ timeout: 20000 }), owner.setInputFiles('#akRestoreFile', zip)]);
     await owner.waitForTimeout(2000);
+    restoring = false;
     const afterOwner = await owner.evaluate(() => tasks.map(t => t.id));
     const serverIds = ((await api(BOSS, 'owner', 'api/data/tasks/heads')).body || []).map(h => h.id);
     ok(afterOwner.includes('before-copy') && !afterOwner.includes('after-copy') && serverIds.includes('before-copy') && !serverIds.includes('after-copy'), 'Восстановлено сразу, без перезапуска: на сервере и у владельца — данные копии', JSON.stringify({ afterOwner, serverIds }));
