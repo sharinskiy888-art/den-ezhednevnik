@@ -222,6 +222,7 @@ function classifyClickError(msg) {
 async function sweep(page, ctx, state, log) {
   const clicked = new Set(); const perKind = new Map(); const KIND_CAP = 6; let steps = 0; let escapes = 0;
   const seen = new Map(); const openerOf = new Map(); const revisits = new Map();
+  const vanished = new Map(); // кнопка исчезла из-за прежнего нажатия (окно сменило вид) — вернуться к ней позже, не ошибка
   const base = state.base;
   while (steps < 900) {
     steps++;
@@ -256,6 +257,12 @@ async function sweep(page, ctx, state, log) {
     let failure = '';
     try { await loc.click({ timeout: 2500 }); } catch (e) { failure = classifyClickError(String(e.message || e)); }
     await page.waitForTimeout(140);
+    if (failure === 'НЕ НАЖАТЬ (недоступна/исчезла)' && (vanished.get(next.key) || 0) < 2 && !(await loc.isVisible().catch(() => false))) {
+      // окно уже другое (например, после «Регистрации» или входа): кнопку нажмём, когда она снова появится
+      vanished.set(next.key, (vanished.get(next.key) || 0) + 1); clicked.delete(next.key); perKind.set(next.gkey, Math.max(0, (perKind.get(next.gkey) || 1) - 1));
+      if (next.elId) state.clickedIds.delete(next.elId);
+      continue;
+    }
     const after = await snapshot(page, state.supa); const newErrors = state.errors.slice(errMark);
     after.dialogs.split(',').filter(d => d && !before.dialogs.split(',').includes(d)).forEach(d => openerOf.set(d, { key: next.key, gkey: next.gkey }));
     const rec = { el: next.label, scope: next.scopeId };
