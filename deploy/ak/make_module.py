@@ -14,12 +14,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 SKIP = {'task.ps1', 'den.env', 'den-setup.iss'}  # только для самостоятельной установки; секретов в пакете нет
 ABOUT = 'Ежедневник, поручения монтажникам с фото и отчётами, клиенты, объекты, заявки и ТО (CRM)'  # описание на плитке ядра
+MIN_FROM = '1.0.106'  # самая ранняя версия модуля у клиентов: пакет ставится поверх неё и любой более новой
 ROLES = ['owner', 'admin', 'cashier', 'storekeeper', 'courier', 'partner', 'viewer']
 
 
 def module_json(version, start='den-server.exe'):
     return {'id': 'crm', 'name': 'День-CRM', 'version': version, 'protocol': 1, 'min_core': '1.0.3',
-            'about': ABOUT,
+            'about': ABOUT, 'min_from': MIN_FROM,
             'start': start, 'args': [], 'start_timeout_sec': 120, 'icon': 'icon.png',
             'subscribes': ['partner.changed'], 'emits': [], 'roles': ROLES}
 
@@ -52,6 +53,9 @@ def build(dist, out_dir):
         changelog = ROOT / 'CHANGELOG.md'
         if changelog.is_file():
             z.write(changelog, 'CHANGELOG.md')
+        note = ROOT / 'deploy' / 'ak' / 'ЧТО ВНУТРИ.txt'  # первая строка — 2–4 слова, их покажет ядро в уведомлениях
+        if note.is_file():
+            z.write(note, 'ЧТО ВНУТРИ.txt')
         for path in sorted(dist.rglob('*')):
             rel = path.relative_to(dist).as_posix()
             if path.is_file() and not path.is_symlink() and rel not in SKIP and rel not in ('module.json', 'icon.png'):
