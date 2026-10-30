@@ -28,7 +28,7 @@ from pathlib import Path
 from fastapi import APIRouter, Request
 from fastapi.concurrency import run_in_threadpool
 
-from . import backup, db, partners
+from . import backup, db, errlog, partners
 from .access import MAX_BODY, ApiError, bad, current_user, field, read_json, require_ak_owner, require_ak_service
 
 SKEW, NONCE_TTL = 60, 120  # ±60 с по времени, nonce не повторяется 120 с (п. 10 ТЗ модуля)
@@ -625,8 +625,8 @@ def restore(con, archive):
                     db.load_epoch(con, fresh=True)
                     with db.tx(con):
                         con.execute("insert or replace into meta values ('restored_at', ?)", (db.now_iso(),))
-                except Exception:
-                    print(f'{time.strftime("%Y-%m-%d %H:%M:%S")} Восстановление не удалось, возвращаю как было', flush=True)
+                except Exception as e:
+                    errlog.write('error', f'Восстановление из копии не удалось ({type(e).__name__}), данные возвращены как было')
                     traceback.print_exc()
                     rollback(con, aside, moved, placed)
                     raise

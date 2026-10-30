@@ -229,7 +229,7 @@ def push(con):
             delay = 3600 if e.status == 400 else RETRY[min(attempts, len(RETRY) - 1)]
             con.execute('update core_outbox set attempts=attempts+1, next_at=?, last_error=? where seq=?',
                         (time.time() + delay, f'{e.status} {e.code}', seq))
-        if e.status == 400:  # данные не приняты: в журнал и владельцу; строку не удалять
+        if e.status == 400 and not attempts:  # данные не приняты: в журнал и владельцу один раз; строку не удалять
             errlog.write('error', f'Клиенты ↔ АК: клиент {pid} не принят справочником партнёров ({e.code})')
             try:
                 ak.core('POST', '/core/v1/notify', {'text': f'«День»: клиент не принят справочником партнёров ({e.code}). '
@@ -247,7 +247,9 @@ def push(con):
 
 def check_stale(con):
     """Раз в 10 минут: правки клиентов, которые ядро не подтверждает больше суток — warning и одна запись в журнал."""
-    count = con.execute('select count(distinct id) from core_outbox where book=? and created_at<?', (BOOK, time.time() - STALE)).fetchone()[0]
+    # не принятые ядром (400) не в счёт: ядро ответило, владелец уже получил уведомление
+    count = con.execute("select count(distinct id) from core_outbox where book=? and created_at<? and coalesce(last_error, '') not like '400 %'",
+                        (BOOK, time.time() - STALE)).fetchone()[0]
     if count and not state['stale']:
         errlog.write('warning', f'Клиенты ↔ АК: АК-Сервер больше суток не подтверждает изменения клиентов ({count})')
     state['stale'] = count
@@ -275,7 +277,13 @@ def start(stop: threading.Event):
                 if state['resync'] or time.time() - last_resync > 600:
                     state['resync'] = False
                     last_resync = time.time()
-                    resync(con)
+                    try:
+                        resync(con)
+                    except Exception as e:  # ядро недоступно: проход позже, а очередь идёт по своим повторам
+                        if getattr(e, 'code', '') != 'unreachable':
+                            raise
+                        state['resync'] = True
+                        last_resync = time.time() - 600 + 30  # повтор прохода через 30 с, не каждые 2 с
                 for _ in range(5):  # потом отпустить замок: копия не должна ждать долго
                     if stop.is_set() or not push(con):
                         break

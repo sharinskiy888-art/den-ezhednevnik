@@ -193,39 +193,74 @@ def schema(con):
     return int(row[0]) if row else 0
 
 
+# По чему узнать шаг схемы у старой базы без номера в meta: таблица (или столбец «таблица.столбец») каждого шага
+SCHEMA_MARKS = ('users', 'shared', 'crm', 'reconcile', 'ak_events', 'users.name', 'core_outbox')
+BACKUPS_KEPT = 5  # копий «до-…»: неудачные запуски подряд не забивают диск
+
+
+def guess_schema(con):
+    tables = {r[0] for r in con.execute("select name from sqlite_master where type='table'")}
+    done = 0
+    for mark in SCHEMA_MARKS:
+        table, _, column = mark.partition('.')
+        if table not in tables or column and column not in {r[1] for r in con.execute(f'pragma table_info({table})')}:
+            break
+        done += 1
+    return done
+
+
 def migrate_safely(con):
     """Запуск после обновления (п. 2 общих правил АК): база отстаёт от программы — сначала её копия в
     backup/до-<версия>-<дата>/den.db, потом миграции по порядку. Любая ошибка — база возвращается из копии, а программа
     не запускается (на полуобновлённой базе работать нельзя)."""
+    from . import errlog
     done = schema(con)
-    empty = not done and not con.execute("select 1 from sqlite_master where type='table' limit 1").fetchone()
-    if done >= len(MIGRATIONS) or empty:  # всё готово или база пустая (первый запуск) — копировать нечего
+    tables = con.execute("select 1 from sqlite_master where type='table' and name!='meta' limit 1").fetchone()
+    if done > len(MIGRATIONS):
+        errlog.write('warning', f'База новее программы (схема {done}, программа знает {len(MIGRATIONS)}): поставлена старая версия модуля')
+    if done >= len(MIGRATIONS) or not tables:  # всё готово или база пустая (первый запуск) — копировать нечего
         migrate(con)
         return
-    folder = DATA_DIR / 'backup' / f'до-{MODULE_VERSION}-{time.strftime("%Y-%m-%d")}'
-    n = 1
-    while (folder / 'den.db').exists():  # второй запуск за день: прежнюю копию не перезаписывать
+    root = DATA_DIR / 'backup'
+    folder, n = root / f'до-{MODULE_VERSION}-{time.strftime("%Y-%m-%d")}', 1
+    while folder.exists():  # второй запуск за день: прежнюю копию не перезаписывать
         n += 1
         folder = folder.with_name(f'до-{MODULE_VERSION}-{time.strftime("%Y-%m-%d")}-{n}')
-    folder.mkdir(parents=True)
     copy = folder / 'den.db'
-    target = sqlite3.connect(copy)
     try:
-        con.backup(target)
-        if target.execute('pragma quick_check').fetchone()[0] != 'ok':
-            raise RuntimeError('копия базы перед обновлением не прошла проверку')
-    finally:
-        target.close()
+        folder.mkdir(parents=True)
+        target = sqlite3.connect(copy)
+        try:
+            con.backup(target)
+            if target.execute('pragma quick_check').fetchone()[0] != 'ok':
+                raise RuntimeError('копия не прошла проверку')
+        finally:
+            target.close()
+    except Exception as e:
+        shutil.rmtree(folder, ignore_errors=True)
+        errlog.write('error', f'Копия базы перед обновлением не сделана ({type(e).__name__}: {e}); обновление базы не начато', wait=True)
+        raise RuntimeError('Копия базы перед обновлением не сделана: проверьте место на диске') from e
+    for old in sorted((p for p in root.iterdir() if p.is_dir() and p.name.startswith('до-')), key=lambda p: p.stat().st_mtime)[:-BACKUPS_KEPT]:
+        shutil.rmtree(old, ignore_errors=True)
     try:
+        if not done:  # старая база без номера схемы: шаг — по таблицам и столбцам
+            done = guess_schema(con)
+            con.execute('create table if not exists meta (key text primary key, value text)')
+            con.execute("insert or replace into meta values ('schema', ?)", (str(done),))
         migrate(con)
     except Exception as e:
-        con.close()
-        for suffix in ('-wal', '-shm'):
-            Path(f'{DB_PATH}{suffix}').unlink(missing_ok=True)
-        shutil.copyfile(copy, DB_PATH)
-        from . import errlog
-        errlog.write('error', f'Обновление базы со схемы {done} не удалось ({type(e).__name__}: {e}); база возвращена из {folder.name}')
-        raise RuntimeError(f'Обновление базы не удалось, база возвращена из копии {folder}') from e
+        con.close()  # закрытие переносит журнал в den.db — он всё равно заменяется копией целиком
+        try:
+            for suffix in ('-wal', '-shm'):
+                Path(f'{DB_PATH}{suffix}').unlink(missing_ok=True)
+            spare = DB_PATH.with_name('den.db.restore')
+            shutil.copyfile(copy, spare)
+            os.replace(spare, DB_PATH)  # подмена одним шагом: обрыв посреди копирования не портит den.db
+            result = f'база возвращена из {folder.name}'
+        except OSError as again:
+            result = f'вернуть базу из копии не удалось ({type(again).__name__}), копия — {folder.name}'
+        errlog.write('error', f'Обновление базы со схемы {done} не удалось ({type(e).__name__}: {e}); {result}', wait=True)
+        raise RuntimeError(f'Обновление базы не удалось: {result}') from e
 
 
 class tx:

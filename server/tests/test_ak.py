@@ -573,13 +573,14 @@ def test_error_log_to_core_and_file_and_stale_queue_warning(tmp_path):
         # правка клиента сутки не подтверждена ядром: warning в /ak/v1/busy и одна запись в журнал
         assert m.signed('POST', '/m/crm/ak/v1/stop')[0] == 200 and m.proc.wait(10) == 0
         con = sqlite3.connect(m.data / 'den.db')
-        con.execute("update core_outbox set created_at=?", (time.time() - 25 * 3600,))
+        con.execute("update core_outbox set created_at=?", (time.time() - 25 * 3600,))  # отказы (400) — не в счёт
+        con.execute("insert into core_outbox (book, id, created_at) values ('partners', 'cl-bad', ?)", (time.time() - 25 * 3600,))
         con.commit()
         con.close()
         core.down = True
         m.start()
         status, body, _ = wait_for(lambda: (r := m.signed('GET', '/m/crm/ak/v1/busy')) and r[1].get('warning') and r) or (0, {}, None)
-        assert status == 200 and body['busy'] is False and 'больше суток' in body['warning'], body
+        assert status == 200 and body['busy'] is False and 'больше суток' in body['warning'] and '(1)' in body['warning'], body
         assert wait_for(lambda: 'warning' in errors.read_text(encoding='utf-8'))
         core.down = False
     finally:
@@ -591,6 +592,25 @@ def test_error_log_to_core_and_file_and_stale_queue_warning(tmp_path):
 def migrations():
     tree = ast.parse((ROOT / 'server' / 'db.py').read_text(encoding='utf-8'))
     return next(ast.literal_eval(n.value) for n in tree.body if isinstance(n, ast.Assign) and getattr(n.targets[0], 'id', '') == 'MIGRATIONS')
+
+
+def test_base_without_schema_number_is_recognised(tmp_path):
+    data = tmp_path / 'data'
+    data.mkdir()
+    con = sqlite3.connect(data / 'den.db')  # таблицы шагов 1–3, а номера схемы нет
+    con.executescript(''.join(migrations()[:3]))
+    con.execute("insert into users values ('old-1', 'boss@firma.ru', 'hash', 'admin', ?, '')", (T0,))
+    con.execute("insert into rows values ('old-1', 'tasks', 't-1', ?, ?, null)", (json.dumps({'id': 't-1', 'updatedAt': T0}), T0))
+    con.commit()
+    con.close()
+    m = Module(tmp_path, data_dir=data)
+    try:
+        assert {r['id'] for r in m.as_user(BOSS, 'owner', path='api/data/tasks')[1]} == {'t-1'}
+    finally:
+        m.stop()
+    con = sqlite3.connect(data / 'den.db')
+    assert con.execute("select value from meta where key='schema'").fetchone()[0] == str(len(migrations()))
+    con.close()
 
 
 def test_update_from_oldest_base_with_backup_and_rollback(tmp_path):
@@ -614,9 +634,10 @@ def test_update_from_oldest_base_with_backup_and_rollback(tmp_path):
     assert old.execute("select value from meta where key='schema'").fetchone()[0] == '1'
     assert old.execute('select count(*) from rows').fetchone()[0] == 1
     old.close()
-    # шаг миграции падает (столбец уже есть): база возвращается из копии, программа не запускается
+    # шаг 5 проходит, шаг 6 падает (столбец уже есть): база возвращается из копии целиком, программа не запускается
     con = sqlite3.connect(data / 'den.db')
-    con.execute("update meta set value='5' where key='schema'")
+    con.execute("update meta set value='4' where key='schema'")
+    con.execute('drop table ak_events')
     con.commit()
     con.close()
     with open(m.log, 'ab') as log:
@@ -624,11 +645,12 @@ def test_update_from_oldest_base_with_backup_and_rollback(tmp_path):
                               stdout=log, stderr=subprocess.STDOUT, timeout=60)
     assert proc.returncode != 0
     con = sqlite3.connect(data / 'den.db')
-    assert con.execute("select value from meta where key='schema'").fetchone()[0] == '5'
+    assert con.execute("select value from meta where key='schema'").fetchone()[0] == '4'
+    assert not con.execute("select 1 from sqlite_master where name='ak_events'").fetchone(), 'шаг 5 должен откатиться вместе со всем'
     assert con.execute('select count(*) from rows').fetchone()[0] == 1
     con.close()
-    assert len(list((data / 'backup').glob('до-1.0.*'))) == 2
-    assert 'Обновление базы со схемы 5 не удалось' in (tmp_path / 'logs' / 'errors.log').read_text(encoding='utf-8')
+    assert len(list((data / 'backup').glob('до-1.0.*'))) == 2 and not (data / 'den.db.restore').exists()
+    assert 'Обновление базы со схемы 4 не удалось' in (tmp_path / 'logs' / 'errors.log').read_text(encoding='utf-8')
 
 
 # --- ТЗ «АК-День»: данные прежней установки переносятся при первом запуске ---

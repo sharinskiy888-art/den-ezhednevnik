@@ -138,7 +138,8 @@ def import_once():
             if files_copied:  # фото неудачной попытки не остаются (своих фото у новой базы ещё нет)
                 shutil.rmtree(db.FILES_DIR, ignore_errors=True)
             state['wait'] = state['wait'] or str(source)  # попробовать ещё раз при следующем запуске, пока база пустая
-            errlog.write('warning', f'Перенос прежних данных: не удалось взять из {source}: {type(e).__name__}')
+            log(f'не удалось взять из {source}: {type(e).__name__}')
+            errlog.write('warning', f'Перенос прежних данных: не удалось взять из прежней папки «Дня» ({type(e).__name__})')  # путь с именем пользователя — только в module.log
         finally:
             lock.close()
             shutil.rmtree(copy_dir, ignore_errors=True)
