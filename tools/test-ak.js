@@ -128,7 +128,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     require('child_process').spawnSync(PY, ['-c', `import sys, zipfile, pathlib
 src = pathlib.Path(sys.argv[1]); z = zipfile.ZipFile(sys.argv[2], 'w'); z.writestr('core/ak.db', b'core')
 [z.write(p, 'modules/crm/2026-10-28_0330/' + p.relative_to(src).as_posix()) for p in src.rglob('*') if p.is_file()]; z.close()`, path.join(data, '.backup', '2026-10-28_0330'), zip]);
-    owner.on('dialog', d => d.accept()); phone.expect409 = true;
+    owner.on('dialog', d => d.accept()); phone.expect409 = owner.expect409 = true; // запросы со старой меткой данных после восстановления — 409 по замыслу
     await owner.evaluate(() => openSyncDialog()); restoring = true;
     await Promise.all([owner.waitForNavigation({ timeout: 20000 }), owner.setInputFiles('#akRestoreFile', zip)]);
     await owner.waitForTimeout(2000);
