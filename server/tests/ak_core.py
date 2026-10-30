@@ -54,6 +54,7 @@ class Core:
         self.checked = []  # (путь, подпись верна)
         self.down = False
         self.reject = set()  # id, на которые справочник отвечает 400
+        self.logs, self.log_status = [], 200  # POST /core/v1/log; 404 — «старое ядро» без журнала
         self.partners, self.seq, self.notices = {}, 0, []  # справочник partners: id -> {id, rev, deleted, updated_at, data, seq}
         handler = type('H', (Handler,), {'core': self})
         self.http = ThreadingHTTPServer(('127.0.0.1', 0), handler)
@@ -160,6 +161,11 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, record(e)) if e else self._send(404, {'error': {'code': 'not_found', 'message': 'нет'}})
         if parts[2:3] == ['partners']:
             return self._partners(parts, path, body)
+        if parts[2:] == ['log'] and self.command == 'POST':
+            core.logs.append((core.log_status, json.loads(body)))
+            if core.log_status != 200:
+                return self._send(core.log_status, {'error': {'code': 'not_found', 'message': 'нет'}})
+            return self._send(200, {'ok': True})
         if parts[2:] == ['notify'] and self.command == 'POST':
             core.notices.append(json.loads(body))
             return self._send(200, {'ok': True})

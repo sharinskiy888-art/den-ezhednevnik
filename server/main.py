@@ -17,7 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from . import auth, backup, crm, db, files, legacy, migration, partners, shared, sync
+from . import auth, backup, crm, db, errlog, files, legacy, migration, partners, shared, sync
 from .access import MAX_BODY, ApiError, RateLimiter, bad, client_ip, current_user, field, read_json, require_admin, user_from_token
 
 STATIC_FILES = {'index.html', 'app.js', 'crm.js', 'sync.js', 'sync-config.js', 'i18n-en.js', 'styles.css', 'sw.js', 'version.js',
@@ -29,7 +29,7 @@ db.lock_data_dir()
 if db.AK:
     legacy.import_once()  # первый запуск модуля: забрать данные прежней установки «Дня» на этом компьютере
 con = db.connect()
-db.migrate(con)
+db.migrate_safely(con)  # после обновления: копия базы, миграции, при ошибке — откат из копии
 if db.AK:
     db.load_epoch(con)  # метка данных: после «Восстановить из файла» устройства узнают, что прежнее надо забыть
     if legacy.state['wait']:  # прежний сервер был запущен: перенести при следующем запуске, пока база пустая
@@ -59,8 +59,8 @@ async def maintenance_loop():
     while True:
         try:
             crm.run_maintenance(con)
-        except Exception:
-            print(f'{time.strftime("%Y-%m-%d %H:%M:%S")} Ошибка фоновой задачи (заявки ТО)', flush=True)
+        except Exception as e:
+            errlog.write('error', f'Фоновая задача «заявки ТО»: {type(e).__name__}')
             traceback.print_exc()
         await asyncio.sleep(600)
 
@@ -92,7 +92,7 @@ async def http_error(request, exc):
 @app.exception_handler(Exception)
 async def crash(request, exc):
     # В журнал (stdout → module.log у АК-Сервера): время, что делали, ошибка и трассировка; тела запросов — нет
-    print(f'{time.strftime("%Y-%m-%d %H:%M:%S")} Ошибка: {request.method} {request.url.path}', flush=True)
+    errlog.write('error', f'{request.method} {request.url.path}: {type(exc).__name__}')
     traceback.print_exc()  # в журнал без тел запросов: пароли и токены туда не попадают
     return error(500, 'Внутренняя ошибка сервера. Попробуйте ещё раз.', 'server_error')
 

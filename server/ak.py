@@ -402,6 +402,8 @@ async def busy(request: Request):
         return {'busy': True, 'reason': 'Идёт резервная копия данных «Дня»'}
     if state['inflight']:
         return {'busy': True, 'reason': 'Сейчас сохраняются данные «Дня» — подождите несколько секунд'}
+    if partners.state['stale']:  # п. 7 общих правил АК: не мешает обновлению, но владелец видит, что обмен застрял
+        return {'busy': False, 'reason': '', 'warning': f'АК-Сервер больше суток не подтверждает изменения клиентов «Дня» ({partners.state["stale"]})'}
     return {'busy': False, 'reason': ''}
 
 

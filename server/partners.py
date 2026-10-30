@@ -12,13 +12,14 @@ import re
 import threading
 import time
 
-from . import backup, db
+from . import backup, db, errlog
 
 BOOK = 'partners'
 FIELDS = ('name', 'inn', 'phone', 'email', 'contact', 'note')  # что из карточки клиента уходит в ядро
 CORE_ID = re.compile(r'^[A-Za-z0-9_.-]{1,64}$')  # id записи ядра (п. 17 ТЗ модуля)
-RETRY = (10, 60, 300, 1800, 3600)  # нет связи, 5xx, 401: 10 с, 1 мин, 5 мин, 30 мин, дальше раз в час
-state = {'resync': True}  # при запуске — полный проход справочника
+RETRY = (5, 30, 120, 300)  # нет связи, 5xx, 401 (п. 7 общих правил АК): 5 с, 30 с, 2 мин, дальше раз в 5 мин
+STALE = 24 * 3600  # не подтверждено сутки — в журнал ошибок и warning в /ak/v1/busy
+state = {'resync': True, 'stale': 0}  # resync — полный проход справочника; stale — сколько правок ждут больше суток
 events = collections.deque(maxlen=10000)  # partner.changed от ядра: разбирает фоновый поток (своё соединение с базой)
 CONFLICTS = 3  # 409 подряд — дальше повтор по RETRY, а не сразу
 
@@ -229,7 +230,7 @@ def push(con):
             con.execute('update core_outbox set attempts=attempts+1, next_at=?, last_error=? where seq=?',
                         (time.time() + delay, f'{e.status} {e.code}', seq))
         if e.status == 400:  # данные не приняты: в журнал и владельцу; строку не удалять
-            log(f'клиент {pid} не принят ({e.code})')
+            errlog.write('error', f'Клиенты ↔ АК: клиент {pid} не принят справочником партнёров ({e.code})')
             try:
                 ak.core('POST', '/core/v1/notify', {'text': f'«День»: клиент не принят справочником партнёров ({e.code}). '
                                                             f'Откройте его в «Клиентах» и проверьте название.', 'level': 'error'})
@@ -244,6 +245,14 @@ def push(con):
     return True
 
 
+def check_stale(con):
+    """Раз в 10 минут: правки клиентов, которые ядро не подтверждает больше суток — warning и одна запись в журнал."""
+    count = con.execute('select count(distinct id) from core_outbox where book=? and created_at<?', (BOOK, time.time() - STALE)).fetchone()[0]
+    if count and not state['stale']:
+        errlog.write('warning', f'Клиенты ↔ АК: АК-Сервер больше суток не подтверждает изменения клиентов ({count})')
+    state['stale'] = count
+
+
 def start(stop: threading.Event):
     """Фоновый поток: раз в 2 с отправка очереди; при запуске и раз в 10 минут — проход справочника."""
     if not db.AK:
@@ -251,13 +260,16 @@ def start(stop: threading.Event):
 
     def loop():
         con = db.connect()  # своё соединение: поток не мешает запросам
-        last_resync = 0.0
+        last_resync = last_stale = 0.0
         while not stop.is_set():
             # копия и восстановление (backup._lock) не идут одновременно с обменом: номера очереди после
             # восстановления — уже другие, а копия должна быть целой
             if not backup._lock.acquire(timeout=1):
                 continue
             try:
+                if time.time() - last_stale > 600:  # до прохода справочника: при выключенном ядре он падает
+                    last_stale = time.time()
+                    check_stale(con)
                 while events and not stop.is_set():
                     take_event(con, events.popleft())
                 if state['resync'] or time.time() - last_resync > 600:
@@ -270,7 +282,7 @@ def start(stop: threading.Event):
             except Exception as e:  # ядро недоступно и т. п. — следующий круг
                 code = getattr(e, 'code', '') or type(e).__name__
                 if code != 'unreachable':
-                    log(f'ошибка обмена: {code}')
+                    errlog.write('error', f'Клиенты ↔ АК: ошибка обмена ({code})')
                 state['resync'] = state['resync'] or code == 'unreachable'
                 backup._lock.release()
                 stop.wait(10)

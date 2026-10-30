@@ -2,6 +2,7 @@
 
 Модуль запускается так же, как его запускает ядро: python -m server.run с переменными AK_* и без den.env.
 """
+import ast
 import json
 import os
 import re
@@ -296,7 +297,7 @@ def test_service_paths_closed_to_browser(mod):
 
 def test_busy(mod):
     status, body, _ = mod.signed('GET', '/m/crm/ak/v1/busy')
-    assert status == 200 and body == {'busy': False, 'reason': ''}
+    assert status == 200 and body == {'busy': False, 'reason': ''}  # warning — только если очередь ждёт больше суток
 
 
 def test_events_idempotent(mod):
@@ -545,6 +546,89 @@ def test_clients_in_core_partners(tmp_path):
     text = m.log.read_text(errors='replace')
     assert '900 111' not in text and 'Ромашка' not in text, 'телефоны и названия клиентов не пишутся в журнал'
     assert 'Traceback' not in text
+
+
+# --- Общие правила АК: журнал ошибок (п. 8), очередь без подтверждения сутки (п. 7), обновление базы (п. 2) ---
+
+def test_error_log_to_core_and_file_and_stale_queue_warning(tmp_path):
+    m = Module(tmp_path)
+    errors = tmp_path / 'logs' / 'errors.log'
+    try:
+        core = m.core
+        core.reject = {'cl-bad', 'cl-bad2', 'cl-bad3'}
+        bad = {'id': 'cl-bad', 'name': 'Отказ', 'phone': '+7 900 555-44-33'}
+        assert m.as_user(BOSS, 'owner', 'POST', 'api/crm/clients', rows(bad))[0] == 204
+        assert wait_for(lambda: core.logs)
+        status, entry = core.logs[0]
+        assert set(entry) == {'module', 'version', 'level', 'time', 'text'} and entry['module'] == 'crm' and entry['level'] == 'error'
+        assert entry['version'] == f"1.0.{json.load(open(ROOT / 'version.json'))['version']}" and re.match(r'^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$', entry['time'])
+        assert 'cl-bad' in entry['text'] and wait_for(lambda: 'cl-bad' in errors.read_text(encoding='utf-8'))
+        # старое ядро (404): запись только в файл, после этого в ядро журнал больше не шлётся
+        core.log_status = 404
+        for pid in ('cl-bad2', 'cl-bad3'):
+            assert m.as_user(BOSS, 'owner', 'POST', 'api/crm/clients', rows({**bad, 'id': pid}))[0] == 204
+            assert wait_for(lambda: pid in errors.read_text(encoding='utf-8'))
+        time.sleep(1)
+        assert [s for s, _ in core.logs] == [200, 404], core.logs
+        # правка клиента сутки не подтверждена ядром: warning в /ak/v1/busy и одна запись в журнал
+        assert m.signed('POST', '/m/crm/ak/v1/stop')[0] == 200 and m.proc.wait(10) == 0
+        con = sqlite3.connect(m.data / 'den.db')
+        con.execute("update core_outbox set created_at=?", (time.time() - 25 * 3600,))
+        con.commit()
+        con.close()
+        core.down = True
+        m.start()
+        status, body, _ = wait_for(lambda: (r := m.signed('GET', '/m/crm/ak/v1/busy')) and r[1].get('warning') and r) or (0, {}, None)
+        assert status == 200 and body['busy'] is False and 'больше суток' in body['warning'], body
+        assert wait_for(lambda: 'warning' in errors.read_text(encoding='utf-8'))
+        core.down = False
+    finally:
+        m.stop()
+    text = errors.read_text(encoding='utf-8') + m.log.read_text(errors='replace')
+    assert '555-44' not in text and 'Отказ' not in text, 'данные клиентов в журнал не пишутся'
+
+
+def migrations():
+    tree = ast.parse((ROOT / 'server' / 'db.py').read_text(encoding='utf-8'))
+    return next(ast.literal_eval(n.value) for n in tree.body if isinstance(n, ast.Assign) and getattr(n.targets[0], 'id', '') == 'MIGRATIONS')
+
+
+def test_update_from_oldest_base_with_backup_and_rollback(tmp_path):
+    data = tmp_path / 'data'
+    data.mkdir()
+    con = sqlite3.connect(data / 'den.db')  # база самой первой версии: только миграция 1
+    con.executescript('create table meta (key text primary key, value text);' + migrations()[0])
+    con.execute("insert into meta values ('schema', '1')")
+    con.execute("insert into users values ('old-1', 'boss@firma.ru', 'hash', 'admin', ?)", (T0,))
+    con.execute("insert into rows values ('old-1', 'tasks', 't-1', ?, ?, null)", (json.dumps({'id': 't-1', 'title': 'Задача из 1-й версии', 'updatedAt': T0}), T0))
+    con.commit()
+    con.close()
+    m = Module(tmp_path, data_dir=data)
+    try:
+        assert {r['id'] for r in m.as_user(BOSS, 'owner', path='api/data/tasks')[1]} == {'t-1'}  # данные на месте
+    finally:
+        m.stop()
+    copies = list((data / 'backup').glob('до-1.0.*'))
+    assert len(copies) == 1 and re.match(r'^до-1\.0\.\d+-\d{4}-\d\d-\d\d$', copies[0].name)
+    old = sqlite3.connect(copies[0] / 'den.db')
+    assert old.execute("select value from meta where key='schema'").fetchone()[0] == '1'
+    assert old.execute('select count(*) from rows').fetchone()[0] == 1
+    old.close()
+    # шаг миграции падает (столбец уже есть): база возвращается из копии, программа не запускается
+    con = sqlite3.connect(data / 'den.db')
+    con.execute("update meta set value='5' where key='schema'")
+    con.commit()
+    con.close()
+    with open(m.log, 'ab') as log:
+        proc = subprocess.run([sys.executable, '-m', 'server.run'], cwd=ROOT, env={**m.env, 'AK_PORT': str(free_port())},
+                              stdout=log, stderr=subprocess.STDOUT, timeout=60)
+    assert proc.returncode != 0
+    con = sqlite3.connect(data / 'den.db')
+    assert con.execute("select value from meta where key='schema'").fetchone()[0] == '5'
+    assert con.execute('select count(*) from rows').fetchone()[0] == 1
+    con.close()
+    assert len(list((data / 'backup').glob('до-1.0.*'))) == 2
+    assert 'Обновление базы со схемы 5 не удалось' in (tmp_path / 'logs' / 'errors.log').read_text(encoding='utf-8')
 
 
 # --- ТЗ «АК-День»: данные прежней установки переносятся при первом запуске ---

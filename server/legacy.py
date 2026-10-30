@@ -17,7 +17,7 @@ import sys
 import time
 from pathlib import Path
 
-from . import db
+from . import db, errlog
 
 
 def log(text):
@@ -138,7 +138,7 @@ def import_once():
             if files_copied:  # фото неудачной попытки не остаются (своих фото у новой базы ещё нет)
                 shutil.rmtree(db.FILES_DIR, ignore_errors=True)
             state['wait'] = state['wait'] or str(source)  # попробовать ещё раз при следующем запуске, пока база пустая
-            log(f'не удалось взять из {source}: {type(e).__name__}')
+            errlog.write('warning', f'Перенос прежних данных: не удалось взять из {source}: {type(e).__name__}')
         finally:
             lock.close()
             shutil.rmtree(copy_dir, ignore_errors=True)

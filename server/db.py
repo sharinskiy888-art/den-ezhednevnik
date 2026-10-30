@@ -2,6 +2,7 @@
 import json
 import os
 import secrets
+import shutil
 import sqlite3
 import sys
 import time
@@ -182,6 +183,49 @@ def migrate(con):
         except Exception:
             con.execute('rollback')
             raise
+
+
+def schema(con):
+    try:
+        row = con.execute("select value from meta where key='schema'").fetchone()
+    except sqlite3.OperationalError:  # совсем новая база: таблицы meta ещё нет
+        return 0
+    return int(row[0]) if row else 0
+
+
+def migrate_safely(con):
+    """Запуск после обновления (п. 2 общих правил АК): база отстаёт от программы — сначала её копия в
+    backup/до-<версия>-<дата>/den.db, потом миграции по порядку. Любая ошибка — база возвращается из копии, а программа
+    не запускается (на полуобновлённой базе работать нельзя)."""
+    done = schema(con)
+    empty = not done and not con.execute("select 1 from sqlite_master where type='table' limit 1").fetchone()
+    if done >= len(MIGRATIONS) or empty:  # всё готово или база пустая (первый запуск) — копировать нечего
+        migrate(con)
+        return
+    folder = DATA_DIR / 'backup' / f'до-{MODULE_VERSION}-{time.strftime("%Y-%m-%d")}'
+    n = 1
+    while (folder / 'den.db').exists():  # второй запуск за день: прежнюю копию не перезаписывать
+        n += 1
+        folder = folder.with_name(f'до-{MODULE_VERSION}-{time.strftime("%Y-%m-%d")}-{n}')
+    folder.mkdir(parents=True)
+    copy = folder / 'den.db'
+    target = sqlite3.connect(copy)
+    try:
+        con.backup(target)
+        if target.execute('pragma quick_check').fetchone()[0] != 'ok':
+            raise RuntimeError('копия базы перед обновлением не прошла проверку')
+    finally:
+        target.close()
+    try:
+        migrate(con)
+    except Exception as e:
+        con.close()
+        for suffix in ('-wal', '-shm'):
+            Path(f'{DB_PATH}{suffix}').unlink(missing_ok=True)
+        shutil.copyfile(copy, DB_PATH)
+        from . import errlog
+        errlog.write('error', f'Обновление базы со схемы {done} не удалось ({type(e).__name__}: {e}); база возвращена из {folder.name}')
+        raise RuntimeError(f'Обновление базы не удалось, база возвращена из копии {folder}') from e
 
 
 class tx:
