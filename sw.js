@@ -1,5 +1,5 @@
-const CACHE='day-planner-v109';
-const ASSETS=['./?v=109','index.html?v=109','styles.css?v=109','sync-config.js?v=109','sync.js?v=109','i18n-en.js?v=109','app.js?v=109','crm.js?v=109','version.js?v=109','version.json?v=109','manifest.webmanifest','assets/icon.svg','assets/manrope-cyrillic-wght-normal.woff2','assets/manrope-latin-wght-normal.woff2','assets/icon-192.png','assets/icon-512.png'];
+const CACHE='day-planner-v110';
+const ASSETS=['./?v=110','index.html?v=110','styles.css?v=110','assets/ak-buttons.css?v=110','sync-config.js?v=110','sync.js?v=110','i18n-en.js?v=110','app.js?v=110','crm.js?v=110','version.js?v=110','version.json?v=110','manifest.webmanifest','assets/icon.svg','assets/manrope-cyrillic-wght-normal.woff2','assets/manrope-latin-wght-normal.woff2','assets/icon-192.png','assets/icon-512.png'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',event=>{
@@ -8,7 +8,7 @@ self.addEventListener('fetch',event=>{
   // Данные с сервера (/api/…) и чужие адреса не кэшируются: иначе при сбое сети показались бы старые чужие ответы.
   if(url.origin!==self.location.origin||url.pathname.includes('/api/'))return;
   if(event.request.mode==='navigate'){
-    const cachedPage=()=>caches.match(event.request).then(cached=>cached||caches.match('./?v=109'));
+    const cachedPage=()=>caches.match(event.request).then(cached=>cached||caches.match('./?v=110'));
     // Кэшируется только настоящая страница. Сервер выключен, а VPS или туннель ответил 502/404 — открываем сохранённое приложение
     // и не затираем его страницей ошибки. Переход на вход ядра (redirect) отдаём как есть и не кэшируем.
     event.respondWith(fetch(event.request).then(response=>{

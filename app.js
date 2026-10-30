@@ -11,7 +11,7 @@ const NOTIFICATION_KEY = 'day-planner-notifications-v1';
 const EXPENSES_KEY = 'day-planner-expenses-v1';
 const FINANCE_LIMITS_KEY = 'day-planner-finance-limits-v1';
 const DELETED_EXPENSES_KEY = 'day-planner-deleted-expenses-v1';
-const APP_VERSION = '109';
+const APP_VERSION = '110';
 const UPDATE_SEEN_KEY = 'day-planner-update-seen-v1';
 const UPDATE_APPLIED_KEY = 'day-planner-update-applied-v1';
 const LANG_KEY = 'day-planner-lang-v1';
@@ -493,7 +493,7 @@ function renderFinanceCategoryGrid() {
   const list = financeKind === 'income' ? INCOME_CATEGORIES() : EXPENSE_CATEGORIES();
   if (!list.some(([id]) => id === selectedFinanceCategory)) selectedFinanceCategory = list[0][0];
   $('#financeCategoryGrid').innerHTML = list.map(([id, label, icon, color]) => `
-    <button type="button" class="finance-category-chip${id === selectedFinanceCategory ? ' selected' : ''}${financeKind === 'expense' && limitState(categoryMonthSpent(id, todayKey.slice(0, 7)), financeLimits[id]) === 'over' ? ' over-limit' : ''}" data-category="${id}" style="--cat:${color}">
+    <button type="button" class="finance-category-chip tab${id === selectedFinanceCategory ? ' selected' : ''}${financeKind === 'expense' && limitState(categoryMonthSpent(id, todayKey.slice(0, 7)), financeLimits[id]) === 'over' ? ' over-limit' : ''}" data-category="${id}" style="--cat:${color}">
       <i>${icon}</i>${escapeHtml(label)}
     </button>`).join('');
 }
@@ -552,11 +552,11 @@ function renderFinanceBreakdown() {
     const limit = financeKind === 'expense' ? financeLimits[row.id] : 0;
     const spent = limit ? categoryMonthSpent(row.id, month) : 0; const state = limitState(spent, limit);
     const limitBlock = financeKind !== 'expense' ? '' : limit
-      ? `<div class="finance-limit ${state}"><div class="finance-limit-bar"><em style="width:${Math.min(100, Math.round(spent / limit * 100))}%"></em></div><small>${state === 'over' ? '⚠ ' : ''}${formatMoney(spent)} ${tr('limit.of')} ${formatMoney(limit)} · ${monthLabel(month)}${state === 'over' ? ` · ${tr('limit.overBy')} ${formatMoney(spent - limit)}` : ''}</small><button type="button" class="finance-limit-edit" data-edit-limit="${row.id}">${tr('limit.change')}</button></div>`
-      : `<div class="finance-limit"><button type="button" class="finance-limit-edit" data-edit-limit="${row.id}">＋ ${tr('limit.set')}</button></div>`;
+      ? `<div class="finance-limit ${state}"><div class="finance-limit-bar"><em style="width:${Math.min(100, Math.round(spent / limit * 100))}%"></em></div><small>${state === 'over' ? '⚠ ' : ''}${formatMoney(spent)} ${tr('limit.of')} ${formatMoney(limit)} · ${monthLabel(month)}${state === 'over' ? ` · ${tr('limit.overBy')} ${formatMoney(spent - limit)}` : ''}</small><button type="button" class="finance-limit-edit gray small" data-edit-limit="${row.id}">${tr('limit.change')}</button></div>`
+      : `<div class="finance-limit"><button type="button" class="finance-limit-edit gray small" data-edit-limit="${row.id}">＋ ${tr('limit.set')}</button></div>`;
     return `
     <div class="finance-breakdown-row${state ? ' limit-' + state : ''}">
-      <button type="button" class="finance-breakdown-icon" data-quick-add="${row.id}" style="background:${row.color}" aria-label="${escapeHtml(row.label)}: ${tr('quick.add')}">${row.icon}<em>+</em></button>
+      <button type="button" class="finance-breakdown-icon icon" data-quick-add="${row.id}" style="background:${row.color}" aria-label="${escapeHtml(row.label)}: ${tr('quick.add')}">${row.icon}<em>+</em></button>
       <span>${escapeHtml(row.label)}<small>${row.pct}%</small></span>
       <b>${formatMoney(row.amount)}</b>
       ${limitBlock}
@@ -634,7 +634,7 @@ function renderFinanceHistory() {
         <small>${escapeHtml(label)} · ${fromKey(expenseDay(e) || todayKey).toLocaleDateString(LOCALE(), { day: 'numeric', month: 'short', year: expenseDay(e).slice(0, 4) === todayKey.slice(0, 4) ? undefined : 'numeric' })}</small>
       </div>
       <strong class="finance-amount ${e.kind}">${e.kind === 'income' ? '+' : '−'}${formatMoney(e.amount)}</strong>
-      <button type="button" class="finance-delete" data-delete-expense="${escapeHtml(e.id)}" aria-label="${tr('finance.deleteEntryAria')}">×</button>
+      <button type="button" class="finance-delete icon" data-delete-expense="${escapeHtml(e.id)}" aria-label="${tr('finance.deleteEntryAria')}">×</button>
     </article>`;
   }).join('');
   $('#financeEmptyState').hidden = !!list.length; $('#financeList').hidden = !list.length;
@@ -772,7 +772,7 @@ function renderWeek() {
     const d = new Date(monday); d.setDate(monday.getDate() + i); const key = toKey(d);
     const dayTasks = tasks.filter(t => t.date === key && !t.completed); const importantCount = dayTasks.filter(t => t.priority === 'high').length;
     const priorityText = importantCount ? `, ${appLang === 'en' ? 'important tasks: ' + importantCount : 'важных задач: ' + importantCount}` : ''; const holiday = holidayName(key); const weekend = [0, 6].includes(d.getDay());
-    return `<button class="day-button ${key === selectedDate ? 'selected' : ''} ${dayTasks.length ? 'has-tasks' : ''} ${importantCount ? 'has-high-priority' : ''} ${weekend ? 'weekend' : ''} ${holiday ? 'holiday' : ''}" data-date="${key}" aria-label="${formatLong(key)}${holiday ? `, ${holiday}` : ''}${priorityText}" title="${holiday}"><em ${importantCount ? '' : 'hidden'} aria-hidden="true">!</em><span>${names[i]}</span><b>${d.getDate()}</b><i></i></button>`;
+    return `<button class="day-button tab ${key === selectedDate ? 'selected' : ''} ${dayTasks.length ? 'has-tasks' : ''} ${importantCount ? 'has-high-priority' : ''} ${weekend ? 'weekend' : ''} ${holiday ? 'holiday' : ''}" data-date="${key}" aria-label="${formatLong(key)}${holiday ? `, ${holiday}` : ''}${priorityText}" title="${holiday}"><em ${importantCount ? '' : 'hidden'} aria-hidden="true">!</em><span>${names[i]}</span><b>${d.getDate()}</b><i></i></button>`;
   }).join('');
   $$('.day-button').forEach(b => b.addEventListener('click', () => { selectedDate = b.dataset.date; if (currentPeriod === 'day') render(); else { renderPeriod(); renderStats(); } }));
 }
@@ -783,7 +783,7 @@ function renderMonth() {
   const heads = WEEKDAY_ABBR().map(x => `<div class="month-grid-head">${x}</div>`).join('');
   const days = Array.from({ length: 42 }, (_, i) => {
     const d = new Date(start); d.setDate(start.getDate() + i); const key = toKey(d); const count = tasks.filter(t => t.date === key && !t.completed).length; const holiday = holidayName(key); const weekend = [0, 6].includes(d.getDay());
-    return `<button class="month-day ${d.getMonth() !== anchor.getMonth() ? 'outside' : ''} ${key === selectedDate ? 'selected' : ''} ${weekend ? 'weekend' : ''} ${holiday ? 'holiday' : ''}" data-month-date="${key}" title="${holiday}" aria-label="${formatLong(key)}${holiday ? `, ${holiday}` : ''}"><b>${d.getDate()}</b>${holiday ? '<em>праздник</em>' : count ? `<small>${count} дел</small>` : ''}</button>`;
+    return `<button class="month-day tab ${d.getMonth() !== anchor.getMonth() ? 'outside' : ''} ${key === selectedDate ? 'selected' : ''} ${weekend ? 'weekend' : ''} ${holiday ? 'holiday' : ''}" data-month-date="${key}" title="${holiday}" aria-label="${formatLong(key)}${holiday ? `, ${holiday}` : ''}"><b>${d.getDate()}</b>${holiday ? '<em>праздник</em>' : count ? `<small>${count} дел</small>` : ''}</button>`;
   }).join('');
   $('#calendarOverview').innerHTML = `<div class="month-grid">${heads}${days}</div>`;
   $$('[data-month-date]').forEach(b => b.addEventListener('click', () => { selectedDate = b.dataset.monthDate; currentPeriod = 'day'; render(); }));
@@ -794,7 +794,7 @@ function renderYear() {
   $('#calendarOverview').innerHTML = `<div class="year-grid">${Array.from({ length: 12 }, (_, month) => {
     const count = tasks.filter(t => { const d = fromKey(t.date); return d.getFullYear() === year && d.getMonth() === month && !t.completed; }).length;
     const name = new Date(year, month, 1).toLocaleDateString('ru-RU', { month: 'long' });
-    return `<button class="year-month" data-month="${month}"><strong>${name[0].toUpperCase() + name.slice(1)}</strong><span><b>${count}</b> активных дел</span></button>`;
+    return `<button class="year-month tab" data-month="${month}"><strong>${name[0].toUpperCase() + name.slice(1)}</strong><span><b>${count}</b> активных дел</span></button>`;
   }).join('')}</div>`;
   $$('[data-month]').forEach(b => b.addEventListener('click', () => { selectedDate = toKey(new Date(year, Number(b.dataset.month), 1)); currentPeriod = 'month'; render(); }));
 }
@@ -843,7 +843,7 @@ function renderTaskRow(t) {
       ${(t.subtasks || []).length ? `<span class="tag checklist">☑ ${subDone}/${t.subtasks.length}</span>` : ''}
       ${t.attachment || t.photo ? `<span class="tag">📎 ${tr('task.attachmentTag')}</span>` : ''}
       ${t.priority === 'high' ? `<span class="priority-label high">${tr('task.important')}</span>` : t.priority === 'low' ? `<span class="priority-label low">${tr('task.canWait')}</span>` : ''}
-    </div>${(t.subtasks || []).length ? `<div class="subtask-list">${t.subtasks.map((s, i) => `<button type="button" class="subtask ${s.done ? 'done' : ''}" data-subtask="${escapeHtml(t.id)}" data-sub-index="${i}"><i>${s.done ? '✓' : ''}</i>${escapeHtml(s.title)}</button>`).join('')}</div>` : ''}</div><button class="more-button" data-edit="${escapeHtml(t.id)}" aria-label="${tr('task.editAria')} ${escapeHtml(t.title)}">•••</button></article>`;
+    </div>${(t.subtasks || []).length ? `<div class="subtask-list">${t.subtasks.map((s, i) => `<button type="button" class="subtask icon ${s.done ? 'done' : ''}" data-subtask="${escapeHtml(t.id)}" data-sub-index="${i}"><i>${s.done ? '✓' : ''}</i>${escapeHtml(s.title)}</button>`).join('')}</div>` : ''}</div><button class="more-button icon" data-edit="${escapeHtml(t.id)}" aria-label="${tr('task.editAria')} ${escapeHtml(t.title)}">•••</button></article>`;
 }
 function renderSharedTaskRow(t) {
   const done = t.status === 'completed'; const subDone = (t.subtasks || []).filter(s => s.done).length;
@@ -855,7 +855,7 @@ function renderSharedTaskRow(t) {
       ${isSharedOverdue(t) ? `<span class="tag overdue-tag">⏰ ${L('Просрочена', 'Overdue')}</span>` : ''}<span class="tag shared-tag">◎ ${tr('task.shared')}</span><span class="tag">${owner}</span>
       ${t.status === 'review' ? `<span class="tag">${tr('task.statusReview')}</span>` : ''}
       ${(t.subtasks || []).length ? `<span class="tag checklist">☑ ${subDone}/${t.subtasks.length}</span>` : ''}
-    </div>${(t.subtasks || []).length ? `<div class="subtask-list">${t.subtasks.map((s, i) => `<button type="button" class="subtask ${s.done ? 'done' : ''}" data-shared-day-subtask="${escapeHtml(t.id)}" data-sub-index="${i}"><i>${s.done ? '✓' : ''}</i>${escapeHtml(s.title)}${s.done && s.doneBy ? ` <small>${escapeHtml(personLabel(s.doneBy))}</small>` : ''}</button>`).join('')}</div>` : ''}</div><button class="more-button" data-shared-edit="${escapeHtml(t.id)}" aria-label="${tr('task.editAria')} ${escapeHtml(t.title)}">•••</button></article>`;
+    </div>${(t.subtasks || []).length ? `<div class="subtask-list">${t.subtasks.map((s, i) => `<button type="button" class="subtask icon ${s.done ? 'done' : ''}" data-shared-day-subtask="${escapeHtml(t.id)}" data-sub-index="${i}"><i>${s.done ? '✓' : ''}</i>${escapeHtml(s.title)}${s.done && s.doneBy ? ` <small>${escapeHtml(personLabel(s.doneBy))}</small>` : ''}</button>`).join('')}</div>` : ''}</div><button class="more-button icon" data-shared-edit="${escapeHtml(t.id)}" aria-label="${tr('task.editAria')} ${escapeHtml(t.title)}">•••</button></article>`;
 }
 function renderTasks() {
   const list = visibleTasks(); const sharedList = visibleSharedTasks();
@@ -1581,7 +1581,7 @@ async function renderAkLegacy(left) {
   const items = [...(left.people || []).map(p => ({ email: p.email, text: `${p.email} · ${L('записей', 'records')}: ${p.records}` })), ...(left.invites || []).map(email => ({ email, text: `${email} · ${L('только приглашён', 'invited only')}` }))];
   if (!items.length) return;
   const options = `<option value="">${L('Кто это?', 'Who is it?')}</option>` + akEmployeesCache.map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name || p.key)}</option>`).join('');
-  $('#akLegacyList').innerHTML = items.map(item => `<div class="ak-legacy-row"><small>${escapeHtml(item.text)}</small><select aria-label="${L('Сотрудник', 'Employee')}">${options}</select><button type="button" class="secondary-button" data-legacy-email="${escapeHtml(item.email)}">${L('Связать', 'Link')}</button></div>`).join('');
+  $('#akLegacyList').innerHTML = items.map(item => `<div class="ak-legacy-row"><small>${escapeHtml(item.text)}</small><select aria-label="${L('Сотрудник', 'Employee')}">${options}</select><button type="button" class="secondary-button gray" data-legacy-email="${escapeHtml(item.email)}">${L('Связать', 'Link')}</button></div>`).join('');
   box.hidden = false;
   $$('[data-legacy-email]').forEach(button => button.addEventListener('click', async () => {
     const userId = button.previousElementSibling.value;
@@ -2134,19 +2134,19 @@ function sharedStatusLabel(task) {
 function sharedStatusButtons(task) {
   const isOwner = task.ownerId === window.DaySync?.user()?.id;
   const choices = isOwner ? ['open', 'completed'] : ['accepted', 'open', 'question', 'review'];
-  return `<div class="shared-status-buttons">${choices.map(status => `<button type="button" class="${task.status === status ? 'active' : ''}" data-shared-status="${escapeHtml(task.id)}" data-status="${status}">${sharedStatusText(status)}</button>`).join('')}</div>`;
+  return `<div class="shared-status-buttons">${choices.map(status => `<button type="button" class="tab${task.status === status ? ' active' : ''}" data-shared-status="${escapeHtml(task.id)}" data-status="${status}">${sharedStatusText(status)}</button>`).join('')}</div>`;
 }
 function renderSharedTaskCard(task) {
   const members = sharedMembers(task); const progress = sharedProgress(task);
   const canNudge = task.ownerId === window.DaySync?.user()?.id && task.status !== 'completed' && [...(task.invitedEmails || []), ...(task.acceptedEmails || [])].some(email => email !== task.ownerEmail);
   const reports = (task.reports || []).length;
   return `<article class="shared-task-card">
-    <button type="button" class="shared-card-open" data-open-shared="${escapeHtml(task.id)}"><div><h3>${escapeHtml(task.title)}</h3><p>${formatShortDate(task.date)} · ${escapeHtml(task.time) || 'В течение дня'} · прогресс ${progress}%</p>
+    <button type="button" class="shared-card-open nav" data-open-shared="${escapeHtml(task.id)}"><div><h3>${escapeHtml(task.title)}</h3><p>${formatShortDate(task.date)} · ${escapeHtml(task.time) || 'В течение дня'} · прогресс ${progress}%</p>
     <div class="shared-card-tags">${sharedStatusLabel(task)}<span>☑ ${(task.subtasks || []).filter(item => item.done).length}/${(task.subtasks || []).length}</span>${reports ? `<span>💬 ${L('Отчётов', 'Reports')}: ${reports}</span>` : ''}${task.ownerId === window.DaySync?.user()?.id ? '<span>Вы организатор</span>' : `<span>${appLang === 'en' ? 'Organizer' : 'Организатор'}: ${escapeHtml(task.ownerEmail || '')}</span>`}</div></div>
     <div class="shared-avatar-stack">${members.slice(0, 4).map(member => { const online = isMemberOnline(member.email); return `<span class="shared-avatar ${online ? 'online' : 'offline'}" title="${escapeHtml(member.email)} — ${online ? 'в сети' : 'не в сети'}">${memberInitial(member.email)}</span>`; }).join('')}</div></button>
-    ${(task.subtasks || []).length ? `<div class="shared-subtasks">${task.subtasks.map((item, index) => `<button type="button" class="${item.done ? 'done' : ''}" data-shared-subtask="${escapeHtml(task.id)}" data-shared-index="${index}"><i>${item.done ? '✓' : ''}</i><span>${escapeHtml(item.title)}</span>${item.doneBy ? `<small>${escapeHtml(personLabel(item.doneBy))}</small>` : ''}</button>`).join('')}</div>` : ''}
+    ${(task.subtasks || []).length ? `<div class="shared-subtasks">${task.subtasks.map((item, index) => `<button type="button" class="icon${item.done ? ' done' : ''}" data-shared-subtask="${escapeHtml(task.id)}" data-shared-index="${index}"><i>${item.done ? '✓' : ''}</i><span>${escapeHtml(item.title)}</span>${item.doneBy ? `<small>${escapeHtml(personLabel(item.doneBy))}</small>` : ''}</button>`).join('')}</div>` : ''}
     ${sharedStatusButtons(task)}
-    ${canNudge ? `<button type="button" class="repeat-shared-invite" data-nudge-shared="${escapeHtml(task.id)}">🔔 ${L('Напомнить исполнителю', 'Remind assignee')}</button>` : ''}
+    ${canNudge ? `<button type="button" class="repeat-shared-invite gray small" data-nudge-shared="${escapeHtml(task.id)}">🔔 ${L('Напомнить исполнителю', 'Remind assignee')}</button>` : ''}
   </article>`;
 }
 function renderSharedPeople() {
@@ -2166,7 +2166,7 @@ function renderSharedPeople() {
 function renderSharedInvites() {
   const invites = sharedInvites();
   if (!invites.length) return '<div class="shared-empty"><strong>Новых приглашений нет</strong>Когда вас пригласят по почте аккаунта, задача появится здесь.</div>';
-  return invites.map(task => `<article class="invite-card"><strong>${escapeHtml(task.title)}</strong><small>${escapeHtml(personLabel(task.ownerEmail, true))} · ${formatShortDate(task.date)} · ${escapeHtml(task.time) || 'без времени'}</small><div class="invite-actions single"><button type="button" class="invite-accept" data-answer-invite="${escapeHtml(task.id)}" data-accept="1">${L('Принять задачу', 'Accept task')}</button></div></article>`).join('');
+  return invites.map(task => `<article class="invite-card"><strong>${escapeHtml(task.title)}</strong><small>${escapeHtml(personLabel(task.ownerEmail, true))} · ${formatShortDate(task.date)} · ${escapeHtml(task.time) || 'без времени'}</small><div class="invite-actions single"><button type="button" class="invite-accept green" data-answer-invite="${escapeHtml(task.id)}" data-accept="1">${L('Принять задачу', 'Accept task')}</button></div></article>`).join('');
 }
 function bindSharedContentActions(root = $('#sharedContent')) {
   if (!root) return; const $$ = selector => [...root.querySelectorAll(selector)];
@@ -2211,21 +2211,21 @@ function renderSharedView(task) {
     <p class="sv-meta">${formatShortDate(task.date)} · ${escapeHtml(task.time) || tr('task.anytime')} · ${owner ? tr('task.youOrganize') : `${tr('task.organizer')}: ${escapeHtml(personLabel(task.ownerEmail))}`}</p>
     ${task.note ? `<p class="sv-note">${escapeHtml(task.note)}</p>` : ''}
     ${safeUrl ? `<div class="sv-attachment">${String(att.type || '').startsWith('image/') ? `<img src="${escapeHtml(att.data)}" alt="${escapeHtml(att.name || '')}">` : `<a href="${escapeHtml(att.data)}" download="${escapeHtml(att.name || 'file')}">📎 ${escapeHtml(att.name || L('Файл', 'File'))}</a>`}${task.proofNote ? `<small>${escapeHtml(task.proofNote)}</small>` : ''}</div>` : ''}
-    ${subs.length ? `<div class="shared-subtasks">${subs.map((item, index) => `<button type="button" class="${item.done ? 'done' : ''}" data-shared-subtask="${escapeHtml(task.id)}" data-shared-index="${index}"><i>${item.done ? '✓' : ''}</i><span>${escapeHtml(item.title)}</span>${item.doneBy ? `<small>${escapeHtml(personLabel(item.doneBy))}</small>` : ''}</button>`).join('')}</div>` : ''}
+    ${subs.length ? `<div class="shared-subtasks">${subs.map((item, index) => `<button type="button" class="icon${item.done ? ' done' : ''}" data-shared-subtask="${escapeHtml(task.id)}" data-shared-index="${index}"><i>${item.done ? '✓' : ''}</i><span>${escapeHtml(item.title)}</span>${item.doneBy ? `<small>${escapeHtml(personLabel(item.doneBy))}</small>` : ''}</button>`).join('')}</div>` : ''}
     <h4 class="sv-section">${owner ? L('Статус задачи', 'Task status') : L('Мой ответ', 'My reply')}</h4>
     <div class="sv-status">${sharedStatusLabel(task)}</div>
     ${sharedStatusButtons(task)}
-    ${canNudge ? `<button type="button" class="repeat-shared-invite" data-nudge-shared="${escapeHtml(task.id)}">🔔 ${L('Напомнить исполнителю', 'Remind assignee')}</button>` : ''}
+    ${canNudge ? `<button type="button" class="repeat-shared-invite gray small" data-nudge-shared="${escapeHtml(task.id)}">🔔 ${L('Напомнить исполнителю', 'Remind assignee')}</button>` : ''}
     ${sharedLeaveBlock(task, owner)}`;
   bindSharedContentActions(box);
 }
 // Выйти из поручения исполнитель может только с согласия организатора: он просит, организатор отпускает.
 function sharedLeaveBlock(task, owner) {
   const me = currentAccountEmail(); const asks = task.leaveRequests || [];
-  if (owner) return asks.map(email => `<p class="sv-leave">${escapeHtml(personLabel(email, true))} ${L('просит выйти из задачи', 'asks to leave the task')} <button type="button" class="secondary-button" data-release-shared="${escapeHtml(task.id)}" data-email="${escapeHtml(email)}">${L('Отпустить', 'Let go')}</button></p>`).join('');
+  if (owner) return asks.map(email => `<p class="sv-leave">${escapeHtml(personLabel(email, true))} ${L('просит выйти из задачи', 'asks to leave the task')} <button type="button" class="secondary-button gray" data-release-shared="${escapeHtml(task.id)}" data-email="${escapeHtml(email)}">${L('Отпустить', 'Let go')}</button></p>`).join('');
   if (!(task.acceptedEmails || []).includes(me)) return '';
   return asks.includes(me) ? `<p class="sv-leave">${L('Вы попросили выйти из задачи — решение за организатором', 'You asked to leave — the organizer decides')}</p>`
-    : `<button type="button" class="repeat-shared-invite" data-leave-shared="${escapeHtml(task.id)}">${L('Попросить выйти из задачи', 'Ask to leave the task')}</button>`;
+    : `<button type="button" class="repeat-shared-invite gray small" data-leave-shared="${escapeHtml(task.id)}">${L('Попросить выйти из задачи', 'Ask to leave the task')}</button>`;
 }
 async function requestLeaveShared(taskId) {
   await window.DaySync.requestLeaveShared(taskId); await loadSharedTasks(false); renderSharedDialog(); render();
@@ -2356,8 +2356,8 @@ function resetReportComposer() {
 function renderPendingReport() {
   const box = $('#reportPending'); if (!box) return;
   const parts = [];
-  if (pendingReport.photo) parts.push(`<span class="report-chip">📷 ${L('Фото', 'Photo')} · ${Math.round(pendingReport.photo.size / 1024)} КБ <button type="button" data-remove-pending="photo" aria-label="×">×</button></span>`);
-  if (pendingReport.voice) parts.push(`<span class="report-chip">🎤 ${L('Голосовое', 'Voice')} · ${formatSeconds(pendingReport.voiceSec)} <button type="button" data-remove-pending="voice" aria-label="×">×</button></span>`);
+  if (pendingReport.photo) parts.push(`<span class="report-chip">📷 ${L('Фото', 'Photo')} · ${Math.round(pendingReport.photo.size / 1024)} КБ <button type="button" class="icon" data-remove-pending="photo" aria-label="×">×</button></span>`);
+  if (pendingReport.voice) parts.push(`<span class="report-chip">🎤 ${L('Голосовое', 'Voice')} · ${formatSeconds(pendingReport.voiceSec)} <button type="button" class="icon" data-remove-pending="voice" aria-label="×">×</button></span>`);
   box.innerHTML = parts.join(''); box.hidden = !parts.length;
   box.querySelectorAll('[data-remove-pending]').forEach(button => button.addEventListener('click', () => { pendingReport[button.dataset.removePending] = null; renderPendingReport(); }));
   $('#reportVoiceButton').textContent = reportRecorder ? `■ ${L('Остановить', 'Stop')}` : `🎤 ${L('Голос', 'Voice')}`;
@@ -2444,7 +2444,7 @@ function renderSharedReports(task) {
   $('#sharedReportList').innerHTML = reports.length ? reports.map(report => `<article class="report-item">
       <header><strong>${escapeHtml(report.by === me ? L('Вы', 'You') : personLabel(report.by))}</strong><small>${new Date(report.at).toLocaleString(LOCALE(), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</small>${report.by === me || owner ? `<button type="button" class="report-delete" data-delete-report="${escapeHtml(report.id)}" aria-label="${L('Удалить отчёт', 'Delete report')}">×</button>` : ''}</header>
       ${report.text ? `<p>${escapeHtml(report.text)}</p>` : ''}
-      <div class="report-media">${report.photo ? `<button type="button" class="report-media-button" data-report-photo="${escapeHtml(report.photo)}">📷 ${L('Показать фото', 'Show photo')}</button>` : ''}${report.voice ? `<button type="button" class="report-media-button" data-report-voice="${escapeHtml(report.voice)}">▶ ${L('Голосовое', 'Voice')} ${formatSeconds(report.voiceSec)}</button>` : ''}</div>
+      <div class="report-media">${report.photo ? `<button type="button" class="report-media-button gray small" data-report-photo="${escapeHtml(report.photo)}">📷 ${L('Показать фото', 'Show photo')}</button>` : ''}${report.voice ? `<button type="button" class="report-media-button gray small" data-report-voice="${escapeHtml(report.voice)}">▶ ${L('Голосовое', 'Voice')} ${formatSeconds(report.voiceSec)}</button>` : ''}</div>
     </article>`).join('') : `<p class="report-empty">${L('Отчётов пока нет. Напишите, что сделано, приложите фото или запишите голосовое.', 'No reports yet. Write what was done, attach a photo or record a voice message.')}</p>`;
   $$('[data-delete-report]').forEach(button => button.addEventListener('click', () => deleteSharedReport(task.id, button.dataset.deleteReport)));
   $$('[data-report-photo], [data-report-voice]').forEach(button => button.addEventListener('click', async () => {
@@ -2547,7 +2547,7 @@ window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); instal
 $('#installButton').addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('#installButton').hidden = true; });
 showUpdatedNoticeIfNeeded();
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=109'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
+  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=110'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
   navigator.serviceWorker.addEventListener('message', event => {
     if (event.data?.type !== 'DAY_PUSH') return;
     showReminderAlert(event.data.taskId || '', event.data.title || 'Новое уведомление', event.data.body || '');
@@ -2575,7 +2575,7 @@ async function employeePicker(textarea) {
   const me = window.DaySync.user()?.id; const people = (akEmployeesCache || []).filter(person => person.id !== me);
   if (!people.length || !textarea.isConnected) return;
   const box = document.createElement('div'); box.className = 'ak-pick';
-  box.innerHTML = people.map(person => `<button type="button" class="secondary-button" data-key="${escapeHtml(person.key)}">+ ${escapeHtml(person.name || person.key)}</button>`).join('');
+  box.innerHTML = people.map(person => `<button type="button" class="secondary-button gray" data-key="${escapeHtml(person.key)}">+ ${escapeHtml(person.name || person.key)}</button>`).join('');
   box.querySelectorAll('button').forEach(button => button.addEventListener('click', () => {
     const lines = textarea.value.split(/\n/).map(line => line.trim()).filter(Boolean);
     if (!lines.includes(button.dataset.key)) textarea.value = [...lines, button.dataset.key].join('\n');

@@ -161,7 +161,7 @@
     if (kind === 'dict') { list.innerHTML = ''; openCard('dict', dict()); state.tab = 'orders'; return renderList(); }
     const found = search(kind, state.query).sort(sorters[kind]);
     $('#crmCount').textContent = `${L('Найдено', 'Found')}: ${found.length}${found.length > LIST_LIMIT ? ` · ${L('показаны первые', 'showing first')} ${LIST_LIMIT}` : ''}`;
-    list.innerHTML = found.slice(0, LIST_LIMIT).map(item => `<button type="button" class="crm-row" data-crm-open="${kind}" data-id="${escapeHtml(item.id)}">${rowHtml(kind, item)}</button>`).join('')
+    list.innerHTML = found.slice(0, LIST_LIMIT).map(item => `<button type="button" class="crm-row nav" data-crm-open="${kind}" data-id="${escapeHtml(item.id)}">${rowHtml(kind, item)}</button>`).join('')
       || `<p class="crm-empty">${state.query ? L('Ничего не найдено', 'Nothing found') : kind === 'orders' && !canEdit() ? L('Вам пока не назначено заявок', 'No orders assigned to you yet') : L('Пока пусто', 'Nothing here yet')}</p>`;
     $$('#crmList [data-crm-open]').forEach(button => button.addEventListener('click', () => openCard(button.dataset.crmOpen, get(button.dataset.crmOpen, button.dataset.id))));
   }
@@ -177,7 +177,7 @@
   const select = (name, label, options, value) => `<label><span>${label}</span><select name="${name}" ${canEdit() ? '' : 'disabled'}>${options.map(([v, text]) => `<option value="${escapeHtml(v)}" ${v === value ? 'selected' : ''}>${escapeHtml(text)}</option>`).join('')}</select></label>`;
   const emails = text => [...new Set(String(text || '').split(/[\s,;]+/).map(e => e.trim().toLocaleLowerCase()).filter(e => e.includes('@')))];
   const children = (kind, key, id) => [...state.data[kind].values()].filter(item => item[key] === id);
-  const linkList = (kind, items, empty) => items.length ? items.sort(sorters[kind] || (() => 0)).map(item => `<button type="button" class="crm-row" data-crm-open="${kind}" data-id="${escapeHtml(item.id)}">${kind === 'payments' ? paymentRow(item) : rowHtml(kind, item)}</button>`).join('') : `<p class="crm-empty">${empty}</p>`;
+  const linkList = (kind, items, empty) => items.length ? items.sort(sorters[kind] || (() => 0)).map(item => `<button type="button" class="crm-row nav" data-crm-open="${kind}" data-id="${escapeHtml(item.id)}">${kind === 'payments' ? paymentRow(item) : rowHtml(kind, item)}</button>`).join('') : `<p class="crm-empty">${empty}</p>`;
   const paymentRow = p => `<b>${p.kind === 'income' ? '＋' : '−'} ${formatRub(p.amountKop)}</b><small>${escapeHtml([p.date && formatShortDate(p.date), p.note].filter(Boolean).join(' · '))}</small>`;
   const TITLES = { clients: ['Клиент', 'Client'], objects: ['Объект', 'Object'], orders: ['Заявка', 'Order'], contracts: ['Договор ТО', 'Maintenance contract'], payments: ['Оплата или расход', 'Payment or cost'], dict: ['Справочник', 'Reference lists'] };
 
@@ -185,16 +185,16 @@
     const d = dict();
     if (kind === 'clients') return field('name', L('Название или ФИО', 'Name'), item.name, 'text', 'required maxlength="300"') + field('inn', L('ИНН', 'Tax ID'), item.inn, 'text', 'inputmode="numeric" maxlength="12"')
       + field('phone', L('Телефон', 'Phone'), item.phone, 'tel') + field('email', 'Email', item.email, 'email') + field('contact', L('Контактное лицо', 'Contact person'), item.contact) + area('note', L('Заметки', 'Notes'), item.note)
-      + (item.__new ? '' : `<h4 class="sv-section">${L('Объекты', 'Objects')}</h4>${linkList('objects', children('objects', 'clientId', item.id), L('Объектов нет', 'No objects'))}${canEdit() ? `<button type="button" class="secondary-button" data-crm-new="objects">＋ ${L('Объект', 'Object')}</button>` : ''}`);
+      + (item.__new ? '' : `<h4 class="sv-section">${L('Объекты', 'Objects')}</h4>${linkList('objects', children('objects', 'clientId', item.id), L('Объектов нет', 'No objects'))}${canEdit() ? `<button type="button" class="secondary-button gray" data-crm-new="objects">＋ ${L('Объект', 'Object')}</button>` : ''}`);
     if (kind === 'objects') {
       const systems = item.systems || [];
       return `<p class="sv-meta">${L('Клиент', 'Client')}: ${escapeHtml(clientOf(item)?.name || '—')}</p>` + field('address', L('Адрес', 'Address'), item.address, 'text', 'maxlength="500"')
         + `<fieldset class="crm-systems"><legend>${L('Системы', 'Systems')}</legend>${[...new Set([...d.systems, ...systems])].map(s => `<label class="check-label"><input type="checkbox" name="systems" value="${escapeHtml(s)}" ${systems.includes(s) ? 'checked' : ''} ${canEdit() ? '' : 'disabled'}><span>${escapeHtml(s)}</span></label>`).join('')}</fieldset>`
         + area('equipment', L('Оборудование', 'Equipment'), item.equipment) + area('note', L('Заметки', 'Notes'), item.note)
-        + `<div class="crm-photos" id="crmPhotos"></div>${canEdit() && !item.__new ? `<label class="secondary-button crm-photo-add">📷 ${L('Добавить фото', 'Add photo')}<input type="file" accept="image/*" id="crmPhotoInput" hidden></label>` : ''}`
+        + `<div class="crm-photos" id="crmPhotos"></div>${canEdit() && !item.__new ? `<label class="secondary-button gray crm-photo-add">📷 ${L('Добавить фото', 'Add photo')}<input type="file" accept="image/*" id="crmPhotoInput" hidden></label>` : ''}`
         + (item.__new ? '' : `<h4 class="sv-section">${L('Заявки', 'Orders')}</h4>${linkList('orders', children('orders', 'objectId', item.id), L('Заявок нет', 'No orders'))}
-          ${canEdit() ? `<button type="button" class="secondary-button" data-crm-new="orders">＋ ${L('Заявка', 'Order')}</button>` : ''}
-          ${canEdit() ? `<h4 class="sv-section">${L('Договоры ТО', 'Maintenance contracts')}</h4>${linkList('contracts', children('contracts', 'objectId', item.id), L('Договоров нет', 'No contracts'))}<button type="button" class="secondary-button" data-crm-new="contracts">＋ ${L('Договор ТО', 'Contract')}</button>` : ''}`);
+          ${canEdit() ? `<button type="button" class="secondary-button gray" data-crm-new="orders">＋ ${L('Заявка', 'Order')}</button>` : ''}
+          ${canEdit() ? `<h4 class="sv-section">${L('Договоры ТО', 'Maintenance contracts')}</h4>${linkList('contracts', children('contracts', 'objectId', item.id), L('Договоров нет', 'No contracts'))}<button type="button" class="secondary-button gray" data-crm-new="contracts">＋ ${L('Договор ТО', 'Contract')}</button>` : ''}`);
     }
     if (kind === 'orders') {
       const pays = children('payments', 'orderId', item.id); const income = pays.filter(p => p.kind === 'income').reduce((s, p) => s + p.amountKop, 0); const cost = pays.filter(p => p.kind === 'expense').reduce((s, p) => s + p.amountKop, 0);
@@ -202,11 +202,11 @@
       const o = get('objects', item.objectId); const c = clientOf(o);
       return `<p class="sv-meta">${escapeHtml(objectLabel(o))}${c ? ` · ${escapeHtml(c.name)}${c.phone ? ` · <a href="tel:${escapeHtml(c.phone)}">${escapeHtml(c.phone)}</a>` : ''}` : ''}</p>`
         + select('type', L('Вид работ', 'Work type'), [...new Set([...d.workTypes, item.type].filter(Boolean))].map(t => [t, t]), item.type || d.workTypes[0])
-        + `<div class="crm-stages" role="group">${Object.entries(STAGES).map(([key, names]) => `<button type="button" data-crm-stage="${key}" class="${(item.stage || 'new') === key ? 'active' : ''}" ${canEdit() ? '' : 'disabled'}>${L(...names)}</button>`).join('')}</div>`
+        + `<div class="crm-stages" role="group">${Object.entries(STAGES).map(([key, names]) => `<button type="button" data-crm-stage="${key}" class="tab${(item.stage || 'new') === key ? ' active' : ''}" ${canEdit() ? '' : 'disabled'}>${L(...names)}</button>`).join('')}</div>`
         + field('due', L('Срок', 'Due'), item.due, 'date') + field('sum', L('Сумма, ₽', 'Amount, ₽'), kopInput(item.sumKop), 'text', 'inputmode="decimal"')
         + area('assignees', L('Исполнители (email, по одному в строке)', 'Assignees (email, one per line)'), (item.assignees || []).join('\n')) + area('note', L('Заметки', 'Notes'), item.note)
-        + (task ? `<p class="sv-meta">${L('Поручение', 'Assignment')}: ${sharedStatusText(task.status)} · ${L('отчётов', 'reports')}: ${(task.reports || []).length} <button type="button" class="secondary-button" data-crm-task="${escapeHtml(task.id)}">${L('Открыть поручение', 'Open assignment')}</button></p>` : '')
-        + (canEdit() && !item.__new ? `<h4 class="sv-section">${L('Деньги по заявке', 'Money')}: ${L('приход', 'in')} ${formatRub(income)} · ${L('расход', 'out')} ${formatRub(cost)} · ${L('итого', 'net')} ${formatRub(income - cost)}</h4>${linkList('payments', pays, L('Операций нет', 'No operations'))}<button type="button" class="secondary-button" data-crm-new="payments" data-kind="income">＋ ${L('Приход', 'Income')}</button> <button type="button" class="secondary-button" data-crm-new="payments" data-kind="expense">− ${L('Расход', 'Cost')}</button>` : '');
+        + (task ? `<p class="sv-meta">${L('Поручение', 'Assignment')}: ${sharedStatusText(task.status)} · ${L('отчётов', 'reports')}: ${(task.reports || []).length} <button type="button" class="secondary-button gray" data-crm-task="${escapeHtml(task.id)}">${L('Открыть поручение', 'Open assignment')}</button></p>` : '')
+        + (canEdit() && !item.__new ? `<h4 class="sv-section">${L('Деньги по заявке', 'Money')}: ${L('приход', 'in')} ${formatRub(income)} · ${L('расход', 'out')} ${formatRub(cost)} · ${L('итого', 'net')} ${formatRub(income - cost)}</h4>${linkList('payments', pays, L('Операций нет', 'No operations'))}<button type="button" class="secondary-button gray" data-crm-new="payments" data-kind="income">＋ ${L('Приход', 'Income')}</button> <button type="button" class="secondary-button gray" data-crm-new="payments" data-kind="expense">− ${L('Расход', 'Cost')}</button>` : '');
     }
     if (kind === 'contracts') return `<p class="sv-meta">${escapeHtml(objectLabel(get('objects', item.objectId)))}</p>`
       + select('type', L('Вид работ', 'Work type'), [...new Set(['ТО', ...d.workTypes, item.type].filter(Boolean))].map(t => [t, t]), item.type || 'ТО')

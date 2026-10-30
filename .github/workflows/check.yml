@@ -58,6 +58,8 @@ jobs:
         run: PYTHON=python node tools/test-devices.js
       - name: Сценарии модуля АК — несколько сотрудников, поручение целиком, перенос, сервер выключен
         run: PYTHON=python node tools/test-scenarios.js
+      - name: Кнопки по общему файлу АК-кнопки.css — все окна, 375/768/1366
+        run: PYTHON=python node tools/test-ak-buttons.js
       - name: Автотест всех кнопок (Playwright)
         run: |
           set +e
