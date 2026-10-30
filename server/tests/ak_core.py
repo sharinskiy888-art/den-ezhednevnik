@@ -20,7 +20,12 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 LOCK = threading.Lock()
-OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *args, **kwargs):  # перенаправление модуля отдаётся браузеру как есть, как у настоящего ядра
+        return None
+
+
+OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirect)
 AK_BUTTON = '<script id="ak-button">/* кнопка АК */</script>'
 
 

@@ -3,8 +3,10 @@
 Модуль запускается так же, как его запускает ядро: python -m server.run с переменными AK_* и без den.env.
 """
 import ast
+import importlib.util
 import json
 import os
+import pathlib
 import re
 import zipfile
 import secrets
@@ -196,6 +198,52 @@ def test_pages_and_relative_links(mod):
     assert status == 200 and "'api'" in js and "`/api`" not in js
     for path in ('den.env', 'server/ak.py', 'version.json/../server/db.py', '.git/config'):
         assert mod.as_user(BOSS, 'owner', path=path)[0] == 404
+
+
+def test_role_part_for_installer(mod):
+    """Кнопка «Отправить»: своя часть монтажника по …/worker — своё приложение на телефоне, без экранов руководителя."""
+    spec = importlib.util.spec_from_file_location('make_module', pathlib.Path(__file__).resolve().parents[2] / 'deploy' / 'ak' / 'make_module.py')
+    make = importlib.util.module_from_spec(spec); spec.loader.exec_module(make)
+    info = make.module_json('1.0.1')
+    assert info['share'] == [{'role': 'installer', 'title': 'Монтажник', 'path': '/worker', 'device': 'both'}]
+    assert 'installer' in info['roles'] and info['external'] == ['/worker'] and info['public'] == []
+    for uid, roles in ((WORKER, 'installer'), (WORKER, 'courier')):
+        # главный адрес монтажника переводит в его часть (решает сервер, не интерфейс); «/worker» — в «/worker/»
+        assert mod.signed('GET', '/m/crm/', user=uid, roles=roles)[0] == 302
+        assert mod.signed('GET', '/m/crm/worker', user=uid, roles=roles)[0] == 308
+        for path in ('', 'index.html'):
+            status, _, headers = mod.as_user(uid, roles, path=path)
+            assert status == 302 and headers['Location'] == 'worker/'
+        assert mod.as_user(uid, roles, path='worker')[2]['Location'] == '/m/crm/worker/'
+        for path in ('worker/', 'worker/index.html'):
+            status, html, _ = mod.as_user(uid, roles, path=path)
+            assert status == 200 and 'data-part="worker"' in html and 'href="manifest-worker.webmanifest"' in html
+            assert '<title>АК-День Монтажник</title>' in html and 'data-part-title="Монтажник"' in html
+    for uid, roles in ((BOSS, 'owner'), (CASHIER, 'admin'), (VIEWER, 'viewer')):
+        status, html, _ = mod.as_user(uid, roles, path='')
+        assert status == 200 and 'data-part' not in html and 'href="manifest.webmanifest"' in html
+    # руководитель по ссылке части попадает в главную программу; данные через адрес части (он открыт в интернет) — только монтажнику
+    status, _, headers = mod.as_user(BOSS, 'owner', path='worker/')
+    assert status == 302 and headers['Location'] == '../'
+    for uid, roles in ((BOSS, 'owner'), (CASHIER, 'admin'), (VIEWER, 'viewer')):
+        assert mod.as_user(uid, roles, path='worker/api/ak/me')[0] == 403
+        assert mod.as_user(uid, roles, path='worker/api/admin/feedback')[0] == 403
+    # всё, что нужно части (файлы, значки, API), — под её адресом: ядро пускает из интернета только адреса из external
+    for path in ('worker/app.js', 'worker/assets/icon-192.png', 'worker/sw.js', 'worker/api/ak/me'):
+        assert mod.as_user(WORKER, 'installer', path=path)[0] == 200, path
+    assert mod.as_user(WORKER, 'installer', path='worker/api/ak/me')[1]['crm_role'] == 'worker'
+    for path in ('worker/den.env', 'worker/server/ak.py', 'worker/worker/'):
+        assert mod.as_user(WORKER, 'installer', path=path)[0] == 404, path
+    assert mod.signed('POST', '/m/crm/worker/ak/v1/stop')[0] == 404  # служебные адреса ядра — не через часть
+    status, manifest, _ = mod.as_user(WORKER, 'installer', path='worker/manifest-worker.webmanifest')
+    assert status == 200 and manifest['name'] == 'АК-День Монтажник' and manifest['start_url'] == './' and manifest['scope'] == './'
+    assert 'id' not in manifest and all(icon['src'].startswith('assets/') for icon in manifest['icons'])
+    assert mod.as_user(WORKER, 'installer', 'POST', 'worker/api/crm/clients', rows({'id': str(uuid.uuid4()), 'name': 'x'}))[0] == 403
+    # данные руководителя закрыты на сервере: клиентов не пишет, договоров ТО не видит, служебное — только владельцу
+    assert mod.as_user(WORKER, 'installer', 'POST', 'api/crm/clients', rows({'id': str(uuid.uuid4()), 'name': 'x'}))[0] == 403
+    assert mod.as_user(WORKER, 'installer', path='api/crm/contracts/heads')[1] == []
+    assert mod.as_user(WORKER, 'installer', path='api/admin/feedback')[0] == 403
+    assert mod.as_user(WORKER, 'installer', path='api/crm/me')[1]['role'] == 'worker'
 
 
 # --- п. 3, 11: люди и роли из ядра ---

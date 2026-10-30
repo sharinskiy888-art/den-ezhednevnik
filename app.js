@@ -11,7 +11,7 @@ const NOTIFICATION_KEY = 'day-planner-notifications-v1';
 const EXPENSES_KEY = 'day-planner-expenses-v1';
 const FINANCE_LIMITS_KEY = 'day-planner-finance-limits-v1';
 const DELETED_EXPENSES_KEY = 'day-planner-deleted-expenses-v1';
-const APP_VERSION = '110';
+const APP_VERSION = '111';
 const UPDATE_SEEN_KEY = 'day-planner-update-seen-v1';
 const UPDATE_APPLIED_KEY = 'day-planner-update-applied-v1';
 const LANG_KEY = 'day-planner-lang-v1';
@@ -1928,7 +1928,7 @@ async function applyAppUpdate(automatic = false) {
   try {
     localStorage.setItem(UPDATE_APPLIED_KEY, latestAppVersion);
     const registration = await navigator.serviceWorker?.getRegistration(); if (registration) await registration.update();
-    const url = new URL('./', location.href); url.searchParams.set('v', latestAppVersion); url.searchParams.set('updated', Date.now()); location.replace(url.href);
+    const url = new URL(location.pathname, location.href); url.searchParams.set('v', latestAppVersion); url.searchParams.set('updated', Date.now()); location.replace(url.href);
   } catch {
     updateInProgress = false; localStorage.removeItem(UPDATE_APPLIED_KEY); button.disabled = false; button.textContent = 'Повторить обновление';
     showUpdatePromptIfNeeded(); toast('Автообновление не завершилось. Нажмите «Обновить» в меню.');
@@ -2547,7 +2547,10 @@ window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); instal
 $('#installButton').addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('#installButton').hidden = true; });
 showUpdatedNoticeIfNeeded();
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', async () => { await navigator.serviceWorker.register('sw.js?v=110'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
+  window.addEventListener('load', async () => {
+    // Часть монтажника: прежний service worker всей программы (…/m/crm/) ему больше не нужен — с ним уходят его кэш и уведомления
+    if (document.documentElement.dataset.part) for (const old of await navigator.serviceWorker.getRegistrations().catch(() => [])) if (!old.scope.endsWith(`/${document.documentElement.dataset.part}/`)) await old.unregister();
+    await navigator.serviceWorker.register('sw.js?v=111'); await ensurePushSubscription(false); checkForAppUpdate(false, true); setInterval(() => checkForAppUpdate(false, true), 10 * 60 * 1000); });
   navigator.serviceWorker.addEventListener('message', event => {
     if (event.data?.type !== 'DAY_PUSH') return;
     showReminderAlert(event.data.taskId || '', event.data.title || 'Новое уведомление', event.data.body || '');
@@ -2583,7 +2586,13 @@ async function employeePicker(textarea) {
   textarea.insertAdjacentElement('afterend', box);
 }
 window.DayAk = { employeePicker };
-window.addEventListener('day-ak-user-changed', async () => { await checkDataEpoch(); switchAccountData(); performSync(false); });
+window.addEventListener('day-ak-user-changed', async () => {
+  await checkDataEpoch(); switchAccountData();
+  // В АК-Сервер вошёл человек с другой ролью: монтажнику — его часть, руководителю — вся программа (страницу выбирает сервер)
+  const worker = await window.DaySync.crmRole().then(role => role === 'worker', () => null);
+  if (worker !== null && worker !== Boolean(document.documentElement.dataset.part)) { location.reload(); return; }
+  performSync(false);
+});
 // Вход сменился в другой вкладке: эта вкладка не должна дальше отправлять данные прежнего человека.
 window.addEventListener('storage', event => { if (event.key === 'day-sync-session-v1' && window.DaySync?.user()?.id !== accountLoadedFor) switchAccountData(); });
 

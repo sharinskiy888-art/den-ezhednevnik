@@ -11,7 +11,7 @@ OUT="$ROOT/build/$NAME"
 rm -rf "$OUT"; mkdir -p "$OUT/wheels"
 cp -r "$ROOT/server" "$ROOT/deploy" "$OUT/"
 rm -rf "$OUT/server/tests" "$OUT/server/__pycache__" "$OUT/deploy/windows"
-for f in index.html app.js crm.js sync.js sync-config.js i18n-en.js styles.css sw.js version.js version.json manifest.webmanifest install.html qr-iphone.svg CHANGELOG.md; do
+for f in index.html app.js crm.js sync.js sync-config.js i18n-en.js styles.css sw.js version.js version.json manifest.webmanifest manifest-worker.webmanifest install.html qr-iphone.svg CHANGELOG.md; do
   [ -f "$ROOT/$f" ] && cp "$ROOT/$f" "$OUT/"
 done
 cp -r "$ROOT/assets" "$OUT/"

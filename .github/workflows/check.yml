@@ -54,6 +54,8 @@ jobs:
         run: PYTHON=python node tools/test-live.js
       - name: Живая проверка модуля АК-Сервера — браузер + ядро-заглушка + модуль
         run: PYTHON=python node tools/test-ak.js
+      - name: Часть монтажника обновляется сама
+        run: PYTHON=python node tools/test-ak-part-update.js
       - name: Телефоны, планшет, ноутбук, ПК и синхронизация между ними
         run: PYTHON=python node tools/test-devices.js
       - name: Сценарии модуля АК — несколько сотрудников, поручение целиком, перенос, сервер выключен

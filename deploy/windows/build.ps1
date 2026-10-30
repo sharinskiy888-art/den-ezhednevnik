@@ -17,7 +17,7 @@ if ($LASTEXITCODE) { throw 'pip' }
   deploy\windows\den_server.py
 if ($LASTEXITCODE) { throw 'nuitka' }
 $dist = "$root\build\den_server.dist"
-foreach ($f in 'index.html', 'app.js', 'crm.js', 'sync.js', 'sync-config.js', 'i18n-en.js', 'styles.css', 'sw.js', 'version.js', 'version.json', 'manifest.webmanifest', 'install.html', 'qr-iphone.svg') {
+foreach ($f in 'index.html', 'app.js', 'crm.js', 'sync.js', 'sync-config.js', 'i18n-en.js', 'styles.css', 'sw.js', 'version.js', 'version.json', 'manifest.webmanifest', 'manifest-worker.webmanifest', 'install.html', 'qr-iphone.svg') {
   if (Test-Path $f) { Copy-Item $f $dist -Force }
 }
 Copy-Item assets $dist -Recurse -Force

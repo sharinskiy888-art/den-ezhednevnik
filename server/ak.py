@@ -120,6 +120,11 @@ async def reply(send, status, message, code, extra=(), body=None):
     await send({'type': 'http.response.body', 'body': data})
 
 
+# Части программы для ролей (module.json → share/external): адрес /m/crm/<часть>/… — та же программа, только экран роли
+PARTS = ('worker',)
+PARTS_BARE = tuple(f'/{name}' for name in PARTS)
+
+
 class Gate:
     """Снаружи всего приложения. Пропускает только подписанные ядром запросы под AK_BASE_PATH и отрезает префикс:
     дальше маршруты те же, что у самостоятельного сервера (/api/…, экраны)."""
@@ -183,7 +188,16 @@ class Gate:
             return await reply(send, 308, 'Адрес модуля — с косой чертой в конце', 'redirect', [(b'location', location)])
         if not path.startswith(base + '/') or not raw.startswith(base.encode() + b'/'):
             return await reply(send, 404, 'Не найдено', 'not_found')
-        inner = path[len(base):]
+        inner, part = path[len(base):], ''
+        if inner in PARTS_BARE:  # «/worker» из кнопки «Отправить» → «/worker/»: относительные ссылки части — от неё
+            location = (base + inner + '/' + ('?' + query.decode('latin-1') if query else '')).encode()
+            return await reply(send, 308, 'Адрес части — с косой чертой в конце', 'redirect', [(b'location', location)])
+        for prefix in PARTS:  # часть роли: всё её (страница, файлы, API) — под одним адресом, его ядро пускает из интернета
+            if inner.startswith(f'/{prefix}/') and raw.startswith(f'{base}/{prefix}/'.encode()):
+                inner, part, raw = inner[len(prefix) + 1:], prefix, raw[:len(base)] + raw[len(base) + len(prefix) + 1:]
+                if inner.startswith('/ak/v1/') or inner == RESTORE_PATH:  # служебное ядра и восстановление — только по своим адресам
+                    return await reply(send, 404, 'Не найдено', 'not_found')
+                break
         user = headers.get('x-ak-user', '')
         if inner.startswith('/ak/v1/'):
             # Служебные адреса вызывает только ядро, без пользователя; из браузера (cookie, Origin, Sec-Fetch) — закрыты.
@@ -196,7 +210,7 @@ class Gate:
             return await reply(send, 503, 'Идёт восстановление данных из копии. Подождите несколько секунд.', 'restoring', [(b'retry-after', b'5')])
         name = urllib.parse.unquote_plus(headers.get('x-ak-user-name', ''))[:200]  # ядро кодирует имя через quote_plus
         inner_scope = {**scope, 'path': inner, 'raw_path': raw[len(base):],
-                       'ak': {'user': user.lower(), 'roles': roles, 'org': headers.get('x-ak-org', ''), 'name': name}}
+                       'ak': {'user': user.lower(), 'roles': roles, 'org': headers.get('x-ak-org', ''), 'name': name, 'part': part}}
         if spool is not None:
             spool.seek(0)
         done = False

@@ -15,7 +15,7 @@ echo "Версия $VERSION → $REL"
 install -d -m 755 "$REL"
 cp -r "$SRC/server" "$REL/"
 rm -rf "$REL/server/tests" "$REL/server/__pycache__"
-for f in index.html app.js crm.js sync.js sync-config.js i18n-en.js styles.css sw.js version.js version.json manifest.webmanifest install.html qr-iphone.svg; do
+for f in index.html app.js crm.js sync.js sync-config.js i18n-en.js styles.css sw.js version.js version.json manifest.webmanifest manifest-worker.webmanifest install.html qr-iphone.svg; do
   [ -f "$SRC/$f" ] && cp "$SRC/$f" "$REL/"
 done
 [ -d "$SRC/assets" ] && cp -r "$SRC/assets" "$REL/"

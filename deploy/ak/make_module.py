@@ -15,14 +15,18 @@ ROOT = Path(__file__).resolve().parents[2]
 SKIP = {'task.ps1', 'den.env', 'den-setup.iss'}  # только для самостоятельной установки; секретов в пакете нет
 ABOUT = 'Ежедневник, поручения монтажникам с фото и отчётами, клиенты, объекты, заявки и ТО (CRM)'  # описание на плитке ядра
 MIN_FROM = '1.0.106'  # самая ранняя версия модуля у клиентов: пакет ставится поверх неё и любой более новой
-ROLES = ['owner', 'admin', 'cashier', 'storekeeper', 'courier', 'partner', 'viewer']
+ROLES = ['owner', 'admin', 'installer', 'cashier', 'storekeeper', 'courier', 'partner', 'viewer']
+# Кнопка «Отправить» на плитке ядра: часть программы для роли (адрес — от /m/crm/). Монтажник входит в АК-Сервер, поэтому
+# его адрес — в external; частей без входа (public) нет: телефоны и адреса клиентов видят только участники заявки.
+SHARE = [{'role': 'installer', 'title': 'Монтажник', 'path': '/worker', 'device': 'both'}]
 
 
 def module_json(version, start='den-server.exe'):
     return {'id': 'crm', 'name': 'День-CRM', 'version': version, 'protocol': 1, 'min_core': '1.0.3',
             'about': ABOUT, 'min_from': MIN_FROM,
             'start': start, 'args': [], 'start_timeout_sec': 120, 'icon': 'icon.png',
-            'subscribes': ['partner.changed'], 'emits': [], 'roles': ROLES}
+            'subscribes': ['partner.changed'], 'emits': [], 'roles': ROLES,
+            'share': SHARE, 'external': [s['path'] for s in SHARE], 'public': []}
 
 
 def png_size(data):

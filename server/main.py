@@ -18,10 +18,13 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import auth, backup, crm, db, errlog, files, legacy, migration, partners, shared, sync
-from .access import MAX_BODY, ApiError, RateLimiter, bad, client_ip, current_user, field, read_json, require_admin, user_from_token
+from .access import MAX_BODY, ApiError, RateLimiter, ak_part, bad, client_ip, current_user, field, read_json, require_admin, user_from_token
 
 STATIC_FILES = {'index.html', 'app.js', 'crm.js', 'sync.js', 'sync-config.js', 'i18n-en.js', 'styles.css', 'sw.js', 'version.js',
-                'version.json', 'manifest.webmanifest', 'install.html', 'qr-iphone.svg'}
+                'version.json', 'manifest.webmanifest', 'manifest-worker.webmanifest', 'install.html', 'qr-iphone.svg'}
+# Часть программы для роли (кнопка «Отправить» в АК-Сервере, адрес …/worker/ — ak.PARTS): тот же index.html, но со своим
+# значком-приложением и без экранов руководителя. Монтажника главный адрес переводит в его часть.
+PARTS = {'worker': ('АК-День Монтажник', 'Монтажник')}
 PHOTO_RE = re.compile(r'^data:image/(jpeg|png|webp|gif);base64,([A-Za-z0-9+/=]+)$')
 feedback_limiter = RateLimiter(db.FEEDBACK_LIMIT, 60)
 
@@ -179,12 +182,32 @@ async def api_not_found(rest: str):
     raise ApiError(404, 'Нет такого адреса API', 'not_found')
 
 
+def part_page(name):
+    title, role = PARTS[name]
+    page = (db.STATIC_DIR / 'index.html').read_text(encoding='utf-8')
+    for old, new in (('<html lang="ru">', f'<html lang="ru" data-part="{name}">'), ('href="manifest.webmanifest"', f'href="manifest-{name}.webmanifest"'),
+                     ('<a class="brand" href="#"', f'<a class="brand" data-part-title="{role}" href="#"')):
+        if old not in page:  # разметку index.html поменяли — часть без своих меток показала бы экраны руководителя
+            errlog.write('error', f'Часть {name}: в index.html нет «{old}»')
+            raise ApiError(500, 'Часть программы не собралась. Сообщите разработчику.', 'part_broken')
+        page = page.replace(old, new, 1)
+    page = re.sub(r'<title>[^<]*</title>', f'<title>{title}</title>', page, count=1)
+    return Response(page, media_type='text/html; charset=utf-8', headers={'Cache-Control': 'no-cache'})
+
+
 @app.api_route('/{path:path}', methods=['GET', 'HEAD'])
-async def screens(path: str):
+async def screens(path: str, request: Request):
     """Экраны приложения — только из списка, чтобы наружу не ушли код сервера, база или .git."""
     if db.STATIC_DIR is None:
         raise ApiError(404, 'Не найдено', 'not_found')
     path = path or 'index.html'
+    part = ak_part(request)
+    if path == 'index.html' and part == 'redirect':  # права проверяет и API; здесь — чтобы монтажник не видел экранов руководителя
+        return Response(status_code=302, headers={'Location': 'worker/' + ('?' + request.url.query if request.url.query else ''), 'Cache-Control': 'no-store'})
+    if path == 'index.html' and part == 'main':  # руководитель открыл ссылку части — ему вся программа
+        return Response(status_code=302, headers={'Location': '../' + ('?' + request.url.query if request.url.query else ''), 'Cache-Control': 'no-store'})
+    if path == 'index.html' and part in PARTS:
+        return part_page(part)
     allowed = path in STATIC_FILES or (path.startswith('assets/') and re.fullmatch(r'assets/[\w.-]+', path))
     target = (db.STATIC_DIR / path).resolve() if allowed else None
     if not target or not target.is_file() or target.parent not in (db.STATIC_DIR, db.STATIC_DIR / 'assets'):

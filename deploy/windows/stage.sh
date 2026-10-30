@@ -22,7 +22,7 @@ rm -rf "$STAGE/python/Lib/site-packages/bin"
 find "$STAGE/python" -name __pycache__ -prune -exec rm -rf {} +
 mkdir "$STAGE/server"
 cp server/*.py "$STAGE/server/"
-for f in index.html app.js crm.js sync.js sync-config.js i18n-en.js styles.css sw.js version.js version.json manifest.webmanifest install.html qr-iphone.svg; do
+for f in index.html app.js crm.js sync.js sync-config.js i18n-en.js styles.css sw.js version.js version.json manifest.webmanifest manifest-worker.webmanifest install.html qr-iphone.svg; do
   [ -f "$f" ] && cp "$f" "$STAGE/"
 done
 cp -r assets "$STAGE/"

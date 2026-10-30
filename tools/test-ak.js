@@ -87,6 +87,19 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     ok(await ivan.evaluate(() => window.DaySync.crmRole()) === 'worker', 'Роль courier — монтажник CRM');
     const corner = await ivan.evaluate(() => { const el = document.elementFromPoint(24, innerHeight - 24); return el?.closest('button,a,input') ? el.outerHTML.slice(0, 80) : ''; });
     ok(corner === '', 'Левый нижний угол на телефоне свободен для кнопки «АК»', corner);
+    // 4а. Кнопка «Отправить»: у монтажника по главному адресу и по …/worker — только своя часть, своё приложение на телефоне
+    const part = await ivan.evaluate(() => { const shown = s => { const el = document.querySelector(s); return !!el && getComputedStyle(el).display !== 'none' && !!el.getClientRects().length; };
+      return { part: document.documentElement.dataset.part, manifest: document.querySelector('link[rel=manifest]').getAttribute('href'), title: document.title,
+        finance: shown('#tabFinance'), plans: shown('#mobilePlansButton'), today: shown('.bottom-nav [data-view="today"]'), shared: shown('#mobileSharedButton') }; });
+    ok(part.part === 'worker' && part.manifest === 'manifest-worker.webmanifest' && part.title === 'АК-День Монтажник' && !part.finance && !part.plans && part.today && part.shared,
+      'Монтажник видит только свою часть: дела и поручения, без финансов и планов; на телефоне — приложение «АК-День Монтажник»', JSON.stringify(part));
+    const notPart = []; ivan.on('request', r => { const u = new URL(r.url()); if (u.port === String(corePort) && !u.pathname.startsWith('/m/crm/worker/')) notPart.push(u.pathname); });
+    await ivan.goto(base + 'worker'); await ivan.waitForTimeout(1500);
+    const own = await ivan.evaluate(() => ({ part: document.documentElement.dataset.part, task: document.body.innerText.includes('Смонтировать АПС'), path: location.pathname }));
+    ok(own.part === 'worker' && own.task && own.path === '/m/crm/worker/', 'По ссылке …/worker открывается часть монтажника с его поручением', JSON.stringify(own));
+    ok(notPart.filter(p => p !== '/m/crm/worker').length === 0, 'Все запросы части — под …/worker/ (из интернета ядро пускает только его)', notPart.slice(0, 5).join(', '));
+    const bossPart = await boss.evaluate(() => ({ part: document.documentElement.dataset.part || '', finance: !document.querySelector('#tabFinance').hidden }));
+    ok(bossPart.part === '' && bossPart.finance, 'Владелец по главному адресу видит всю программу', JSON.stringify(bossPart));
     // 5. В том же браузере вошёл другой сотрудник: данные прежнего не уходят под его именем
     boss.expect409 = true;
     await bossContext.addCookies([{ name: 'ak_core_test', value: encodeURIComponent(`${OLGA}|viewer`), url: base }]);

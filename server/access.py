@@ -143,11 +143,24 @@ def ak_crm_role(roles):
     return 'viewer' if roles == {'viewer'} else 'worker'
 
 
+def ak_part(request: Request):
+    """Какую часть программы показать. По адресу части (…/worker/) — её, но только монтажнику: адрес части ядро открывает
+    из интернета, и руководителю там делать нечего — его 'main' переводит на главный адрес. Монтажнику по главному
+    адресу — 'redirect' в его часть (экраны руководителя ему не открываются). Остальным — вся программа ('')."""
+    ident = request.scope.get('ak') or {}
+    worker = db.AK and ak_crm_role(ident.get('roles') or []) == 'worker'
+    if ident.get('part'):
+        return ident['part'] if worker else 'main'
+    return 'redirect' if worker else ''
+
+
 def ak_user(request: Request) -> User:
     ident = request.scope.get('ak') or {}
     uid = ident.get('user') or ''
     if not uid:
         raise ApiError(401, 'Откройте «День» через АК-Сервер: вход — там', 'no_user')
+    if ak_part(request) == 'main':  # через адрес части (он открыт в интернет) — только данные монтажника
+        raise ApiError(403, 'Это адрес части для монтажника. Откройте «День» по главному адресу.', 'part_only')
     expected = request.headers.get('x-den-user', '').lower()
     if expected and expected != uid:  # в АК-Сервер вошёл другой сотрудник, а вкладка ещё с данными прежнего
         raise ApiError(409, 'В АК-Сервер вошёл другой сотрудник. Данные переключаются.', 'user_changed')
