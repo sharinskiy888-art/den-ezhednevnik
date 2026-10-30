@@ -307,7 +307,7 @@ dialog { border-radius:12px;box-shadow:0 20px 55px rgba(25,41,57,.22); }.close-b
 .theme-picker { display:flex; gap:12px; }
 .theme-picker button { width:36px; height:36px; border-radius:50%; border:3px solid transparent; box-shadow:0 0 0 1px var(--line); padding:0; }
 .theme-picker button[aria-pressed="true"] { border-color:#fff; box-shadow:0 0 0 3px var(--violet); }
-.theme-picker [data-theme-choice="blue"] { background:#0e3764; } .theme-picker [data-theme-choice="green"] { background:#0f5a43; } .theme-picker [data-theme-choice="crimson"] { background:#8a1c2b; } .theme-picker [data-theme-choice="purple"] { background:#4b2a8c; } .theme-picker [data-theme-choice="graphite"] { background:#2a3140; }
+.theme-picker [data-theme-choice="blue"] { background:#1d4f86; } .theme-picker [data-theme-choice="green"] { background:#0f5a43; } .theme-picker [data-theme-choice="crimson"] { background:#8a1c2b; } .theme-picker [data-theme-choice="purple"] { background:#4b2a8c; } .theme-picker [data-theme-choice="graphite"] { background:#2a3140; }
 .sv-leave{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:10px 0 0;color:var(--muted);font-size:12px}
 .crm-tabs{grid-template-columns:repeat(auto-fit,minmax(0,1fr))}.crm-search input{width:100%}.crm-list{display:grid;gap:6px;margin-top:6px}
 .crm-row{display:grid;gap:3px;width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);text-align:left}.crm-row b{font-size:13px;font-weight:700;overflow-wrap:anywhere}.crm-row small{color:var(--muted);font-size:11px}
@@ -321,3 +321,94 @@ dialog { border-radius:12px;box-shadow:0 20px 55px rgba(25,41,57,.22); }.close-b
 html.ak-mode .sidebar { padding-bottom:88px; }
 @media(max-width:850px){html.ak-mode .bottom-nav{padding-left:calc(64px + env(safe-area-inset-left))}}
 .ak-legacy-list { display:block !important; }.ak-legacy-row { display:grid;grid-template-columns:1fr auto;gap:7px;margin-top:9px; }.ak-legacy-row small { grid-column:1/-1;margin:0 !important;color:var(--ink) !important;font-size:12px !important;overflow-wrap:anywhere; }.ak-legacy-row select { min-width:0; }
+
+/* ═══ Единый стиль АК (утверждён Shamil 29.10.2026, эталон — АК-Учёт 1.0.9, «Глубокий тёмно-синий») ═══
+   Всегда последний блок файла. Значения — из АК-Экосистема\Дизайн, своих цветов не придумывать.
+   Цветовые темы меняют только синий цвет кнопок, меню и вкладок; жёлтое «где вы сейчас» остаётся. */
+@font-face{font-family:"AK Manrope";src:url(assets/manrope-cyrillic-wght-normal.woff2) format("woff2");font-weight:200 800;font-display:swap;unicode-range:U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116}
+@font-face{font-family:"AK Manrope";src:url(assets/manrope-latin-wght-normal.woff2) format("woff2");font-weight:200 800;font-display:swap;unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+:root{--font:"AK Manrope",Arial,sans-serif;
+ --side-a:#0b1f3a;--side-b:#163a63;--tab-a:#183f6b;--tab-b:#0b1f3a;--hi:#facc15;--hi2:#fde68a;--hi-t:#0b1f3a;
+ --navy:#0f2a4a;--blue:#1f5fa8;--text:#1b2a41;--line2:#c6d1de;--ring:#1f5fa82e;
+ --btn-a:#1d4f86;--btn-b:#0f2f55;--ok-a:#1a9a4b;--ok-b:#0d6b31;--red:#c0392b;
+ --ak-shadow:0 1px 0 #fff inset,0 1px 2px #0f2a4a12,0 10px 30px -6px #0f2a4a1f;
+ --ak-btn:linear-gradient(180deg,var(--btn-a),var(--btn-b));
+ --ak-btn-sh:0 1px 0 #ffffff2e inset,0 -2px 0 #0003 inset,0 4px 10px -2px #0f2a4a55;
+ --ak-on:linear-gradient(180deg,var(--hi2),var(--hi));
+ /* переменные «Дня» → цвета АК */
+ --bg:#e6ebf2;--surface:#fff;--ink:#1b2a41;--muted:#5b6b85;--line:#d8e0ea;
+ --violet:#1d4f86;--violet-soft:#e3ebf5;--shadow:var(--ak-shadow)}
+:root[data-theme]{--btn-a:color-mix(in srgb,var(--violet) 82%,#fff);--btn-b:var(--violet);--side-a:color-mix(in srgb,var(--violet) 55%,#000);--side-b:var(--violet);--tab-a:var(--violet);--tab-b:color-mix(in srgb,var(--violet) 55%,#000)}
+body{font-family:var(--font);color:var(--text);background:linear-gradient(180deg,#eaeff5 0,#e2e8f0 100%) fixed}
+h1,.topbar h1{color:var(--navy);font-weight:800}
+
+/* Меню слева: тёмно-синее, открытый пункт — жёлтый */
+.sidebar{background:linear-gradient(180deg,var(--side-a),var(--side-b));border-right:0;color:#fff}
+.brand{color:#fff}
+.brand-mark{position:relative;border-radius:9px;background:var(--ak-btn);box-shadow:0 1px 0 #ffffff2e inset,0 4px 10px -2px #0006}
+.brand-mark::after{content:"";position:absolute;left:25%;right:25%;bottom:5px;height:2px;border-radius:2px;background:var(--hi)}
+.nav-item{color:#d6e3f0;border-radius:12px}
+.nav-item:hover{background:#ffffff14;color:#fff}
+.nav-item.active{background:var(--ak-on);color:var(--hi-t);font-weight:800;box-shadow:0 1px 0 #fff8 inset,0 4px 10px -4px #0008}
+.sidebar-footer{border-top-color:#ffffff24}
+.sidebar-footer strong{color:#fff}.sidebar-footer small{color:#a9bad1}
+.sidebar .progress-ring{background:conic-gradient(var(--hi) calc(var(--p) * 1%),#ffffff2e 0)}
+.sidebar .progress-ring::after{background:var(--side-b)}.sidebar .progress-ring span{color:#fff}
+
+/* Карточки: белые, скругление 16, мягкая тень */
+.focus-card,.stat-card,.task,.week-overview-link,.quick-capture,.shared-task-card,.member-card,.crm-row,.week-strip{background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:var(--ak-shadow)}
+.task{border-radius:12px}
+.task:hover{box-shadow:var(--ak-shadow),0 0 0 2px var(--ring)}
+#listTitle,#financeBreakdownSection .section-heading h2{padding-left:10px;border-left:4px solid var(--hi)}
+.eyebrow,.card-label{color:var(--blue)}
+
+/* Кнопки: объёмные, синий перелив, блик сверху, тёмная кромка снизу, проседают при нажатии */
+.primary-button,.quick-submit,.finance-submit,.fab,.mobile-add,.update-prompt button{background:var(--ak-btn);color:#fff;border:0;border-radius:12px;font-weight:700;box-shadow:var(--ak-btn-sh);transition:transform .08s,box-shadow .15s,filter .15s}
+.primary-button,.secondary-button,.danger-button{min-height:42px;border-radius:12px;font-weight:700}
+.secondary-button{background:linear-gradient(180deg,#fff,#f3f6fa);color:var(--navy);box-shadow:inset 0 0 0 1px var(--line2),0 1px 0 #fff inset,0 2px 6px -2px #0f2a4a26;transition:transform .08s,filter .15s}
+.danger-button,.finance-delete{background:linear-gradient(180deg,#c9402f,#962012);color:#fff;border:0;box-shadow:var(--ak-btn-sh)}
+.primary-button:hover,.secondary-button:hover,.danger-button:hover,.quick-submit:hover,.finance-submit:hover,.fab:hover,.mobile-add:hover{filter:brightness(1.1)}
+.primary-button:active,.secondary-button:active,.danger-button:active,.quick-submit:active,.finance-submit:active,.fab:active,.mobile-add:active{transform:translateY(1px);box-shadow:0 1px 0 #ffffff2e inset,0 2px 4px -1px #0f2a4a55}
+.quick-submit{min-height:42px}
+.fab{border-radius:14px;padding:14px 22px;font-size:16px}
+.mobile-add{border-color:var(--bg)}
+@media(min-width:851px){.day-button.selected{background:var(--ak-btn)!important;box-shadow:var(--ak-btn-sh)!important;border-radius:12px}}
+
+/* Вкладки: тёмная панель, открытая вкладка — жёлтая */
+.app-tabs,.period-switch,.period-nav,.planning-tabs,.task-type-switch,.shared-tabs,.finance-kind-switch,.lang-switch,.crm-stages{background:linear-gradient(180deg,var(--tab-a),var(--tab-b))!important;border:0!important;border-radius:16px!important;padding:5px!important;gap:5px}
+.app-tab,.period-button,.period-nav button,.planning-tab,.task-type-switch button,.shared-tabs button,.finance-kind-button,.lang-button,.crm-stages button{background:transparent!important;color:#d6e3f0!important;border:0!important;border-radius:11px!important;font-weight:700;box-shadow:none!important}
+.app-tab.active,.period-button.active,.planning-tab.active,.task-type-switch button.active,.shared-tabs button.active,.finance-kind-button.active,.lang-button.active,.crm-stages button.active{background:var(--ak-on)!important;color:var(--hi-t)!important;font-weight:800}
+
+/* Поля ввода */
+input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]),select,textarea{border:1px solid var(--line2);border-radius:12px;background:#fff;box-shadow:0 1px 2px #0f2a4a0f inset}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--ring);border-color:var(--blue)}
+.quick-capture textarea,.quick-capture input{border:0;box-shadow:none}
+
+/* Нижнее меню на телефоне — как меню слева */
+.bottom-nav{background:linear-gradient(180deg,var(--side-b),var(--side-a))!important;border-top:0!important}
+.mobile-nav{color:#d6e3f0!important}
+.mobile-nav.active{color:var(--hi)!important}
+
+
+/* Значки-линии АК (цвет как у текста) */
+.ic{display:block;flex:0 0 auto}
+.nav-item>span:first-child,.mobile-nav>span{display:grid;place-items:center}
+.empty-icon .ic{width:28px;height:28px;color:var(--blue)}
+
+/* Зелёная — «Сохранить» */
+.primary-button[data-i18n="common.save"],.primary-button[data-i18n="notif.save"]{background:linear-gradient(180deg,var(--ok-a),var(--ok-b))}
+.task-type-switch{margin-bottom:12px}
+#financeView .period-bar{margin-bottom:14px}
+/* Второстепенные кнопки — белые объёмные; заголовки окон — тёмно-синие */
+.attachment-button,.close-button,.voice-button,.profile-photo-actions button{background:linear-gradient(180deg,#fff,#f3f6fa);color:var(--navy);border:0;border-radius:12px;box-shadow:inset 0 0 0 1px var(--line2),0 1px 0 #fff inset,0 2px 6px -2px #0f2a4a26}
+.attachment-button,.profile-photo-actions button{min-height:42px;font-weight:700}
+.attachment-button:active,.close-button:active,.voice-button:active{transform:translateY(1px)}
+.focus-illustration{background:var(--ak-btn);box-shadow:var(--ak-btn-sh);border-radius:12px}
+.check-label{background:#f3f6fa;color:var(--muted);border-radius:12px}
+dialog h2{color:var(--navy);font-weight:800}
+.menu-tool>b{color:var(--muted)}
+.menu-tool>span{display:grid;place-items:center}
+/* Телефон: задачи — строки одного белого блока */
+@media(max-width:850px){.task{border:0;border-bottom:1px solid var(--line);border-radius:0;box-shadow:none}.task:last-child{border-bottom:0}}
+/* Компьютер: рабочая область на всю ширину, не узкая колонка посередине */
+@media(min-width:851px){.main-content{width:100%;max-width:none}}

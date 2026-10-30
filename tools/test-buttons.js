@@ -695,7 +695,7 @@ async function runSpecial(browser, base, mobile, shotsDir) {
     await page.keyboard.press('Escape'); await page.reload({ waitUntil: 'load' }); await page.waitForTimeout(800);
     const r = await read(); ok(r.t === 'green' && r.v === '#0f5a43', JSON.stringify(r), 'Тема: выбор сохраняется после перезапуска');
     await click('#profileButton'); await page.waitForTimeout(250); await click('[data-theme-choice="blue"]'); await page.waitForTimeout(150);
-    const b = await read(); ok(b.t === '' && b.v === '#0e3764', JSON.stringify(b), 'Тема: «Синий» возвращает основной цвет');
+    const b = await read(); ok(b.t === '' && b.v === '#1d4f86', JSON.stringify(b), 'Тема: «Синий» возвращает основной цвет');
   });
 
   await scenario('Уведомления: частота напоминаний выбирается и сохраняется', null, async ({ page, ok, click }) => {

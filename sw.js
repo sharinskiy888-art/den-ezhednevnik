@@ -1,5 +1,5 @@
 const CACHE='day-planner-v108';
-const ASSETS=['./?v=108','index.html?v=108','styles.css?v=108','sync-config.js?v=108','sync.js?v=108','i18n-en.js?v=108','app.js?v=108','crm.js?v=108','version.js?v=108','version.json?v=108','manifest.webmanifest','assets/icon.svg','assets/icon-192.png','assets/icon-512.png'];
+const ASSETS=['./?v=108','index.html?v=108','styles.css?v=108','sync-config.js?v=108','sync.js?v=108','i18n-en.js?v=108','app.js?v=108','crm.js?v=108','version.js?v=108','version.json?v=108','manifest.webmanifest','assets/icon.svg','assets/manrope-cyrillic-wght-normal.woff2','assets/manrope-latin-wght-normal.woff2','assets/icon-192.png','assets/icon-512.png'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',event=>{

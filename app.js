@@ -1469,7 +1469,7 @@ function renderNotificationSettings() {
 async function openNotificationDialog() { $('#updateDialog').close(); renderNotificationSettings(); $('#notificationDialog').showModal(); if ('Notification' in window && Notification.permission === 'default') await enableNotifications(); }
 async function saveNotificationSettings(event) { event.preventDefault(); notificationSettings = { exact: $('#notifyExact').checked, daily: $('#notifyDaily').checked, dailyTime: $('#notifyDailyTime').value || '09:00', repeat: $('#notifyRepeat').value || 'once', dailyTime2: $('#notifyDailyTime2').value || '18:00', overdue: $('#notifyOverdue').checked }; localStorage.setItem(notificationStorageKey(), JSON.stringify(notificationSettings)); await ensurePushSubscription(true); $('#notificationDialog').close(); checkReminders(); toast('Настройки уведомлений сохранены на этом устройстве'); }
 // Цветовая тема: хранится на устройстве; в разметке стоит data-theme (пусто = синяя).
-const THEME_COLORS = { blue: '#0e3764', green: '#0f5a43', crimson: '#8a1c2b', purple: '#4b2a8c', graphite: '#2a3140' };
+const THEME_COLORS = { blue: '#0b1f3a', green: '#0f5a43', crimson: '#8a1c2b', purple: '#4b2a8c', graphite: '#2a3140' };
 function applyTheme(name) {
   const theme = Object.hasOwn(THEME_COLORS, name) ? name : 'blue';
   if (theme === 'blue') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = theme;
